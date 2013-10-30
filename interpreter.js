@@ -108,11 +108,24 @@ Interpreter.prototype.getValueFromScope = function(id) {
  * @param {Object} node AST node defining the function.
  * @return {!Object} New function.
  */
+Interpreter.prototype.createValue = function(value) {
+  var obj = {
+    value: value,
+    type: typeof value,
+    properties: Object.create(null)
+  };
+  return obj;
+};
+
+/**
+ * Create a new function.
+ * @param {Object} node AST node defining the function.
+ * @return {!Object} New function.
+ */
 Interpreter.prototype.createFunction = function(node) {
-  var func = {};
+  var func = this.createValue(Function);
   func.parentScope = this.getScope();
-  func.node = node;
-  func.type = 'function';
+  func.node = this.node;
   return func;
 };
 
@@ -183,9 +196,9 @@ Interpreter.prototype['stepConditionalExpression'] = function() {
       this.stateStack.unshift({node: state.node.test});
     } else {
       state.done = true;
-      if (state.value && state.node.consequent) {
+      if (state.value.value && state.node.consequent) {
         this.stateStack.unshift({node: state.node.consequent});
-      } else if (!state.value && state.node.alternate) {
+      } else if (!state.value.value && state.node.alternate) {
         this.stateStack.unshift({node: state.node.alternate});
       }
     }
@@ -210,7 +223,7 @@ Interpreter.prototype['stepDoWhileStatement'] = function() {
     this.stateStack.unshift({node: state.node.test});
   } else {
     state.condition = false;
-    if (!state.value) {
+    if (!state.value.value) {
       this.stateStack.shift();
     } else if (state.node.body) {
       this.stateStack.unshift({node: state.node.body});
@@ -241,8 +254,8 @@ Interpreter.prototype['stepLogicalExpression'] = function() {
     state.doneLeft = true;
     this.stateStack.unshift({node: node.left});
   } else if (!state.doneRight) {
-    if ((node.operator == '&&' && !state.value) ||
-        (node.operator == '||' && state.value)) {
+    if ((node.operator == '&&' && !state.value.value) ||
+        (node.operator == '||' && state.value.value)) {
       // Shortcut evaluation.
       this.stateStack.shift();
       this.stateStack[0].value = state.value;
@@ -268,8 +281,8 @@ Interpreter.prototype['stepBinaryExpression'] = function() {
     this.stateStack.unshift({node: node.right});
   } else {
     this.stateStack.shift();
-    var leftValue = state.leftValue;
-    var rightValue = state.value;
+    var leftValue = state.leftValue.value;
+    var rightValue = state.value.value;
     var value;
     if (node.operator == '==') {
       value = leftValue == rightValue;
@@ -312,7 +325,7 @@ Interpreter.prototype['stepBinaryExpression'] = function() {
     } else {
       throw 'Unknown binary operator: ' + node.operator;
     }
-    this.stateStack[0].value = value;
+    this.stateStack[0].value = this.createValue(value);
   }
 };
 
@@ -326,26 +339,26 @@ Interpreter.prototype['stepUnaryExpression'] = function() {
     this.stateStack.shift();
     var value;
     if (node.operator == '-') {
-      value = -state.value;
+      value = -state.value.value;
     } else if (node.operator == '!') {
-      value = !state.value;
+      value = !state.value.value;
     } else if (node.operator == '~') {
-      value = ~state.value;
+      value = ~state.value.value;
     } else if (node.operator == 'typeof') {
-      value = typeof state.value;
+      value = typeof state.value.value;
     } else if (node.operator == 'void') {
       value = undefined;
     } else {
       throw 'Unknown unary operator: ' + node.operator;
     }
-    this.stateStack[0].value = value;
+    this.stateStack[0].value = this.createValue(value);
   }
 };
 
 Interpreter.prototype['stepLiteral'] = function() {
   var state = this.stateStack[0];
   this.stateStack.shift();
-  this.stateStack[0].value = state.node.value;
+  this.stateStack[0].value = this.createValue(state.node.value);
 };
 
 Interpreter.prototype['stepFunctionDeclaration'] = function() {

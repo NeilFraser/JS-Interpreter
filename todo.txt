@@ -1,6 +1,5 @@
 assignment
 ++ / --
-Convert primitives to data objects
 for loops
 break/continue
 object literals
