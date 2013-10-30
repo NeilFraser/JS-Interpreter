@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Interpreter</title>
+  <script src="acorn.js"></script>
+  <script src="interpreter.js"></script>
+</head>
+<body>
+  <script>
+    var myInterpreter;
+    function parseButton() {
+      myInterpreter = new Interpreter(document.getElementById('code').value);
+    }
+    function stepButton() {
+      myInterpreter.step();
+    }
+    function runButton() {
+      myInterpreter.run();
+    }
+  </script>
+  <h1>Interpreter</h1>
+  <p>Enter JavaScript here:</p>
+  <p><textarea id="code" style="width: 100%; height: 10em;">
+    2 * (3) + 4;
+  </textarea><br>
+  <button onclick="parseButton()">Parse</button>
+  <button onclick="stepButton()">Step</button>
+  <button onclick="runButton()">Run</button>
+  </p>
+
+</body>
+</html>

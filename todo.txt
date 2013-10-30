@@ -1,0 +1,16 @@
+assignment
+++ / --
+Convert primitives to data objects
+for loops
+break/continue
+object literals
+object properties
+delete
+in
+Expose external API (Math, Console)
+
+Strings
+Regex
+Exceptions
+Labeled statements
+Object inheritance
