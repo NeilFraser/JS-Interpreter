@@ -55,6 +55,84 @@ Interpreter.prototype.run = function() {
 };
 
 /**
+ * Create a new data object for a primitive.
+ * @param {undefined|null|boolean|number|string} data Data to encapsulate.
+ * @return {!Object} New data object.
+ */
+Interpreter.prototype.createPrimitive = function(data) {
+  var obj = {
+    data: data,
+    isPrimitive: true,
+    type: typeof data
+  };
+  return obj;
+};
+
+/**
+ * Create a new data object.
+ * @param {*} data Data to encapsulate.
+ * @return {!Object} New data object.
+ */
+Interpreter.prototype.createValue = function(constructor) {
+  var obj = {
+    data: new constructor(), // TODO: create tostring/tonumber methods.
+    isPrimitive: false,
+    type: ((constructor instanceof Function) ? 'function' : 'object'),
+    constructor: constructor,
+    properties: Object.create(null)
+  };
+  return obj;
+};
+
+/**
+ * Create a new function.
+ * @param {Object} node AST node defining the function.
+ * @return {!Object} New function.
+ */
+Interpreter.prototype.createFunction = function(node) {
+  var func = this.createValue(Function);
+  func.parentScope = this.getScope();
+  func.node = node;
+  return func;
+};
+
+/**
+ * Fetch a property value from a data object.
+ * @param {!Object} obj Data object.
+ * @param {!Object} name Name of property.
+ * @return {Object} Property value (may be undefined).
+ */
+Interpreter.prototype.getProperty = function(obj, name) {
+  if (!obj.isPrimitive && name.data in obj.properties) {
+    return obj.properties[name.data]
+  }
+  // TODO: Recurse to parent objects.
+  return undefined;
+};
+
+/**
+ * Does the named property exist on a data object.
+ * @param {!Object} obj Data object.
+ * @param {!Object} name Name of property.
+ * @return {boolean} True if property exists.
+ */
+Interpreter.prototype.hasProperty = function(obj, name) {
+  return !obj.isPrimitive && name.data in obj.properties;
+};
+
+/**
+ * Set a property value on a data object.
+ * @param {!Object} obj Data object.
+ * @param {!Object} name Name of property.
+ * @param {*} value New property value.
+ */
+Interpreter.prototype.setProperty = function(obj, name, value) {
+  if (!obj.isPrimitive) {
+    obj.properties[name.data] = value;
+  }
+};
+
+/**
  * Returns the current scope from the stateStack.
  * @return {!Object} Current scope dictionary.
  */
@@ -74,13 +152,13 @@ Interpreter.prototype.getScope = function() {
  * @return {!Object} New scope.
  */
 Interpreter.prototype.createScope = function(node, parentScope) {
-  var scope = Object.create(null);
-  scope[' '] = parentScope;  // Space is an illegal identifier.
+  var scope = this.createValue(Object);
+  scope.parentScope = parentScope;  // Space is an illegal identifier.
 
   if (node.type == 'FunctionDeclaration' ||
       node.type == 'FunctionExpression') {
     for (var i = 0; i < node.params.length; i++) {
-      state.scope[node.params[i].name] = undefined;
+      this.setProperty(state.scope, node.params[i].name, undefined);
     }
   }
   this.populateScope_(node, scope);
@@ -89,115 +167,28 @@ Interpreter.prototype.createScope = function(node, parentScope) {
 
 /**
  * Retrieves a value from the scope chain.
- * @param {string} name Name of variable.
+ * @param {!Object} name Name of variable.
  * @throws {string} Error if identifier does not exist.
  */
 Interpreter.prototype.getValueFromScope = function(name) {
   var scope = this.getScope();
   while (scope) {
-    if (name in scope) {
-      return scope[name];
+    if (this.hasProperty(scope, name)) {
+      return this.getProperty(scope, name);
     }
-    scope = scope[' '];
+    scope = scope.parentScope;
   }
   throw 'Unknown identifier: ' + name;
 };
 
 /**
- * Sets a value to the scope chain.
+ * Sets a value to the currest scope.
  * @param {string} name Name of variable.
  * @param {*} value Value.
- * @throws {string} Error if identifier does not exist.
  */
 Interpreter.prototype.setValueToScope = function(name, value) {
   var scope = this.getScope();
-  while (scope) {
-    if (name in scope) {
-      scope[name] = value;
-      return;
-    }
-    scope = scope[' '];
-  }
-  throw 'Unknown identifier: ' + name;
-};
-
-/**
- * Gets a value from the scope chain or from an object property.
- * @param {string|!Array} name Name of variable or object/propname tuple.
- * @return {*} Value.
- */
-Interpreter.prototype.getValue = function(left, value) {
-  if (typeof left == 'string') {
-    return this.getValueFromScope(left);
-  } else {
-    var obj = left[0];
-    var prop = left[1];
-    return this.getProperty(obj, prop);
-  }
-};
-
-/**
- * Sets a value to the scope chain or to an object property.
- * @param {string|!Array} name Name of variable or object/propname tuple.
- * @param {*} value Value.
- */
-Interpreter.prototype.setValue = function(left, value) {
-  if (typeof left == 'string') {
-    this.setValueToScope(left, value);
-  } else {
-    var obj = left[0];
-    var prop = left[1];
-    this.setProperty(obj, prop, value);
-  }
-};
-
-/**
- * Create a new data object.
- * @param {*} data Data to encapsulate.
- * @return {!Object} New data object.
- */
-Interpreter.prototype.createValue = function(data) {
-  var obj = {
-    data: data,
-    constructor: data.constructor,
-    properties: Object.create(null)
-  };
-  return obj;
-};
-
-/**
- * Create a new function.
- * @param {Object} node AST node defining the function.
- * @return {!Object} New function.
- */
-Interpreter.prototype.createFunction = function(node) {
-  var func = this.createValue(new Function());
-  func.parentScope = this.getScope();
-  func.node = node;
-  return func;
-};
-
-/**
- * Fetch a property value from a data object.
- * @param {!Object} obj Data object.
- * @param {!Array} name Name of property.
- * @return {*} Property value (may be undefined).
- */
-Interpreter.prototype.getProperty = function(obj, name) {
-  if (name.data in obj.properties) {
-    return obj.properties[name.data]
-  }
-  // TODO: Recurse to parent objects.
-  return undefined;
-};
-/**
- * Set a property value on a data object.
- * @param {!Object} obj Data object.
- * @param {!Array} name Name of property.
- * @param {*} value New property value.
- */
-Interpreter.prototype.setProperty = function(obj, name, value) {
-  obj.properties[name.data] = value;
+  this.setProperty(scope, name, value);
 };
 
 /**
@@ -209,7 +200,8 @@ Interpreter.prototype.setProperty = function(obj, name, value) {
 Interpreter.prototype.populateScope_ = function(node, scope) {
   if (node.type == 'VariableDeclaration') {
     for (var i = 0; i < node.declarations.length; i++) {
-      scope[node.declarations[i].id.name] = undefined;
+      this.setProperty(scope,
+          this.createPrimitive(node.declarations[i].id.name), undefined);
     }
   }
   var thisIterpreter = this;
@@ -232,6 +224,36 @@ Interpreter.prototype.populateScope_ = function(node, scope) {
         recurse(prop);
       }
     }
+  }
+};
+
+/**
+ * Gets a value from the scope chain or from an object property.
+ * @param {!Object|!Array} name Name of variable or object/propname tuple.
+ * @return {*} Value.
+ */
+Interpreter.prototype.getValue = function(left, value) {
+  if (left instanceof Array) {
+    var obj = left[0];
+    var prop = left[1];
+    return this.getProperty(obj, prop);
+  } else {
+    return this.getValueFromScope(left);
+  }
+};
+
+/**
+ * Sets a value to the scope chain or to an object property.
+ * @param {!Object|!Array} name Name of variable or object/propname tuple.
+ * @param {*} value Value.
+ */
+Interpreter.prototype.setValue = function(left, value) {
+  if (left instanceof Array) {
+    var obj = left[0];
+    var prop = left[1];
+    this.setProperty(obj, prop, value);
+  } else {
+    this.setValueToScope(left, value);
   }
 };
 
@@ -286,7 +308,7 @@ Interpreter.prototype['stepDoWhileStatement'] = function() {
   var state = this.stateStack[0];
   if (state.node.type == 'DoWhileStatement' && state.condition === undefined) {
     // First iteration of do/while executes without checking condition.
-    state.value = this.createValue(true);
+    state.value = this.createPrimitive(true);
     state.condition = true;
   }
   if (!state.condition) {
@@ -396,7 +418,7 @@ Interpreter.prototype['stepBinaryExpression'] = function() {
     } else {
       throw 'Unknown binary operator: ' + node.operator;
     }
-    this.stateStack[0].value = this.createValue(value);
+    this.stateStack[0].value = this.createPrimitive(value);
   }
 };
 
@@ -416,20 +438,20 @@ Interpreter.prototype['stepUnaryExpression'] = function() {
     } else if (node.operator == '~') {
       value = ~state.value.data;
     } else if (node.operator == 'typeof') {
-      value = typeof state.value.data;
+      value = typeof state.value.type;
     } else if (node.operator == 'void') {
       value = undefined;
     } else {
       throw 'Unknown unary operator: ' + node.operator;
     }
-    this.stateStack[0].value = this.createValue(value);
+    this.stateStack[0].value = this.createPrimitive(value);
   }
 };
 
 Interpreter.prototype['stepLiteral'] = function() {
   var state = this.stateStack[0];
   this.stateStack.shift();
-  this.stateStack[0].value = this.createValue(state.node.value);
+  this.stateStack[0].value = this.createPrimitive(state.node.value);
 };
 
 Interpreter.prototype['stepFunctionDeclaration'] = function() {
@@ -466,7 +488,7 @@ Interpreter.prototype['stepVariableDeclarator'] = function() {
     state.done = true;
     this.stateStack.unshift({node: node.init});
   } else {
-    this.setValue(node.id.name, state.value);
+    this.setValue(this.createPrimitive(node.id.name), state.value);
     this.stateStack.shift();
   }
 };
@@ -474,8 +496,8 @@ Interpreter.prototype['stepVariableDeclarator'] = function() {
 Interpreter.prototype['stepIdentifier'] = function() {
   var state = this.stateStack[0];
   this.stateStack.shift();
-  this.stateStack[0].value = state.assign ? state.node.name :
-      this.getValueFromScope(state.node.name);
+  var name = this.createPrimitive(state.node.name);
+  this.stateStack[0].value = state.assign ? name : this.getValueFromScope(name);
 };
 
 Interpreter.prototype['stepMemberExpression'] = function() {
@@ -568,7 +590,7 @@ Interpreter.prototype['stepObjectExpression'] = function() {
     if (valueToggle) {
       var key = state.value;
       if (typeof key == 'string') {
-        key = this.createValue(key);
+        key = this.createPrimitive(key);
       }
       state.key = key;
     } else {
@@ -596,7 +618,7 @@ Interpreter.prototype['stepArrayExpression'] = function() {
   if (!state.array) {
     state.array = this.createValue([]);
   } else {
-    this.setProperty(state.array, this.createValue(n - 1), state.value);
+    this.setProperty(state.array, this.createPrimitive(n - 1), state.value);
   }
   if (node.elements[n]) {
     state.n = n + 1;
@@ -627,16 +649,30 @@ Interpreter.prototype['stepAssignmentExpression'] = function() {
       value = rightSide;
     } else if (node.operator == '+=') {
       value = leftValue.data + rightSide.data;
-
-
-
-      // TODO:  -= %= /= *= ...
-
-
+    } else if (node.operator == '-=') {
+      value = leftValue.data - rightSide.data;
+    } else if (node.operator == '*=') {
+      value = leftValue.data * rightSide.data;
+    } else if (node.operator == '/=') {
+      value = leftValue.data / rightSide.data;
+    } else if (node.operator == '%=') {
+      value = leftValue.data % rightSide.data;
+    } else if (node.operator == '<<=') {
+      value = leftValue.data << rightSide.data;
+    } else if (node.operator == '>>=') {
+      value = leftValue.data >> rightSide.data;
+    } else if (node.operator == '>>>=') {
+      value = leftValue.data >>> rightSide.data;
+    } else if (node.operator == '&=') {
+      value = leftValue.data & rightSide.data;
+    } else if (node.operator == '^=') {
+      value = leftValue.data ^ rightSide.data;
+    } else if (node.operator == '|=') {
+      value = leftValue.data | rightSide.data;
     } else {
       throw 'Unknown assignment expression: ' + node.operator;
     }
     this.setValue(leftSide, value);
-    this.stateStack[0].value = this.createValue(value);
+    this.stateStack[0].value = this.createPrimitive(value);
   }
 };

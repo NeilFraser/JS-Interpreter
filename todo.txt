@@ -1,4 +1,3 @@
-assignment -=
 array length
 ++ / --
 for loops
