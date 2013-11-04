@@ -30,16 +30,8 @@
 var Interpreter = function(code) {
   this.ast = acorn.parse(code);
   var scope = this.createScope(this.ast, null);
-  var alertWrapper = function(text) {
-    window.alert(text.toString());
-  }
-  this.injectNativeFunction(scope, 'alert', alertWrapper);
+  this.initGlobalScope(scope);
   this.stateStack = [{node: this.ast, scope: scope}];
-};
-
-Interpreter.prototype.injectNativeFunction = function(object, name, func) {
-  this.setProperty(object, this.createPrimitive(name),
-                   this.createNativeFunction(func));
 };
 
 /**
@@ -61,6 +53,60 @@ Interpreter.prototype.step = function() {
  */
 Interpreter.prototype.run = function() {
   while(this.step()) {};
+};
+
+/**
+ * Initialize the global scope with buitin properties and functions.
+ * @param {!Object} scope Global scope.
+ */
+Interpreter.prototype.initGlobalScope = function(scope) {
+  // Initialize uneditable global properties.
+  this.setProperty(scope, this.createPrimitive('Infinity'),
+                   this.createPrimitive(Infinity), true);
+  this.setProperty(scope, this.createPrimitive('NaN'),
+                   this.createPrimitive(NaN), true);
+  this.setProperty(scope, this.createPrimitive('undefined'),
+                   this.createPrimitive(undefined), true);
+
+  // Initialize global functions.
+  var wrapper
+  wrapper = function(text) {
+    return alert(text.toString());
+  };
+  this.setProperty(scope, this.createPrimitive('alert'),
+                   this.createNativeFunction(wrapper));
+  wrapper = function(num) {
+    return isNaN(num.toNumber());
+  };
+  this.setProperty(scope, this.createPrimitive('isNaN'),
+                   this.createNativeFunction(wrapper));
+  wrapper = function(num) {
+    return isFinite(num.toNumber());
+  };
+  this.setProperty(scope, this.createPrimitive('isFinite'),
+                   this.createNativeFunction(wrapper));
+  wrapper = function(str) {
+    return parseFloat(str.toNumber());
+  };
+  this.setProperty(scope, this.createPrimitive('parseFloat'),
+                   this.createNativeFunction(wrapper));
+  wrapper = function(str, radix) {
+    return parseInt(str.toString(), radix.toNumber());
+  };
+  this.setProperty(scope, this.createPrimitive('parseInt'),
+                   this.createNativeFunction(wrapper));
+  var strFunctions = ['escape', 'unescape',
+                      'decodeURI', 'decodeURIComponent',
+                      'encodeURI', 'encodeURIComponent'];
+  for (var i = 0; i < strFunctions.length; i++) {
+    wrapper = (function(nativeFunc) {
+      return function(str) {
+        return nativeFunc(str.toString());
+      };
+    })(window[strFunctions[i]]);
+    this.setProperty(scope, this.createPrimitive(strFunctions[i]),
+                     this.createNativeFunction(wrapper));
+  }
 };
 
 /**
@@ -90,6 +136,7 @@ Interpreter.prototype.createValue = function(constructor) {
     isPrimitive: false,
     type: ((constructor instanceof Function) ? 'function' : 'object'),
     constructor: constructor,
+    fixed: Object.create(null),
     properties: Object.create(null),
     toBoolean: function() {return true;},
     toNumber: function() {return 0;},
@@ -150,10 +197,14 @@ Interpreter.prototype.hasProperty = function(obj, name) {
  * @param {!Object} obj Data object.
  * @param {!Object} name Name of property.
  * @param {*} value New property value.
+ * @param {boolean} opt_fixed Unchangable property if true.
  */
-Interpreter.prototype.setProperty = function(obj, name, value) {
-  if (!obj.isPrimitive) {
+Interpreter.prototype.setProperty = function(obj, name, value, opt_fixed) {
+  if (!obj.isPrimitive && !obj.fixed[name.toString()]) {
     obj.properties[name.toString()] = value;
+    if (opt_fixed) {
+      obj.fixed[name.toString()] = true;
+    }
   }
 };
 
@@ -618,7 +669,7 @@ Interpreter.prototype['stepCallExpression'] = function() {
         var funcState = {node: state.func.node.body, scope: scope};
         this.stateStack.unshift(funcState);
       } else if (state.func.nativeFunc) {
-        state.func.nativeFunc.apply(null, state.arguments);
+        state.value = state.func.nativeFunc.apply(null, state.arguments);
       }
     } else {
       this.stateStack.shift();
