@@ -67,6 +67,10 @@ Interpreter.prototype.initGlobalScope = function(scope) {
                    this.createPrimitive(NaN), true);
   this.setProperty(scope, this.createPrimitive('undefined'),
                    this.createPrimitive(undefined), true);
+  this.setProperty(scope, this.createPrimitive('window'),
+                   scope, true);
+  this.setProperty(scope, this.createPrimitive('self'),
+                   scope, false); // Editable.
 
   // Initialize global functions.
   var wrapper
@@ -105,6 +109,31 @@ Interpreter.prototype.initGlobalScope = function(scope) {
       };
     })(window[strFunctions[i]]);
     this.setProperty(scope, this.createPrimitive(strFunctions[i]),
+                     this.createNativeFunction(wrapper));
+  }
+
+  // Initialize Math object.
+  var myMath = this.createValue(Object);
+  this.setProperty(scope, this.createPrimitive('Math'), myMath);
+  var mathConsts = ['E', 'LN2', 'LN10', 'LOG2E', 'LOG10E', 'PI',
+                    'SQRT1_2', 'SQRT2'];
+  for (var i = 0; i < mathConsts.length; i++) {
+    this.setProperty(myMath, this.createPrimitive(mathConsts[i]),
+                     this.createPrimitive(Math[mathConsts[i]]));
+  }
+  var numFunctions = ['abs', 'acos', 'asin', 'atan', 'atan2', 'ceil', 'cos',
+                      'exp', 'floor', 'log', 'max', 'min', 'pow', 'random',
+                      'round', 'sin', 'sqrt', 'tan'];
+  for (var i = 0; i < numFunctions.length; i++) {
+    wrapper = (function(nativeFunc) {
+      return function() {
+        for (var j = 0; j < arguments.length; j++) {
+          arguments[j] = arguments[j].toNumber();
+        }
+        return nativeFunc.apply(Math, arguments);
+      };
+    })(Math[numFunctions[i]]);
+    this.setProperty(myMath, this.createPrimitive(numFunctions[i]),
                      this.createNativeFunction(wrapper));
   }
 };
@@ -611,7 +640,8 @@ Interpreter.prototype['stepIdentifier'] = function() {
   var state = this.stateStack[0];
   this.stateStack.shift();
   var name = this.createPrimitive(state.node.name);
-  this.stateStack[0].value = state.assign ? name : this.getValueFromScope(name);
+  this.stateStack[0].value = state.assign ?
+      name : this.getValueFromScope(name);
 };
 
 Interpreter.prototype['stepMemberExpression'] = function() {
@@ -623,7 +653,7 @@ Interpreter.prototype['stepMemberExpression'] = function() {
   } else if (!state.doneProperty) {
     state.doneProperty = true;
     state.object = state.value;
-    this.stateStack.unshift({node: node.property});
+    this.stateStack.unshift({node: node.property, assign: true});
   } else {
     this.stateStack.shift();
     if (state.assign) {
