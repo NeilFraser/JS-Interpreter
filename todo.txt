@@ -1,9 +1,6 @@
 array length
-++ / --
 for loops
 break/continue
-object literals
-object properties
 delete
 in
 isNaN(), isFinite(), parseInt(), etc

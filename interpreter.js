@@ -30,7 +30,16 @@
 var Interpreter = function(code) {
   this.ast = acorn.parse(code);
   var scope = this.createScope(this.ast, null);
+  var alertWrapper = function(text) {
+    window.alert(text.toString());
+  }
+  this.injectNativeFunction(scope, 'alert', alertWrapper);
   this.stateStack = [{node: this.ast, scope: scope}];
+};
+
+Interpreter.prototype.injectNativeFunction = function(object, name, func) {
+  this.setProperty(object, this.createPrimitive(name),
+                   this.createNativeFunction(func));
 };
 
 /**
@@ -63,7 +72,10 @@ Interpreter.prototype.createPrimitive = function(data) {
   var obj = {
     data: data,
     isPrimitive: true,
-    type: typeof data
+    type: typeof data,
+    toBoolean: function() {return Boolean(this.data);},
+    toNumber: function() {return Number(this.data);},
+    toString: function() {return String(this.data);}
   };
   return obj;
 };
@@ -75,11 +87,13 @@ Interpreter.prototype.createPrimitive = function(data) {
  */
 Interpreter.prototype.createValue = function(constructor) {
   var obj = {
-    data: new constructor(), // TODO: create tostring/tonumber methods.
     isPrimitive: false,
     type: ((constructor instanceof Function) ? 'function' : 'object'),
     constructor: constructor,
-    properties: Object.create(null)
+    properties: Object.create(null),
+    toBoolean: function() {return true;},
+    toNumber: function() {return 0;},
+    toString: function() {return String(constructor);}
   };
   return obj;
 };
@@ -97,14 +111,25 @@ Interpreter.prototype.createFunction = function(node) {
 };
 
 /**
+ * Create a new native function.
+ * @param {!Function} nativeFunc JavaScript function.
+ * @return {!Object} New function.
+ */
+Interpreter.prototype.createNativeFunction = function(nativeFunc) {
+  var func = this.createValue(Function);
+  func.nativeFunc = nativeFunc;
+  return func;
+};
+
+/**
  * Fetch a property value from a data object.
  * @param {!Object} obj Data object.
  * @param {!Object} name Name of property.
  * @return {Object} Property value (may be undefined).
  */
 Interpreter.prototype.getProperty = function(obj, name) {
-  if (!obj.isPrimitive && name.data in obj.properties) {
-    return obj.properties[name.data]
+  if (!obj.isPrimitive && name.toString() in obj.properties) {
+    return obj.properties[name.toString()]
   }
   // TODO: Recurse to parent objects.
   return undefined;
@@ -117,7 +142,7 @@ Interpreter.prototype.getProperty = function(obj, name) {
  * @return {boolean} True if property exists.
  */
 Interpreter.prototype.hasProperty = function(obj, name) {
-  return !obj.isPrimitive && name.data in obj.properties;
+  return !obj.isPrimitive && name.toString() in obj.properties;
 };
 
 /**
@@ -128,7 +153,7 @@ Interpreter.prototype.hasProperty = function(obj, name) {
  */
 Interpreter.prototype.setProperty = function(obj, name, value) {
   if (!obj.isPrimitive) {
-    obj.properties[name.data] = value;
+    obj.properties[name.toString()] = value;
   }
 };
 
@@ -289,9 +314,9 @@ Interpreter.prototype['stepConditionalExpression'] = function() {
       this.stateStack.unshift({node: state.node.test});
     } else {
       state.done = true;
-      if (state.value.data && state.node.consequent) {
+      if (state.value.toBoolean() && state.node.consequent) {
         this.stateStack.unshift({node: state.node.consequent});
-      } else if (!state.value.data && state.node.alternate) {
+      } else if (!state.value.toBoolean() && state.node.alternate) {
         this.stateStack.unshift({node: state.node.alternate});
       }
     }
@@ -316,7 +341,7 @@ Interpreter.prototype['stepDoWhileStatement'] = function() {
     this.stateStack.unshift({node: state.node.test});
   } else {
     state.condition = false;
-    if (!state.value.data) {
+    if (!state.value.toBoolean()) {
       this.stateStack.shift();
     } else if (state.node.body) {
       this.stateStack.unshift({node: state.node.body});
@@ -347,8 +372,8 @@ Interpreter.prototype['stepLogicalExpression'] = function() {
     state.doneLeft = true;
     this.stateStack.unshift({node: node.left});
   } else if (!state.doneRight) {
-    if ((node.operator == '&&' && !state.value.data) ||
-        (node.operator == '||' && state.value.data)) {
+    if ((node.operator == '&&' && !state.value.toBoolean()) ||
+        (node.operator == '||' && state.value.toBoolean())) {
       // Shortcut evaluation.
       this.stateStack.shift();
       this.stateStack[0].value = state.value;
@@ -374,49 +399,87 @@ Interpreter.prototype['stepBinaryExpression'] = function() {
     this.stateStack.unshift({node: node.right});
   } else {
     this.stateStack.shift();
-    var leftValue = state.leftValue.data;
-    var rightValue = state.value.data;
+    var leftSide = state.leftValue;
+    var rightSide = state.value;
     var value;
-    if (node.operator == '==') {
-      value = leftValue == rightValue;
-    } else if (node.operator == '!=') {
-      value = leftValue != rightValue;
-    } else if (node.operator == '===') {
-      value = leftValue === rightValue;
-    } else if (node.operator == '!==') {
-      value = leftValue !== rightValue;
+    if (node.operator == '==' || node.operator == '!=') {
+      if (leftSide.isPrimitive && rightSide.isPrimitive) {
+        value = leftSide.data == rightSide.data;
+      } else {
+        // TODO: Other types.
+        value = leftValue == rightValue;
+      }
+      if (node.operator == '!=') {
+        value = !value;
+      }
+    } else if (node.operator == '===' || node.operator == '!==') {
+      if (leftSide.isPrimitive && rightSide.isPrimitive) {
+        value = leftSide.data === rightSide.data;
+      } else {
+        value = leftSide === rightSide;
+      }
+      if (node.operator == '!==') {
+        value = !value;
+      }
     } else if (node.operator == '>') {
-      value = leftValue > rightValue;
+      if (leftSide.isPrimitive && rightSide.isPrimitive) {
+        value = leftSide.data > rightSide.data;
+      } else {
+        value = false;
+      }
     } else if (node.operator == '>=') {
-      value = leftValue >= rightValue;
+      if (leftSide.isPrimitive && rightSide.isPrimitive) {
+        value = leftSide.data >= rightSide.data;
+      } else {
+        value = false;
+      }
     } else if (node.operator == '<') {
-      value = leftValue < rightValue;
+      if (leftSide.isPrimitive && rightSide.isPrimitive) {
+        value = leftSide.data < rightSide.data;
+      } else {
+        value = false;
+      }
     } else if (node.operator == '<=') {
-      value = leftValue <= rightValue;
+      if (leftSide.isPrimitive && rightSide.isPrimitive) {
+        value = leftSide.data <= rightSide.data;
+      } else {
+        value = false;
+      }
     } else if (node.operator == '+') {
+      if (leftSide.type == 'string' || rightSide.type == 'string') {
+        var leftValue = leftSide.toString();
+        var rightValue = rightSide.toString();
+      } else {
+        var leftValue = leftSide.toNumber();
+        var rightValue = rightSide.toNumber();
+      }
       value = leftValue + rightValue;
-    } else if (node.operator == '-') {
-      value = leftValue - rightValue;
-    } else if (node.operator == '*') {
-      value = leftValue * rightValue;
-    } else if (node.operator == '/') {
-      value = leftValue / rightValue;
-    } else if (node.operator == '%') {
-      value = leftValue % rightValue;
-    } else if (node.operator == '&') {
-      value = leftValue & rightValue;
-    } else if (node.operator == '|') {
-      value = leftValue | rightValue;
-    } else if (node.operator == '^') {
-      value = leftValue ^ rightValue;
-    } else if (node.operator == '<<') {
-      value = leftValue << rightValue;
-    } else if (node.operator == '>>') {
-      value = leftValue >> rightValue;
-    } else if (node.operator == '>>>') {
-      value = leftValue >>> rightValue;
     } else {
-      throw 'Unknown binary operator: ' + node.operator;
+      var leftValue = leftSide.toNumber();
+      var rightValue = rightSide.toNumber();
+      if (node.operator == '-') {
+        value = leftValue - rightValue;
+      } else if (node.operator == '*') {
+        value = leftValue * rightValue;
+      } else if (node.operator == '/') {
+        value = leftValue / rightValue;
+      } else if (node.operator == '%') {
+        value = leftValue % rightValue;
+      } else if (node.operator == '&') {
+        value = leftValue & rightValue;
+      } else if (node.operator == '|') {
+        value = leftValue | rightValue;
+      } else if (node.operator == '^') {
+        value = leftValue ^ rightValue;
+      } else if (node.operator == '<<') {
+        value = leftValue << rightValue;
+      } else if (node.operator == '>>') {
+        value = leftValue >> rightValue;
+      } else if (node.operator == '>>>') {
+        value = leftValue >>> rightValue;
+      } else {
+        throw 'Unknown binary operator: ' + node.operator;
+      }
     }
     this.stateStack[0].value = this.createPrimitive(value);
   }
@@ -432,11 +495,11 @@ Interpreter.prototype['stepUnaryExpression'] = function() {
     this.stateStack.shift();
     var value;
     if (node.operator == '-') {
-      value = -state.value.data;
+      value = -state.value.toNumber();
     } else if (node.operator == '!') {
-      value = !state.value.data;
+      value = !state.value.toNumber();
     } else if (node.operator == '~') {
-      value = ~state.value.data;
+      value = ~state.value.toNumber();
     } else if (node.operator == 'typeof') {
       value = typeof state.value.type;
     } else if (node.operator == 'void') {
@@ -545,14 +608,18 @@ Interpreter.prototype['stepCallExpression'] = function() {
       this.stateStack.unshift({node: node.arguments[n]});
     } else if (!state.doneExec) {
       state.doneExec = true;
-      var scope =
-          this.createScope(state.func.node.body, state.func.parentScope);
-      for (var i = 0; i < state.func.node.params.length; i++) {
-        scope[state.func.node.params[i].name] = state.arguments[i];
+      if (state.func.node) {
+        var scope =
+            this.createScope(state.func.node.body, state.func.parentScope);
+        for (var i = 0; i < state.func.node.params.length; i++) {
+          scope[state.func.node.params[i].name] = state.arguments[i];
+        }
+        // TODO: Add 'arguments' array here.
+        var funcState = {node: state.func.node.body, scope: scope};
+        this.stateStack.unshift(funcState);
+      } else if (state.func.nativeFunc) {
+        state.func.nativeFunc.apply(null, state.arguments);
       }
-      // TODO: Add 'arguments' array here.
-      var funcState = {node: state.func.node.body, scope: scope};
-      this.stateStack.unshift(funcState);
     } else {
       this.stateStack.shift();
       this.stateStack[0].value = state.value;
@@ -585,7 +652,7 @@ Interpreter.prototype['stepObjectExpression'] = function() {
   var valueToggle = state.valueToggle;
   var n = state.n || 0;
   if (!state.object) {
-    state.object = this.createValue({});
+    state.object = this.createValue(Object);
   } else {
     if (valueToggle) {
       var key = state.value;
@@ -643,36 +710,65 @@ Interpreter.prototype['stepAssignmentExpression'] = function() {
     this.stateStack.shift();
     var leftSide = state.leftSide;
     var rightSide = state.value;
-    var leftValue = this.getValue(leftSide);
+    var leftValue = this.getValue(leftSide).toNumber();
+    var rightValue = rightSide.toNumber();
     var value;
     if (node.operator == '=') {
       value = rightSide;
     } else if (node.operator == '+=') {
-      value = leftValue.data + rightSide.data;
+      if (leftSide.type == 'string' || rightSide.type == 'string') {
+        var leftValue = this.getValue(leftSide).toString();
+        var rightValue = rightSide.toString();
+      }
+      value = leftValue + rightValue;
     } else if (node.operator == '-=') {
-      value = leftValue.data - rightSide.data;
+      value = leftValue - rightValue;
     } else if (node.operator == '*=') {
-      value = leftValue.data * rightSide.data;
+      value = leftValue * rightValue;
     } else if (node.operator == '/=') {
-      value = leftValue.data / rightSide.data;
+      value = leftValue / rightValue;
     } else if (node.operator == '%=') {
-      value = leftValue.data % rightSide.data;
+      value = leftValue % rightValue;
     } else if (node.operator == '<<=') {
-      value = leftValue.data << rightSide.data;
+      value = leftValue << rightValue;
     } else if (node.operator == '>>=') {
-      value = leftValue.data >> rightSide.data;
+      value = leftValue >> rightValue;
     } else if (node.operator == '>>>=') {
-      value = leftValue.data >>> rightSide.data;
+      value = leftValue >>> rightValue;
     } else if (node.operator == '&=') {
-      value = leftValue.data & rightSide.data;
+      value = leftValue & rightValue;
     } else if (node.operator == '^=') {
-      value = leftValue.data ^ rightSide.data;
+      value = leftValue ^ rightValue;
     } else if (node.operator == '|=') {
-      value = leftValue.data | rightSide.data;
+      value = leftValue | rightValue;
     } else {
       throw 'Unknown assignment expression: ' + node.operator;
     }
     this.setValue(leftSide, value);
     this.stateStack[0].value = this.createPrimitive(value);
+  }
+};
+
+Interpreter.prototype['stepUpdateExpression'] = function() {
+  var state = this.stateStack[0];
+  var node = state.node;
+  if (!state.done) {
+    state.done = true;
+    this.stateStack.unshift({node: node.argument, assign: true});
+  } else {
+    this.stateStack.shift();
+    var leftSide = state.value;
+    var leftValue = this.getValue(leftSide).data;
+    var changeValue;
+    if (node.operator == '++') {
+      changeValue = leftValue + 1;
+    } else if (node.operator == '--') {
+      changeValue = leftValue - 1;
+    } else {
+      throw 'Unknown update expression: ' + node.operator;
+    }
+    this.setValue(leftSide, changeValue);
+    var returnValue = node.prefix ? returnValue : leftValue;
+    this.stateStack[0].value = this.createPrimitive(returnValue);
   }
 };
