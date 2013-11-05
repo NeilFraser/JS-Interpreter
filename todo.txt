@@ -1,4 +1,3 @@
-array length
 for loops
 break/continue
 delete

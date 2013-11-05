@@ -139,6 +139,31 @@ Interpreter.prototype.initGlobalScope = function(scope) {
 };
 
 /**
+ * Is an object of a certain class?
+ * @param {!Object} child Object to check.
+ * @param {!Object} parent Class of object.
+ * @return {boolean} True if object is the class or inherits from it.
+ *     False otherwise.
+ */
+Interpreter.prototype.isa = function(child, parent) {
+  return child === parent || child instanceof parent;
+};
+
+/**
+ * Is a value a legal integer for an array?
+ * @param {*} n Value to check.
+ * @return {NaN|number} Zero, or a positive integer if the value can be
+ * converted to such.  NaN otherwise.
+ */
+Interpreter.prototype.arrayIndex = function(n) {
+  n = Number(n);
+  if (!isFinite(n) || n != Math.floor(n) || n < 0) {
+    return NaN;
+  }
+  return n;
+};
+
+/**
  * Create a new data object for a primitive.
  * @param {undefined|null|boolean|number|string} data Data to encapsulate.
  * @return {!Object} New data object.
@@ -163,7 +188,7 @@ Interpreter.prototype.createPrimitive = function(data) {
 Interpreter.prototype.createValue = function(constructor) {
   var obj = {
     isPrimitive: false,
-    type: ((constructor instanceof Function) ? 'function' : 'object'),
+    type: (this.isa(constructor, Function) ? 'function' : 'object'),
     constructor: constructor,
     fixed: Object.create(null),
     properties: Object.create(null),
@@ -171,6 +196,9 @@ Interpreter.prototype.createValue = function(constructor) {
     toNumber: function() {return 0;},
     toString: function() {return String(constructor);}
   };
+  if (this.isa(constructor, Array)) {
+    obj.length = 0;
+  }
   return obj;
 };
 
@@ -204,11 +232,20 @@ Interpreter.prototype.createNativeFunction = function(nativeFunc) {
  * @return {Object} Property value (may be undefined).
  */
 Interpreter.prototype.getProperty = function(obj, name) {
-  if (!obj.isPrimitive && name.toString() in obj.properties) {
-    return obj.properties[name.toString()]
+  if (obj.isPrimitive && name.toString() == 'length' &&
+      obj.type == 'string') {
+    return this.createPrimitive(obj.data.length);
+  } else if (!obj.isPrimitive && name.toString() == 'length' &&
+      this.isa(obj.constructor, Array)) {
+    return this.createPrimitive(obj.length);
+  }
+  if (!obj.isPrimitive) {
+    if (name.toString() in obj.properties) {
+      return obj.properties[name.toString()]
+    }
   }
   // TODO: Recurse to parent objects.
-  return undefined;
+  return this.createPrimitive(undefined);
 };
 
 /**
@@ -218,7 +255,13 @@ Interpreter.prototype.getProperty = function(obj, name) {
  * @return {boolean} True if property exists.
  */
 Interpreter.prototype.hasProperty = function(obj, name) {
-  return !obj.isPrimitive && name.toString() in obj.properties;
+  if (name.toString() == 'length' && (obj.isPrimitive ?
+      obj.type == 'string' : this.isa(obj.constructor, Array))) {
+    return true;
+  } else if (obj.isPrimitive) {
+    return false;
+  }
+  return name.toString() in obj.properties;
 };
 
 /**
@@ -229,10 +272,35 @@ Interpreter.prototype.hasProperty = function(obj, name) {
  * @param {boolean} opt_fixed Unchangable property if true.
  */
 Interpreter.prototype.setProperty = function(obj, name, value, opt_fixed) {
-  if (!obj.isPrimitive && !obj.fixed[name.toString()]) {
-    obj.properties[name.toString()] = value;
+  name = name.toString();
+  if (obj.isPrimitive || obj.fixed[name]) {
+    return;
+  }
+  if (this.isa(obj.constructor, Array)) {
+    var i;
+    if (name == 'length') {
+      // Delete elements if length is smaller.
+      var newLength = this.arrayIndex(value.toNumber());
+      if (isNaN(newLength)) {
+        throw new RangeError('Invalid array length');
+      }
+      if (newLength < obj.length) {
+        for (i in obj.properties) {
+          i = this.arrayIndex(i);
+          if (!isNaN(i) && newLength <= i) {
+            delete obj.properties[i];
+          }
+        }
+      }
+      obj.length = newLength;
+    } else if (!isNaN(i = this.arrayIndex(name))) {
+      // Increase length if this index is larger.
+      obj.length = Math.max(obj.length, i);
+    }
+
+    obj.properties[name] = value;
     if (opt_fixed) {
-      obj.fixed[name.toString()] = true;
+      obj.fixed[name] = true;
     }
   }
 };
@@ -321,7 +389,7 @@ Interpreter.prototype.populateScope_ = function(node, scope) {
   for (var name in node) {
     var prop = node[name];
     if (prop && typeof prop == 'object') {
-      if (prop.constructor == Array) {
+      if (prop instanceof Array) {
         for (var i = 0; i < prop.length; i++) {
           recurse(prop[i]);
         }
@@ -640,8 +708,7 @@ Interpreter.prototype['stepIdentifier'] = function() {
   var state = this.stateStack[0];
   this.stateStack.shift();
   var name = this.createPrimitive(state.node.name);
-  this.stateStack[0].value = state.assign ?
-      name : this.getValueFromScope(name);
+  this.stateStack[0].value = state.assign ? name : this.getValueFromScope(name);
 };
 
 Interpreter.prototype['stepMemberExpression'] = function() {
@@ -674,7 +741,7 @@ Interpreter.prototype['stepCallExpression'] = function() {
     if (!state.func) {
       state.func = state.value;
       if (state.func.type != 'function') {
-        throw 'Not a function';
+        throw new TypeError(state.func.type + ' is not a function');
       }
       state.arguments = [];
       var n = 0;
@@ -719,7 +786,7 @@ Interpreter.prototype['stepReturnStatement'] = function() {
     do {
       this.stateStack.shift();
       if (this.stateStack.length == 0) {
-        throw 'Illegal return statement';
+        throw new SyntaxError('Illegal return statement');
       }
       state = this.stateStack[0];
     } while (state.node.type != 'CallExpression');
@@ -764,7 +831,7 @@ Interpreter.prototype['stepArrayExpression'] = function() {
   var node = state.node;
   var n = state.n || 0;
   if (!state.array) {
-    state.array = this.createValue([]);
+    state.array = this.createValue(Array);
   } else {
     this.setProperty(state.array, this.createPrimitive(n - 1), state.value);
   }
@@ -772,6 +839,7 @@ Interpreter.prototype['stepArrayExpression'] = function() {
     state.n = n + 1;
     this.stateStack.unshift({node: node.elements[n]});
   } else {
+    state.array.length = state.n;
     this.stateStack.shift();
     this.stateStack[0].value = state.array;
   }
