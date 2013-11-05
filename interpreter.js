@@ -474,8 +474,8 @@ Interpreter.prototype['stepIfStatement'] =
 Interpreter.prototype['stepConditionalExpression'] = function() {
   var state = this.stateStack[0];
   if (!state.done) {
-    if (!state.condition) {
-      state.condition = true;
+    if (!state.test) {
+      state.test = true;
       this.stateStack.unshift({node: state.node.test});
     } else {
       state.done = true;
@@ -496,20 +496,50 @@ Interpreter.prototype['stepConditionalExpression'] = function() {
 Interpreter.prototype['stepWhileStatement'] =
 Interpreter.prototype['stepDoWhileStatement'] = function() {
   var state = this.stateStack[0];
-  if (state.node.type == 'DoWhileStatement' && state.condition === undefined) {
-    // First iteration of do/while executes without checking condition.
+  if (state.node.type == 'DoWhileStatement' && state.test === undefined) {
+    // First iteration of do/while executes without checking test.
     state.value = this.createPrimitive(true);
-    state.condition = true;
+    state.test = true;
   }
-  if (!state.condition) {
-    state.condition = true;
+  if (!state.test) {
+    state.test = true;
     this.stateStack.unshift({node: state.node.test});
   } else {
-    state.condition = false;
+    state.test = false;
     if (!state.value.toBoolean()) {
       this.stateStack.shift();
     } else if (state.node.body) {
       this.stateStack.unshift({node: state.node.body});
+    }
+  }
+};
+
+Interpreter.prototype['stepForStatement'] = function() {
+  var state = this.stateStack[0];
+  var node = state.node;
+  var mode = state.mode || 0;
+  if (mode == 0) {
+    state.mode = 1;
+    if (node.init) {
+      this.stateStack.unshift({node: node.init});
+    }
+  } else if (mode == 1) {
+    state.mode = 2;
+    if (node.test) {
+      this.stateStack.unshift({node: node.test});
+    }
+  } else if (mode == 2) {
+    state.mode = 3;
+    if (!state.value.toBoolean()) {
+      // Loop complete.  Bail out.
+      this.stateStack.shift();
+    } else if (node.body) {
+      this.stateStack.unshift({node: node.body});
+    }
+  } else if (mode == 3) {
+    state.mode = 1;
+    if (node.update) {
+      this.stateStack.unshift({node: node.update});
     }
   }
 };
@@ -939,17 +969,28 @@ Interpreter.prototype['stepUpdateExpression'] = function() {
   } else {
     this.stateStack.shift();
     var leftSide = state.value;
-    var leftValue = this.getValue(leftSide).data;
+    var leftValue = this.getValue(leftSide).toNumber();
     var changeValue;
     if (node.operator == '++') {
-      changeValue = leftValue + 1;
+      changeValue = this.createPrimitive(leftValue + 1);
     } else if (node.operator == '--') {
-      changeValue = leftValue - 1;
+      changeValue = this.createPrimitive(leftValue - 1);
     } else {
       throw 'Unknown update expression: ' + node.operator;
     }
     this.setValue(leftSide, changeValue);
     var returnValue = node.prefix ? returnValue : leftValue;
     this.stateStack[0].value = this.createPrimitive(returnValue);
+  }
+};
+
+Interpreter.prototype['stepThrowStatement'] = function() {
+  var state = this.stateStack[0];
+  var node = state.node;
+  if (!state.argument) {
+    state.argument = true;
+    this.stateStack.unshift({node: node.argument});
+  } else {
+    throw state.value.toString();
   }
 };
