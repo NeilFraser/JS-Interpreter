@@ -277,6 +277,7 @@ Interpreter.prototype.setProperty = function(obj, name, value, opt_fixed) {
     return;
   }
   if (this.isa(obj.constructor, Array)) {
+    // Arrays have a magic length variable that is bound to the elements.
     var i;
     if (name == 'length') {
       // Delete elements if length is smaller.
@@ -297,12 +298,28 @@ Interpreter.prototype.setProperty = function(obj, name, value, opt_fixed) {
       // Increase length if this index is larger.
       obj.length = Math.max(obj.length, i);
     }
-
-    obj.properties[name] = value;
-    if (opt_fixed) {
-      obj.fixed[name] = true;
-    }
   }
+  // Set the property.
+  obj.properties[name] = value;
+  if (opt_fixed) {
+    obj.fixed[name] = true;
+  }
+};
+
+/**
+ * Delete a property value on a data object.
+ * @param {!Object} obj Data object.
+ * @param {!Object} name Name of property.
+ */
+Interpreter.prototype.deleteProperty = function(obj, name) {
+  name = name.toString();
+  if (obj.isPrimitive || obj.fixed[name]) {
+    return false;
+  }
+  if (name == 'length' && this.isa(obj.constructor, Array)) {
+    return false;
+  }
+  return delete obj.properties[name];
 };
 
 /**
@@ -602,6 +619,8 @@ Interpreter.prototype['stepBinaryExpression'] = function() {
         var rightValue = rightSide.toNumber();
       }
       value = leftValue + rightValue;
+    } else if (node.operator == 'in') {
+      value = this.hasProperty(rightSide, leftSide);
     } else {
       var leftValue = leftSide.toNumber();
       var rightValue = rightSide.toNumber();
@@ -638,7 +657,11 @@ Interpreter.prototype['stepUnaryExpression'] = function() {
   var node = state.node;
   if (!state.done) {
     state.done = true;
-    this.stateStack.unshift({node: node.argument});
+    var nextState = {node: node.argument};
+    if (node.operator == 'delete') {
+      nextState.assign = true;
+    }
+    this.stateStack.unshift(nextState);
   } else {
     this.stateStack.shift();
     var value;
@@ -650,6 +673,15 @@ Interpreter.prototype['stepUnaryExpression'] = function() {
       value = ~state.value.toNumber();
     } else if (node.operator == 'typeof') {
       value = typeof state.value.type;
+    } else if (node.operator == 'delete') {
+      if (state.value instanceof Array) {
+        var obj = state.value[0];
+        var name = state.value[1];
+      } else {
+        var obj = this.getScope();
+        var name = state.value;
+      }
+      value = this.deleteProperty(obj, name);
     } else if (node.operator == 'void') {
       value = undefined;
     } else {

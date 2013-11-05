@@ -1,7 +1,5 @@
 for loops
 break/continue
-delete
-in
 switch
 
 Strings
