@@ -482,42 +482,49 @@ Interpreter.prototype['stepAssignmentExpression'] = function() {
     this.stateStack.shift();
     var leftSide = state.leftSide;
     var rightSide = state.value;
-    var leftValue = this.getValue(leftSide).toNumber();
-    var rightValue = rightSide.toNumber();
+    var leftValue = this.getValue(leftSide);
+    var rightValue = rightSide;
+    var leftNumber = leftValue.toNumber();
+    var rightNumber = rightValue.toNumber();
     var value;
     if (node.operator == '=') {
       value = rightSide;
     } else if (node.operator == '+=') {
-      if (leftSide.type == 'string' || rightSide.type == 'string') {
-        var leftValue = this.getValue(leftSide).toString();
-        var rightValue = rightSide.toString();
+      var left, right;
+      if (leftValue.type == 'string' || rightValue.type == 'string') {
+        left = leftValue.toString();
+        right = rightValue.toString();
+      } else {
+        left = leftNumber;
+        right = rightNumber;
       }
-      value = leftValue + rightValue;
+      value = left + right;
     } else if (node.operator == '-=') {
-      value = leftValue - rightValue;
+      value = leftNumber - rightNumber;
     } else if (node.operator == '*=') {
-      value = leftValue * rightValue;
+      value = leftNumber * rightNumber;
     } else if (node.operator == '/=') {
-      value = leftValue / rightValue;
+      value = leftNumber / rightNumber;
     } else if (node.operator == '%=') {
-      value = leftValue % rightValue;
+      value = leftNumber % rightNumber;
     } else if (node.operator == '<<=') {
-      value = leftValue << rightValue;
+      value = leftNumber << rightNumber;
     } else if (node.operator == '>>=') {
-      value = leftValue >> rightValue;
+      value = leftNumber >> rightNumber;
     } else if (node.operator == '>>>=') {
-      value = leftValue >>> rightValue;
+      value = leftNumber >>> rightNumber;
     } else if (node.operator == '&=') {
-      value = leftValue & rightValue;
+      value = leftNumber & rightNumber;
     } else if (node.operator == '^=') {
-      value = leftValue ^ rightValue;
+      value = leftNumber ^ rightNumber;
     } else if (node.operator == '|=') {
-      value = leftValue | rightValue;
+      value = leftNumber | rightNumber;
     } else {
       throw 'Unknown assignment expression: ' + node.operator;
     }
+    value = this.createPrimitive(value);
     this.setValue(leftSide, value);
-    this.stateStack[0].value = this.createPrimitive(value);
+    this.stateStack[0].value = value;
   }
 };
 
@@ -621,6 +628,15 @@ Interpreter.prototype['stepBinaryExpression'] = function() {
   }
 };
 
+Interpreter.prototype['stepBreakStatement'] = function() {
+  do {
+    var state = this.stateStack.shift();
+    if (!state) {
+      throw new SyntaxError('Illegal break statement');
+    }
+  } while (!state.isLoop)
+};
+
 Interpreter.prototype['stepBlockStatement'] = function() {
   var state = this.stateStack[0];
   var node = state.node;
@@ -699,8 +715,18 @@ Interpreter.prototype['stepConditionalExpression'] = function() {
   }
 };
 
+Interpreter.prototype['stepContinueStatement'] = function() {
+  do {
+    this.stateStack.shift();
+    if (!this.stateStack.length) {
+      throw new SyntaxError('Illegal continue statement');
+    }
+  } while (!this.stateStack[0].isLoop)
+};
+
 Interpreter.prototype['stepDoWhileStatement'] = function() {
   var state = this.stateStack[0];
+  state.isLoop = true;
   if (state.node.type == 'DoWhileStatement' && state.test === undefined) {
     // First iteration of do/while executes without checking test.
     state.value = this.createPrimitive(true);
@@ -731,6 +757,7 @@ Interpreter.prototype['stepExpressionStatement'] = function() {
 
 Interpreter.prototype['stepForStatement'] = function() {
   var state = this.stateStack[0];
+  state.isLoop = true;
   var node = state.node;
   var mode = state.mode || 0;
   if (mode == 0) {

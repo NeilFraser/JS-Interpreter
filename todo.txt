@@ -1,10 +1,12 @@
-break/continue
 switch
 for-in loops
+Object inheritance
+this
 
-Strings
+Array methods
+String methods
 Date
 Regex
-Exceptions
+Try catch/finally
+eval
 Labeled statements
-Object inheritance
