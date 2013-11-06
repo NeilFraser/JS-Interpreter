@@ -9,4 +9,3 @@ Date
 Regex
 Try catch/finally
 eval
-Labeled statements

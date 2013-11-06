@@ -297,7 +297,7 @@ Interpreter.prototype.setProperty = function(obj, name, value, opt_fixed) {
       obj.length = newLength;
     } else if (!isNaN(i = this.arrayIndex(name))) {
       // Increase length if this index is larger.
-      obj.length = Math.max(obj.length, i);
+      obj.length = Math.max(obj.length, i + 1);
     }
   }
   // Set the property.
@@ -635,12 +635,20 @@ Interpreter.prototype['stepBinaryExpression'] = function() {
 };
 
 Interpreter.prototype['stepBreakStatement'] = function() {
-  do {
-    var state = this.stateStack.shift();
-    if (!state) {
-      throw new SyntaxError('Illegal break statement');
+  var state = this.stateStack.shift();
+  var node = state.node;
+  var label = null;
+  if (node.label) {
+    label = node.label.name;
+  }
+  state = this.stateStack.shift();
+  while (state && state.node.type != 'callExpression') {
+    if (label ? label == state.label : state.isLoop) {
+      return;
     }
-  } while (!state.isLoop)
+    state = this.stateStack.shift();
+  }
+  throw new SyntaxError('Illegal break statement');
 };
 
 Interpreter.prototype['stepBlockStatement'] = function() {
@@ -733,12 +741,22 @@ Interpreter.prototype['stepConditionalExpression'] = function() {
 };
 
 Interpreter.prototype['stepContinueStatement'] = function() {
-  do {
-    this.stateStack.shift();
-    if (!this.stateStack.length) {
-      throw new SyntaxError('Illegal continue statement');
+  var node = this.stateStack[0].node;
+  var label = null;
+  if (node.label) {
+    label = node.label.name;
+  }
+  var state = this.stateStack[0];
+  while (state && state.node.type != 'callExpression') {
+    if (state.isLoop) {
+      if (!label || (label == state.label)) {
+        return;
+      }
     }
-  } while (!this.stateStack[0].isLoop)
+    this.stateStack.shift();
+    state = this.stateStack[0];
+  }
+  throw new SyntaxError('Illegal continue statement');
 };
 
 Interpreter.prototype['stepDoWhileStatement'] = function() {
@@ -826,6 +844,13 @@ Interpreter.prototype['stepIdentifier'] = function() {
 
 Interpreter.prototype['stepIfStatement'] =
     Interpreter.prototype['stepConditionalExpression'];
+
+Interpreter.prototype['stepLabeledStatement'] = function() {
+  // No need to hit this node again on the way back up the stack.
+  var state = this.stateStack.shift();
+  this.stateStack.unshift({node: state.node.body,
+                          label: state.node.label.name});
+};
 
 Interpreter.prototype['stepLiteral'] = function() {
   var state = this.stateStack[0];
