@@ -3,30 +3,92 @@
 <head>
   <meta charset="utf-8">
   <title>Interpreter</title>
+  <style>
+    #code {
+      font-family: monospace;
+      font-size: larger;
+      height: 15em;
+      width: 100%;
+      max-width: 111ex;
+    }
+  </style>
   <script src="acorn.js"></script>
   <script src="interpreter.js"></script>
-</head>
-<body>
   <script>
     var myInterpreter;
     function parseButton() {
-      myInterpreter = new Interpreter(document.getElementById('code').value);
+      var code = document.getElementById('code').value
+      myInterpreter = new Interpreter(code);
+      disable('');
     }
+
     function stepButton() {
-      myInterpreter.step();
+      if (myInterpreter.stateStack[0]) {
+        var node = myInterpreter.stateStack[0].node;
+        var start = node.start;
+        var end = node.end;
+      } else {
+        var start = 0;
+        var end = 0;
+      }
+      createSelection(start, end);
+      try {
+        var ok = myInterpreter.step();
+      } finally {
+        if (!ok) {
+          disable('disabled');
+        }
+      }
     }
+
     function runButton() {
-      myInterpreter.run();
+      try {
+        myInterpreter.run();
+      } finally {
+        disable('disabled');
+      }
+    }
+
+    function disable(disabled) {
+      document.getElementById('stepButton').disabled = disabled;
+      document.getElementById('runButton').disabled = disabled;
+    }
+
+    function createSelection(start, end) {
+      var field = document.getElementById('code')
+      if (field.createTextRange) {
+        var selRange = field.createTextRange();
+        selRange.collapse(true);
+        selRange.moveStart('character', start);
+        selRange.moveEnd('character', end);
+        selRange.select();
+      } else if (field.setSelectionRange) {
+        field.setSelectionRange(start, end);
+      } else if (field.selectionStart) {
+        field.selectionStart = start;
+        field.selectionEnd = end;
+      }
+      field.focus();
     }
   </script>
-  <h1>Interpreter</h1>
-  <p>Enter JavaScript here:</p>
-  <p><textarea id="code" style="width: 100%; height: 10em;">
-    2 * (3) + 4;
-  </textarea><br>
+</head>
+<body>
+  <h1>JS-Interpreter</h1>
+  <p><textarea id="code">
+function fibo(n) {
+  var first = 1, second = 1, add;
+  for (var i = 0; i < n; i++) {
+    alert(first);
+    add = first + second;
+    first = second;
+    second = add;
+  }
+}
+fibo(5);
+</textarea><br>
   <button onclick="parseButton()">Parse</button>
-  <button onclick="stepButton()">Step</button>
-  <button onclick="runButton()">Run</button>
+  <button onclick="stepButton()" id="stepButton" disabled="disabled">Step</button>
+  <button onclick="runButton()" id="runButton" disabled="disabled">Run</button>
   </p>
 
 </body>

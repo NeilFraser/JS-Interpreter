@@ -488,45 +488,47 @@ Interpreter.prototype['stepAssignmentExpression'] = function() {
     this.stateStack.shift();
     var leftSide = state.leftSide;
     var rightSide = state.value;
-    var leftValue = this.getValue(leftSide);
-    var rightValue = rightSide;
-    var leftNumber = leftValue.toNumber();
-    var rightNumber = rightValue.toNumber();
     var value;
     if (node.operator == '=') {
       value = rightSide;
-    } else if (node.operator == '+=') {
-      var left, right;
-      if (leftValue.type == 'string' || rightValue.type == 'string') {
-        left = leftValue.toString();
-        right = rightValue.toString();
-      } else {
-        left = leftNumber;
-        right = rightNumber;
-      }
-      value = left + right;
-    } else if (node.operator == '-=') {
-      value = leftNumber - rightNumber;
-    } else if (node.operator == '*=') {
-      value = leftNumber * rightNumber;
-    } else if (node.operator == '/=') {
-      value = leftNumber / rightNumber;
-    } else if (node.operator == '%=') {
-      value = leftNumber % rightNumber;
-    } else if (node.operator == '<<=') {
-      value = leftNumber << rightNumber;
-    } else if (node.operator == '>>=') {
-      value = leftNumber >> rightNumber;
-    } else if (node.operator == '>>>=') {
-      value = leftNumber >>> rightNumber;
-    } else if (node.operator == '&=') {
-      value = leftNumber & rightNumber;
-    } else if (node.operator == '^=') {
-      value = leftNumber ^ rightNumber;
-    } else if (node.operator == '|=') {
-      value = leftNumber | rightNumber;
     } else {
-      throw 'Unknown assignment expression: ' + node.operator;
+      var leftValue = this.getValue(leftSide);
+      var rightValue = rightSide;
+      var leftNumber = leftValue.toNumber();
+      var rightNumber = rightValue.toNumber();
+      if (node.operator == '+=') {
+        var left, right;
+        if (leftValue.type == 'string' || rightValue.type == 'string') {
+          left = leftValue.toString();
+          right = rightValue.toString();
+        } else {
+          left = leftNumber;
+          right = rightNumber;
+        }
+        value = left + right;
+      } else if (node.operator == '-=') {
+        value = leftNumber - rightNumber;
+      } else if (node.operator == '*=') {
+        value = leftNumber * rightNumber;
+      } else if (node.operator == '/=') {
+        value = leftNumber / rightNumber;
+      } else if (node.operator == '%=') {
+        value = leftNumber % rightNumber;
+      } else if (node.operator == '<<=') {
+        value = leftNumber << rightNumber;
+      } else if (node.operator == '>>=') {
+        value = leftNumber >> rightNumber;
+      } else if (node.operator == '>>>=') {
+        value = leftNumber >>> rightNumber;
+      } else if (node.operator == '&=') {
+        value = leftNumber & rightNumber;
+      } else if (node.operator == '^=') {
+        value = leftNumber ^ rightNumber;
+      } else if (node.operator == '|=') {
+        value = leftNumber | rightNumber;
+      } else {
+        throw 'Unknown assignment expression: ' + node.operator;
+      }
     }
     value = this.createPrimitive(value);
     this.setValue(leftSide, value);
