@@ -205,11 +205,12 @@ Interpreter.prototype.createValue = function(constructor) {
 /**
  * Create a new function.
  * @param {Object} node AST node defining the function.
+ * @param {Object} opt_scope Optional parent scope.
  * @return {!Object} New function.
  */
-Interpreter.prototype.createFunction = function(node) {
+Interpreter.prototype.createFunction = function(node, opt_scope) {
   var func = this.createValue(Function);
-  func.parentScope = this.getScope();
+  func.parentScope = opt_scope || this.getScope();
   func.node = node;
   return func;
 };
@@ -362,6 +363,7 @@ Interpreter.prototype.createScope = function(node, parentScope) {
  */
 Interpreter.prototype.getValueFromScope = function(name) {
   var scope = this.getScope();
+  name = name.toString();
   while (scope) {
     if (this.hasProperty(scope, name)) {
       return this.getProperty(scope, name);
@@ -393,14 +395,18 @@ Interpreter.prototype.populateScope_ = function(node, scope) {
       this.setProperty(scope,
           this.createPrimitive(node.declarations[i].id.name), undefined);
     }
+  } else if (node.type == 'FunctionDeclaration') {
+    this.setProperty(scope,
+        this.createPrimitive(node.id.name),
+        this.createFunction(node, scope));
+    return;  // Do not recurse into function.
+  } else if (node.type == 'FunctionExpression') {
+    return;  // Do not recurse into function.
   }
   var thisIterpreter = this;
   function recurse(child) {
     if (child.constructor == thisIterpreter.ast.constructor) {
-      if (child.type != 'FunctionDeclaration' &&
-          child.type != 'FunctionExpression') {
-        thisIterpreter.populateScope_(child, scope);
-      }
+      thisIterpreter.populateScope_(child, scope);
     }
   }
   for (var name in node) {
@@ -658,8 +664,9 @@ Interpreter.prototype['stepCallExpression'] = function() {
   } else {
     if (!state.func) {
       state.func = state.value;
-      if (state.func.type != 'function') {
-        throw new TypeError(state.func.type + ' is not a function');
+      if (!state.func || state.func.type != 'function') {
+        throw new TypeError((state.func && state.func.type) +
+                            ' is not a function');
       }
       state.arguments = [];
       var n = 0;
@@ -677,10 +684,20 @@ Interpreter.prototype['stepCallExpression'] = function() {
       if (state.func.node) {
         var scope =
             this.createScope(state.func.node.body, state.func.parentScope);
+        // Add all arguments.
         for (var i = 0; i < state.func.node.params.length; i++) {
-          scope[state.func.node.params[i].name] = state.arguments[i];
+          var paramName = this.createPrimitive(state.func.node.params[i].name);
+          var paramValue = state.arguments.length > i ? state.arguments[i] :
+              this.createPrimitive(undefined);
+          this.setProperty(scope, paramName, paramValue);
         }
-        // TODO: Add 'arguments' array here.
+        // Build arguments variable.
+        var argsList = this.createValue(Array);
+        for (var i = 0; i < state.arguments.length; i++) {
+          this.setProperty(argsList, this.createPrimitive(i),
+                           state.arguments[i]);
+        }
+        this.setProperty(scope, this.createPrimitive('arguments'), argsList);
         var funcState = {node: state.func.node.body, scope: scope};
         this.stateStack.unshift(funcState);
       } else if (state.func.nativeFunc) {
@@ -745,6 +762,10 @@ Interpreter.prototype['stepDoWhileStatement'] = function() {
   }
 };
 
+Interpreter.prototype['stepEmptyStatement'] = function() {
+  this.stateStack.shift();
+};
+
 Interpreter.prototype['stepExpressionStatement'] = function() {
   var state = this.stateStack[0];
   if (!state.done) {
@@ -787,11 +808,6 @@ Interpreter.prototype['stepForStatement'] = function() {
 };
 
 Interpreter.prototype['stepFunctionDeclaration'] = function() {
-  var state = this.stateStack[0];
-  var node = state.node;
-  var name = node.id.name;
-  var scope = this.getScope();
-  scope[name] = this.createFunction(node);
   this.stateStack.shift();
 };
 
