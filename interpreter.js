@@ -656,9 +656,9 @@ Interpreter.prototype['stepBreakStatement'] = function() {
 Interpreter.prototype['stepBlockStatement'] = function() {
   var state = this.stateStack[0];
   var node = state.node;
-  var n = state.n || 0;
+  var n = state.n_ || 0;
   if (node.body[n]) {
-    state.n = n + 1;
+    state.n_ = n + 1;
     this.stateStack.unshift({node: node.body[n]});
   } else {
     this.stateStack.shift();
@@ -673,29 +673,32 @@ Interpreter.prototype['stepCallExpression'] = function() {
     this.stateStack.unshift({node: node.callee, components: true});
   } else {
     if (!state.func_) {
-      // Determine value of 'this' in function.
-      if (state.value instanceof Array) {
-        state.funcThis_ = state.value[0];
-      } else {
-        state.funcThis_ =
-            this.stateStack[this.stateStack.length - 1].thisExpression;
-      }
       // Determine value of the function.
       state.func_ = this.getValue(state.value);
       if (!state.func_ || state.func_.type != 'function') {
         throw new TypeError((state.func_ && state.func_.type) +
                             ' is not a function');
       }
+      // Determine value of 'this' in function.
+      if (state.node.type == 'NewExpression') {
+        state.funcThis_ = this.createValue(Object);
+        state.isConstructor_ = true;
+      } else if (state.value instanceof Array) {
+        state.funcThis_ = state.value[0];
+      } else {
+        state.funcThis_ =
+            this.stateStack[this.stateStack.length - 1].thisExpression;
+      }
       state.arguments = [];
       var n = 0;
     } else {
-      var n = state.n;
+      var n = state.n_;
       if (state.arguments.length != node.arguments.length) {
         state.arguments[n - 1] = state.value;
       }
     }
     if (node.arguments[n]) {
-      state.n = n + 1;
+      state.n_ = n + 1;
       this.stateStack.unshift({node: node.arguments[n]});
     } else if (!state.doneExec) {
       state.doneExec = true;
@@ -716,6 +719,11 @@ Interpreter.prototype['stepCallExpression'] = function() {
                            state.arguments[i]);
         }
         this.setProperty(scope, this.createPrimitive('arguments'), argsList);
+        //if (newExpression) {
+        //  var thisExpression = this.createValue(Object);
+        //} else {
+        //
+        //}
         var funcState = {
           node: state.func_.node.body,
           scope: scope,
@@ -727,7 +735,8 @@ Interpreter.prototype['stepCallExpression'] = function() {
       }
     } else {
       this.stateStack.shift();
-      this.stateStack[0].value = state.value;
+      this.stateStack[0].value = state.isConstructor_ ?
+          state.funcThis_ : state.value;
     }
   }
 };
@@ -917,6 +926,9 @@ Interpreter.prototype['stepMemberExpression'] = function() {
     }
   }
 };
+
+Interpreter.prototype['stepNewExpression'] =
+    Interpreter.prototype['stepCallExpression'];
 
 Interpreter.prototype['stepObjectExpression'] = function() {
   var state = this.stateStack[0];
