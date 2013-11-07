@@ -1,7 +1,6 @@
 switch
 for-in loops
 Object inheritance
-this
 
 Array methods
 String methods
