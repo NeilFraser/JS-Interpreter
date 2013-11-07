@@ -2,8 +2,18 @@
 <html>
 <head>
   <meta charset="utf-8">
-  <title>Interpreter</title>
+  <title>JS-Interpreter Demo</title>
   <style>
+    body {
+      background-color: #fff;
+      font-family: sans-serif;
+    }
+    a:hover {
+      color: red
+    }
+    h1, h2, h3 {
+      font-weight: normal;
+    }
     #code {
       font-family: monospace;
       font-size: larger;
@@ -73,23 +83,29 @@
   </script>
 </head>
 <body>
-  <h1>JS-Interpreter</h1>
+  <h1>JS-Interpreter Demo</h1>
+  <p>Enter JavaScript code below, then click 'Parse'.  To execute, either
+  click 'Step' repeatedly, or click 'Run' once.  Open your browser's console
+  for errors.</p>
   <p><textarea id="code">
-function fibo(n) {
-  var first = 1, second = 1, add;
-  for (var i = 0; i < n; i++) {
-    alert(first);
-    add = first + second;
-    first = second;
-    second = add;
+function fibonacci(n) {
+  var a = 1, b = 1, sum;
+  for (var i = 0; i &lt; n; i++) {
+    alert(a);
+    sum = a + b;
+    a = b;
+    b = sum;
   }
 }
-fibo(5);
+fibonacci(5);
 </textarea><br>
   <button onclick="parseButton()">Parse</button>
   <button onclick="stepButton()" id="stepButton" disabled="disabled">Step</button>
   <button onclick="runButton()" id="runButton" disabled="disabled">Run</button>
   </p>
+
+  <p>Read the <a href="docs.html">JS-Interpreter documentation</a>.</p>
+  <p>Get the <a href="https://github.com/NeilFraser/JS-Interpreter">source code</a>.</p>
 
 </body>
 </html>

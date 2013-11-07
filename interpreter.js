@@ -157,7 +157,7 @@ Interpreter.prototype.evalFunction_ = function(code) {
   var evalInterpreter = new Interpreter(code.toString());
   evalInterpreter.stateStack[0].scope.parentScope = this.getScope();
   evalInterpreter.run();
-  return this.createPrimitive(undefined);
+  return evalInterpreter.value || this.createPrimitive(undefined);
 };
 
 /**
@@ -843,6 +843,9 @@ Interpreter.prototype['stepExpressionStatement'] = function() {
     this.stateStack.unshift({node: state.node.expression});
   } else {
     this.stateStack.shift();
+    // Save this value to the interpreter for use as a renurn value if
+    // this code is inside an eval function.
+    this.value = state.value;
   }
 };
 
