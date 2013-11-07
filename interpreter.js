@@ -204,7 +204,7 @@ Interpreter.prototype.createPrimitive = function(data) {
 
 /**
  * Create a new data object.
- * @param {*} data Data to encapsulate.
+ * @param {!Object} constructor Parent constructor function.
  * @return {!Object} New data object.
  */
 Interpreter.prototype.createValue = function(constructor) {
@@ -234,6 +234,8 @@ Interpreter.prototype.createFunction = function(node, opt_scope) {
   var func = this.createValue(Function);
   func.parentScope = opt_scope || this.getScope();
   func.node = node;
+  this.setProperty(func, this.createPrimitive('prototype'),
+                   this.createValue(Object));
   return func;
 };
 
@@ -245,6 +247,8 @@ Interpreter.prototype.createFunction = function(node, opt_scope) {
 Interpreter.prototype.createNativeFunction = function(nativeFunc) {
   var func = this.createValue(Function);
   func.nativeFunc = nativeFunc;
+  this.setProperty(func, this.createPrimitive('prototype'),
+                   this.createValue(Object));
   return func;
 };
 
@@ -317,6 +321,7 @@ Interpreter.prototype.setProperty = function(obj, name, value, opt_fixed) {
         }
       }
       obj.length = newLength;
+      return;  // Don't set a real length property.
     } else if (!isNaN(i = this.arrayIndex(name))) {
       // Increase length if this index is larger.
       obj.length = Math.max(obj.length, i + 1);
@@ -497,7 +502,7 @@ Interpreter.prototype['stepArrayExpression'] = function() {
     state.n = n + 1;
     this.stateStack.unshift({node: node.elements[n]});
   } else {
-    state.array.length = state.n;
+    state.array.length = state.n || 0;
     this.stateStack.shift();
     this.stateStack[0].value = state.array;
   }
@@ -703,10 +708,14 @@ Interpreter.prototype['stepCallExpression'] = function() {
   } else {
     if (!state.func_) {
       // Determine value of the function.
-      state.func_ = this.getValue(state.value);
-      if (!state.func_ || state.func_.type != 'function') {
-        throw new TypeError((state.func_ && state.func_.type) +
-                            ' is not a function');
+      if (state.value.type == 'function') {
+        state.func_ = state.value;
+      } else {
+        state.func_ = this.getValue(state.value);
+        if (!state.func_ || state.func_.type != 'function') {
+          throw new TypeError((state.func_ && state.func_.type) +
+                              ' is not a function');
+        }
       }
       // Determine value of 'this' in function.
       if (state.node.type == 'NewExpression') {
@@ -843,7 +852,7 @@ Interpreter.prototype['stepExpressionStatement'] = function() {
     this.stateStack.unshift({node: state.node.expression});
   } else {
     this.stateStack.shift();
-    // Save this value to the interpreter for use as a renurn value if
+    // Save this value to the interpreter for use as a return value if
     // this code is inside an eval function.
     this.value = state.value;
   }
