@@ -73,6 +73,7 @@ Interpreter.prototype.initGlobalScope = function(scope) {
                    scope, false); // Editable.
 
   // Initialize global functions.
+  var thisInterpreter = this;
   var wrapper
   wrapper = function(text) {
     return alert(text.toString());
@@ -99,6 +100,11 @@ Interpreter.prototype.initGlobalScope = function(scope) {
   };
   this.setProperty(scope, this.createPrimitive('parseInt'),
                    this.createNativeFunction(wrapper));
+  wrapper = function() {
+    return function(code) {return thisInterpreter.evalFunction_(code);};
+  };
+  this.setProperty(scope, this.createPrimitive('eval'),
+                   this.createNativeFunction(wrapper()));
   var strFunctions = ['escape', 'unescape',
                       'decodeURI', 'decodeURIComponent',
                       'encodeURI', 'encodeURIComponent'];
@@ -136,6 +142,22 @@ Interpreter.prototype.initGlobalScope = function(scope) {
     this.setProperty(myMath, this.createPrimitive(numFunctions[i]),
                      this.createNativeFunction(wrapper));
   }
+};
+
+/**
+ * Evaluate the provided code.
+ * @param {Object} Code to be evaluated.
+ * @return {!Object} Evaluated output.
+ * @private
+ */
+Interpreter.prototype.evalFunction_ = function(code) {
+  if (!code) {
+    return this.createPrimitive(undefined);
+  }
+  var evalInterpreter = new Interpreter(code.toString());
+  evalInterpreter.stateStack[0].scope.parentScope = this.getScope();
+  evalInterpreter.run();
+  return this.createPrimitive(undefined);
 };
 
 /**
@@ -380,7 +402,14 @@ Interpreter.prototype.getValueFromScope = function(name) {
  */
 Interpreter.prototype.setValueToScope = function(name, value) {
   var scope = this.getScope();
-  this.setProperty(scope, name, value);
+  name = name.toString();
+  while (scope) {
+    if (this.hasProperty(scope, name)) {
+      return this.setProperty(scope, name, value);
+    }
+    scope = scope.parentScope;
+  }
+  throw 'Unknown identifier: ' + name;
 };
 
 /**

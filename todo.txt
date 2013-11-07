@@ -7,4 +7,3 @@ String methods
 Date
 Regex
 Try catch/finally
-eval
