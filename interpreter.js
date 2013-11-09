@@ -30,7 +30,6 @@
 var Interpreter = function(code) {
   this.ast = acorn.parse(code);
   var scope = this.createScope(this.ast, null);
-  this.initGlobalScope(scope);
   this.stateStack = [{node: this.ast, scope: scope, thisExpression: scope}];
 };
 
@@ -71,6 +70,14 @@ Interpreter.prototype.initGlobalScope = function(scope) {
                    scope, true);
   this.setProperty(scope, this.createPrimitive('self'),
                    scope, false); // Editable.
+
+  // Initialize global objects.
+  this.initFunction(scope);
+  this.initObject(scope);
+  // Unable to set scope's parent prior (this.OBJECT did not exist).
+  scope.parent = this.OBJECT;
+  this.initArray(scope);
+  this.initMath(scope);
 
   // Initialize global functions.
   var thisInterpreter = this;
@@ -117,9 +124,46 @@ Interpreter.prototype.initGlobalScope = function(scope) {
     this.setProperty(scope, this.createPrimitive(strFunctions[i]),
                      this.createNativeFunction(wrapper));
   }
+};
 
-  // Initialize Math object.
-  var myMath = this.createValue(Object);
+/**
+ * Initialize the Function class.
+ * @param {!Object} scope Global scope.
+ */
+Interpreter.prototype.initFunction = function(scope) {
+  this.FUNCTION = this.createObject(null);
+  this.setProperty(scope, this.createPrimitive('Function'), this.FUNCTION);
+  // Manually setup type and prototype becuase createObj doesn't recognize
+  // this object as a function (this.FUNCTION did not exist).
+  this.FUNCTION.type = 'function';
+  this.setProperty(this.FUNCTION, this.createPrimitive('prototype'),
+      this.createObject(null));
+};
+
+/**
+ * Initialize the Object class.
+ * @param {!Object} scope Global scope.
+ */
+Interpreter.prototype.initObject = function(scope) {
+  this.OBJECT = this.createObject(this.FUNCTION);
+  this.setProperty(scope, this.createPrimitive('Object'), this.OBJECT);
+};
+
+/**
+ * Initialize the Array class.
+ * @param {!Object} scope Global scope.
+ */
+Interpreter.prototype.initArray = function(scope) {
+  this.ARRAY = this.createObject(this.FUNCTION);
+  this.setProperty(scope, this.createPrimitive('Array'), this.ARRAY);
+};
+
+/**
+ * Initialize Math object.
+ * @param {!Object} scope Global scope.
+ */
+Interpreter.prototype.initMath = function(scope) {
+  var myMath = this.createObject(this.OBJECT);
   this.setProperty(scope, this.createPrimitive('Math'), myMath);
   var mathConsts = ['E', 'LN2', 'LN10', 'LOG2E', 'LOG10E', 'PI',
                     'SQRT1_2', 'SQRT2'];
@@ -131,7 +175,7 @@ Interpreter.prototype.initGlobalScope = function(scope) {
                       'exp', 'floor', 'log', 'max', 'min', 'pow', 'random',
                       'round', 'sin', 'sqrt', 'tan'];
   for (var i = 0; i < numFunctions.length; i++) {
-    wrapper = (function(nativeFunc) {
+    var wrapper = (function(nativeFunc) {
       return function() {
         for (var j = 0; j < arguments.length; j++) {
           arguments[j] = arguments[j].toNumber();
@@ -162,13 +206,20 @@ Interpreter.prototype.evalFunction_ = function(code) {
 
 /**
  * Is an object of a certain class?
- * @param {!Object} child Object to check.
+ * @param {Object} child Object to check.
  * @param {!Object} parent Class of object.
  * @return {boolean} True if object is the class or inherits from it.
  *     False otherwise.
  */
 Interpreter.prototype.isa = function(child, parent) {
-  return child === parent || child instanceof parent;
+  if (!child || !parent) {
+    return false;
+  } else if (child.parent == parent) {
+    return true;
+  } else if (!child.parent || !child.parent.prototype) {
+    return false;
+  }
+  return this.isa(child.parent.prototype, parent);
 };
 
 /**
@@ -204,23 +255,31 @@ Interpreter.prototype.createPrimitive = function(data) {
 
 /**
  * Create a new data object.
- * @param {!Object} constructor Parent constructor function.
+ * @param {Object} parent Parent constructor function.
  * @return {!Object} New data object.
  */
-Interpreter.prototype.createValue = function(constructor) {
+Interpreter.prototype.createObject = function(parent) {
   var obj = {
     isPrimitive: false,
-    type: (this.isa(constructor, Function) ? 'function' : 'object'),
-    constructor: constructor,
+    type: 'object',
+    parent: parent,
     fixed: Object.create(null),
     properties: Object.create(null),
     toBoolean: function() {return true;},
     toNumber: function() {return 0;},
-    toString: function() {return String(constructor);}
+    toString: function() {return '[Object]';}
   };
-  if (this.isa(constructor, Array)) {
+  // Functions have prototype objects.
+  if (this.isa(obj, this.FUNCTION)) {
+    obj.type = 'function';
+    this.setProperty(obj, this.createPrimitive('prototype'),
+        this.createObject(this.OBJECT || null));
+  };
+  // Arrays have length.
+  if (this.isa(obj, this.ARRAY)) {
     obj.length = 0;
-  }
+  };
+
   return obj;
 };
 
@@ -231,11 +290,9 @@ Interpreter.prototype.createValue = function(constructor) {
  * @return {!Object} New function.
  */
 Interpreter.prototype.createFunction = function(node, opt_scope) {
-  var func = this.createValue(Function);
+  var func = this.createObject(this.FUNCTION);
   func.parentScope = opt_scope || this.getScope();
   func.node = node;
-  this.setProperty(func, this.createPrimitive('prototype'),
-                   this.createValue(Object));
   return func;
 };
 
@@ -245,10 +302,8 @@ Interpreter.prototype.createFunction = function(node, opt_scope) {
  * @return {!Object} New function.
  */
 Interpreter.prototype.createNativeFunction = function(nativeFunc) {
-  var func = this.createValue(Function);
+  var func = this.createObject(this.FUNCTION);
   func.nativeFunc = nativeFunc;
-  this.setProperty(func, this.createPrimitive('prototype'),
-                   this.createValue(Object));
   return func;
 };
 
@@ -259,19 +314,25 @@ Interpreter.prototype.createNativeFunction = function(nativeFunc) {
  * @return {Object} Property value (may be undefined).
  */
 Interpreter.prototype.getProperty = function(obj, name) {
+  // Special cases for magic length property.
   if (obj.isPrimitive && name.toString() == 'length' &&
       obj.type == 'string') {
     return this.createPrimitive(obj.data.length);
   } else if (!obj.isPrimitive && name.toString() == 'length' &&
-      this.isa(obj.constructor, Array)) {
+      this.isa(obj, this.ARRAY)) {
     return this.createPrimitive(obj.length);
   }
-  if (!obj.isPrimitive) {
-    if (name.toString() in obj.properties) {
-      return obj.properties[name.toString()]
+  while (obj) {
+    if (obj.properties && name.toString() in obj.properties) {
+      return obj.properties[name.toString()];
+    }
+    if (obj.parent && obj.parent.properties &&
+        obj.parent.properties.prototype) {
+      obj = obj.parent.properties.prototype;
+    } else {
+      obj = null;
     }
   }
-  // TODO: Recurse to parent objects.
   return this.createPrimitive(undefined);
 };
 
@@ -283,12 +344,21 @@ Interpreter.prototype.getProperty = function(obj, name) {
  */
 Interpreter.prototype.hasProperty = function(obj, name) {
   if (name.toString() == 'length' && (obj.isPrimitive ?
-      obj.type == 'string' : this.isa(obj.constructor, Array))) {
+      obj.type == 'string' : this.isa(obj, this.ARRAY))) {
     return true;
-  } else if (obj.isPrimitive) {
-    return false;
   }
-  return name.toString() in obj.properties;
+  while (obj) {
+    if (obj.properties && name.toString() in obj.properties) {
+      return true;
+    }
+    if (obj.parent && obj.parent.properties &&
+        obj.parent.properties.prototype) {
+      obj = obj.parent.properties.prototype;
+    } else {
+      obj = null;
+    }
+  }
+  return false;
 };
 
 /**
@@ -303,7 +373,7 @@ Interpreter.prototype.setProperty = function(obj, name, value, opt_fixed) {
   if (obj.isPrimitive || obj.fixed[name]) {
     return;
   }
-  if (this.isa(obj.constructor, Array)) {
+  if (this.isa(obj, this.ARRAY)) {
     // Arrays have a magic length variable that is bound to the elements.
     var i;
     if (name == 'length') {
@@ -344,7 +414,7 @@ Interpreter.prototype.deleteProperty = function(obj, name) {
   if (obj.isPrimitive || obj.fixed[name]) {
     return false;
   }
-  if (name == 'length' && this.isa(obj.constructor, Array)) {
+  if (name == 'length' && this.isa(obj, this.ARRAY)) {
     return false;
   }
   return delete obj.properties[name];
@@ -370,8 +440,11 @@ Interpreter.prototype.getScope = function() {
  * @return {!Object} New scope.
  */
 Interpreter.prototype.createScope = function(node, parentScope) {
-  var scope = this.createValue(Object);
+  var scope = this.createObject(null);
   scope.parentScope = parentScope;  // Space is an illegal identifier.
+  if (!parentScope) {
+    this.initGlobalScope(scope);
+  }
 
   if (node.type == 'FunctionDeclaration' ||
       node.type == 'FunctionExpression') {
@@ -494,7 +567,7 @@ Interpreter.prototype['stepArrayExpression'] = function() {
   var node = state.node;
   var n = state.n || 0;
   if (!state.array) {
-    state.array = this.createValue(Array);
+    state.array = this.createObject(this.ARRAY);
   } else {
     this.setProperty(state.array, this.createPrimitive(n - 1), state.value);
   }
@@ -719,7 +792,7 @@ Interpreter.prototype['stepCallExpression'] = function() {
       }
       // Determine value of 'this' in function.
       if (state.node.type == 'NewExpression') {
-        state.funcThis_ = this.createValue(Object);
+        state.funcThis_ = this.createObject(state.func_);
         state.isConstructor_ = true;
       } else if (state.value instanceof Array) {
         state.funcThis_ = state.value[0];
@@ -751,17 +824,12 @@ Interpreter.prototype['stepCallExpression'] = function() {
           this.setProperty(scope, paramName, paramValue);
         }
         // Build arguments variable.
-        var argsList = this.createValue(Array);
+        var argsList = this.createObject(this.ARRAY);
         for (var i = 0; i < state.arguments.length; i++) {
           this.setProperty(argsList, this.createPrimitive(i),
                            state.arguments[i]);
         }
         this.setProperty(scope, this.createPrimitive('arguments'), argsList);
-        //if (newExpression) {
-        //  var thisExpression = this.createValue(Object);
-        //} else {
-        //
-        //}
         var funcState = {
           node: state.func_.node.body,
           scope: scope,
@@ -977,7 +1045,7 @@ Interpreter.prototype['stepObjectExpression'] = function() {
   var valueToggle = state.valueToggle;
   var n = state.n || 0;
   if (!state.object) {
-    state.object = this.createValue(Object);
+    state.object = this.createObject(this.OBJECT);
   } else {
     if (valueToggle) {
       var key = state.value;

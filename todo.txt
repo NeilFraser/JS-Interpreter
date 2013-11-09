@@ -1,6 +1,5 @@
 switch
 for-in loops
-Object inheritance
 
 Array methods
 String methods
