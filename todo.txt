@@ -3,6 +3,8 @@ for-in loops
 
 Array methods
 String methods
+Function
 Date
 Regex
+
 Try catch/finally

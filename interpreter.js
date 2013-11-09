@@ -28,6 +28,7 @@
  * @constructor
  */
 var Interpreter = function(code) {
+  this.UNDEFINED = this.createPrimitive(undefined);
   this.ast = acorn.parse(code);
   var scope = this.createScope(this.ast, null);
   this.stateStack = [{node: this.ast, scope: scope, thisExpression: scope}];
@@ -65,7 +66,7 @@ Interpreter.prototype.initGlobalScope = function(scope) {
   this.setProperty(scope, this.createPrimitive('NaN'),
                    this.createPrimitive(NaN), true);
   this.setProperty(scope, this.createPrimitive('undefined'),
-                   this.createPrimitive(undefined), true);
+                   this.UNDEFINED, true);
   this.setProperty(scope, this.createPrimitive('window'),
                    scope, true);
   this.setProperty(scope, this.createPrimitive('self'),
@@ -81,7 +82,7 @@ Interpreter.prototype.initGlobalScope = function(scope) {
 
   // Initialize global functions.
   var thisInterpreter = this;
-  var wrapper
+  var wrapper;
   wrapper = function(text) {
     return alert(text.toString());
   };
@@ -156,6 +157,64 @@ Interpreter.prototype.initObject = function(scope) {
 Interpreter.prototype.initArray = function(scope) {
   this.ARRAY = this.createObject(this.FUNCTION);
   this.setProperty(scope, this.createPrimitive('Array'), this.ARRAY);
+  var thisInterpreter = this;
+  var wrapper;
+
+  wrapper = function() {
+    if (this.length) {
+      var value = this.properties[this.length - 1];
+      delete this.properties[this.length - 1];
+      this.length--;
+    } else {
+      var value = thisInterpreter.UNDEFINED;
+    }
+    return value;
+  };
+  this.setProperty(this.ARRAY.properties.prototype,
+                   this.createPrimitive('pop'),
+                   this.createNativeFunction(wrapper));
+
+  wrapper = function(var_args) {
+    for (var i = 0; i < arguments.length; i++) {
+      this.properties[this.length] = arguments[i];
+      this.length++;
+    }
+    return thisInterpreter.createPrimitive(this.length);
+  };
+  this.setProperty(this.ARRAY.properties.prototype,
+                   this.createPrimitive('push'),
+                   this.createNativeFunction(wrapper));
+
+  wrapper = function() {
+    if (this.length) {
+      var value = this.properties[0];
+      for (var i = 1; i < this.length; i++) {
+        this.properties[i - 1] = this.properties[i];
+      }
+      this.length--;
+      delete this.properties[this.length];
+    } else {
+      var value = thisInterpreter.UNDEFINED;
+    }
+    return value;
+  };
+  this.setProperty(this.ARRAY.properties.prototype,
+                   this.createPrimitive('shift'),
+                   this.createNativeFunction(wrapper));
+
+  wrapper = function(var_args) {
+    for (var i = 0; i < this.length; i++) {
+      this.properties[i + arguments.length] = this.properties[i];
+    }
+    this.length += arguments.length;
+    for (var i = 0; i < arguments.length; i++) {
+      this.properties[i] = arguments[i];
+    }
+    return thisInterpreter.createPrimitive(this.length);
+  };
+  this.setProperty(this.ARRAY.properties.prototype,
+                   this.createPrimitive('unshift'),
+                   this.createNativeFunction(wrapper));
 };
 
 /**
@@ -196,12 +255,12 @@ Interpreter.prototype.initMath = function(scope) {
  */
 Interpreter.prototype.evalFunction_ = function(code) {
   if (!code) {
-    return this.createPrimitive(undefined);
+    return this.UNDEFINED;
   }
   var evalInterpreter = new Interpreter(code.toString());
   evalInterpreter.stateStack[0].scope.parentScope = this.getScope();
   evalInterpreter.run();
-  return evalInterpreter.value || this.createPrimitive(undefined);
+  return evalInterpreter.value || this.UNDEFINED;
 };
 
 /**
@@ -333,7 +392,7 @@ Interpreter.prototype.getProperty = function(obj, name) {
       obj = null;
     }
   }
-  return this.createPrimitive(undefined);
+  return this.UNDEFINED;
 };
 
 /**
@@ -441,7 +500,7 @@ Interpreter.prototype.getScope = function() {
  */
 Interpreter.prototype.createScope = function(node, parentScope) {
   var scope = this.createObject(null);
-  scope.parentScope = parentScope;  // Space is an illegal identifier.
+  scope.parentScope = parentScope;
   if (!parentScope) {
     this.initGlobalScope(scope);
   }
@@ -820,7 +879,7 @@ Interpreter.prototype['stepCallExpression'] = function() {
         for (var i = 0; i < state.func_.node.params.length; i++) {
           var paramName = this.createPrimitive(state.func_.node.params[i].name);
           var paramValue = state.arguments.length > i ? state.arguments[i] :
-              this.createPrimitive(undefined);
+              this.UNDEFINED;
           this.setProperty(scope, paramName, paramValue);
         }
         // Build arguments variable.
@@ -837,7 +896,8 @@ Interpreter.prototype['stepCallExpression'] = function() {
         };
         this.stateStack.unshift(funcState);
       } else if (state.func_.nativeFunc) {
-        state.value = state.func_.nativeFunc.apply(null, state.arguments);
+        state.value = state.func_.nativeFunc.apply(state.funcThis_,
+                                                   state.arguments);
       }
     } else {
       this.stateStack.shift();
