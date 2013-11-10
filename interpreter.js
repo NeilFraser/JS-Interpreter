@@ -155,10 +155,32 @@ Interpreter.prototype.initObject = function(scope) {
  * @param {!Object} scope Global scope.
  */
 Interpreter.prototype.initArray = function(scope) {
-  this.ARRAY = this.createObject(this.FUNCTION);
-  this.setProperty(scope, this.createPrimitive('Array'), this.ARRAY);
   var thisInterpreter = this;
   var wrapper;
+  // Array constructor.
+  wrapper = function(var_args) {
+    if (this.parent == thisInterpreter.ARRAY) {
+      // Called with new.
+      var newArray = this;
+    } else {
+      var newArray = thisInterpreter.createObject(thisInterpreter.ARRAY);
+    }
+    var first = arguments[0];
+    if (first && first.type == 'number') {
+      if (isNaN(thisInterpreter.arrayIndex(first))) {
+        throw new RangeError('Invalid array length');
+      }
+      newArray.length = first.data;
+    } else {
+      for (var i = 0; i < arguments.length; i++) {
+        newArray.properties[i] = arguments[i];
+      }
+      newArray.length = i;
+    }
+    return newArray;
+  };
+  this.ARRAY = this.createNativeFunction(wrapper);
+  this.setProperty(scope, this.createPrimitive('Array'), this.ARRAY);
 
   wrapper = function() {
     if (this.length) {
@@ -214,6 +236,18 @@ Interpreter.prototype.initArray = function(scope) {
   };
   this.setProperty(this.ARRAY.properties.prototype,
                    this.createPrimitive('unshift'),
+                   this.createNativeFunction(wrapper));
+
+  wrapper = function() {
+    for (var i = 0; i < Math.floor(this.length / 2); i++) {
+      var tmp = this.properties[this.length - i - 1]
+      this.properties[this.length - i - 1] = this.properties[i];
+      this.properties[i] = tmp;
+    }
+    return thisInterpreter.UNDEFINED;
+  };
+  this.setProperty(this.ARRAY.properties.prototype,
+                   this.createPrimitive('reverse'),
                    this.createNativeFunction(wrapper));
 };
 
