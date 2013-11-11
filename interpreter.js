@@ -225,7 +225,7 @@ Interpreter.prototype.initArray = function(scope) {
                    this.createNativeFunction(wrapper));
 
   wrapper = function(var_args) {
-    for (var i = 0; i < this.length; i++) {
+    for (var i = this.length - 1; i >= 0; i--) {
       this.properties[i + arguments.length] = this.properties[i];
     }
     this.length += arguments.length;
@@ -239,7 +239,7 @@ Interpreter.prototype.initArray = function(scope) {
                    this.createNativeFunction(wrapper));
 
   wrapper = function() {
-    for (var i = 0; i < Math.floor(this.length / 2); i++) {
+    for (var i = 0; i < this.length / 2; i++) {
       var tmp = this.properties[this.length - i - 1]
       this.properties[this.length - i - 1] = this.properties[i];
       this.properties[i] = tmp;
@@ -248,6 +248,54 @@ Interpreter.prototype.initArray = function(scope) {
   };
   this.setProperty(this.ARRAY.properties.prototype,
                    this.createPrimitive('reverse'),
+                   this.createNativeFunction(wrapper));
+
+  wrapper = function(index, howmany, var_args) {
+    index = index.toNumber();
+    if (index < 0) {
+      index = Math.max(this.length + index, 0);
+    } else {
+      index = Math.min(index, this.length);
+    }
+    howmany = Math.min(howmany.toNumber(), this.length - index);
+    var removed = thisInterpreter.createObject(thisInterpreter.ARRAY);
+    // Remove specified elements.
+    for (var i = index; i < this.length - howmany; i++) {
+      removed.properties[removed.length++] = this.properties[i];
+      this.properties[i] = this.properties[i + howmany];
+    }
+    for (var i = index + howmany; i < this.length; i++) {
+      delete this.properties[i];
+    }
+    this.length -= howmany;
+    // Insert specified items.
+    for (var i = this.length - 1; i >= index; i--) {
+      this.properties[i + arguments.length - 2] = this.properties[i];
+    }
+    this.length += arguments.length - 2;
+    for (var i = 2; i < arguments.length; i++) {
+      this.properties[index + i - 2] = arguments[i];
+    }
+    return removed;
+  };
+  this.setProperty(this.ARRAY.properties.prototype,
+                   this.createPrimitive('splice'),
+                   this.createNativeFunction(wrapper));
+
+  wrapper = function(opt_separator) {
+    if (!opt_separator || opt_separator.data === undefined) {
+      var sep = undefined;
+    } else {
+      var sep = opt_separator.toString();
+    }
+    var text = [];
+    for (var i = 0; i < this.length; i++) {
+      text[i] = this.properties[i];
+    }
+    return thisInterpreter.createPrimitive(text.join(sep));
+  };
+  this.setProperty(this.ARRAY.properties.prototype,
+                   this.createPrimitive('join'),
                    this.createNativeFunction(wrapper));
 };
 
