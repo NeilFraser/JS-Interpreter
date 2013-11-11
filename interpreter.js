@@ -132,6 +132,33 @@ Interpreter.prototype.initGlobalScope = function(scope) {
  * @param {!Object} scope Global scope.
  */
 Interpreter.prototype.initFunction = function(scope) {
+  var thisInterpreter = this;
+  var wrapper;
+  // Function constructor.
+  wrapper = function(var_args) {
+    if (this.parent == thisInterpreter.FUNCTION) {
+      // Called with new.
+      var newFunc = this;
+    } else {
+      var newFunc = thisInterpreter.createObject(this.FUNCTION);
+    }
+    var code = arguments[arguments.length - 1].toString();
+    var args = [];
+    for (var i = 0; i < arguments.length - 1; i++) {
+      args.push(arguments[i].toString());
+    }
+    args = args.join(', ');
+    if (args.indexOf(')') != -1) {
+      throw new SyntaxError('Function arg string contains parenthesis');
+    }
+    // Interestingly, the scope for constructed functions is the global scope,
+    // even if they were constructed in some other scope.
+    newFunc.parentScope =
+        thisInterpreter.stateStack[thisInterpreter.stateStack.length - 1].scope;
+    var ast = acorn.parse('$ = function(' + args + ') {' + code + '};');
+    newFunc.node = ast.body[0].expression.right;
+    return newFunc;
+  };
   this.FUNCTION = this.createObject(null);
   this.setProperty(scope, this.createPrimitive('Function'), this.FUNCTION);
   // Manually setup type and prototype becuase createObj doesn't recognize
@@ -139,6 +166,7 @@ Interpreter.prototype.initFunction = function(scope) {
   this.FUNCTION.type = 'function';
   this.setProperty(this.FUNCTION, this.createPrimitive('prototype'),
       this.createObject(null));
+  this.FUNCTION.nativeFunc = wrapper;
 };
 
 /**
@@ -361,6 +389,32 @@ Interpreter.prototype.isa = function(child, parent) {
     return false;
   }
   return this.isa(child.parent.prototype, parent);
+};
+
+/**
+ * Compares two objects against each other.
+ * @param {!Object} a First object.
+ * @param {!Object} b Second object.
+ * @return {number} -1 if a is smaller, 0 if a == b, 1 if a is bigger,
+ *     NaN if they are not comparible.
+ */
+Interpreter.prototype.comp = function(a, b) {
+  if (a.isPrimitive && isNaN(a.data) || b.isPrimitive && isNaN(b.data)) {
+    return NaN;
+  }
+  if (a.isPrimitive && b.isPrimitive) {
+    a = a.data;
+    b = b.data;
+  } else {
+    // TODO: Handle other types.
+    return NaN;
+  }
+  if (a < b) {
+    return -1;
+  } else if (a > b) {
+    return 1;
+  }
+  return 0;
 };
 
 /**
@@ -799,13 +853,9 @@ Interpreter.prototype['stepBinaryExpression'] = function() {
     var leftSide = state.leftValue;
     var rightSide = state.value;
     var value;
+    var comp = this.comp(leftSide, rightSide);
     if (node.operator == '==' || node.operator == '!=') {
-      if (leftSide.isPrimitive && rightSide.isPrimitive) {
-        value = leftSide.data == rightSide.data;
-      } else {
-        // TODO: Other types.
-        value = leftValue == rightValue;
-      }
+      value = comp === 0;
       if (node.operator == '!=') {
         value = !value;
       }
@@ -819,29 +869,13 @@ Interpreter.prototype['stepBinaryExpression'] = function() {
         value = !value;
       }
     } else if (node.operator == '>') {
-      if (leftSide.isPrimitive && rightSide.isPrimitive) {
-        value = leftSide.data > rightSide.data;
-      } else {
-        value = false;
-      }
+      value = comp == 1;
     } else if (node.operator == '>=') {
-      if (leftSide.isPrimitive && rightSide.isPrimitive) {
-        value = leftSide.data >= rightSide.data;
-      } else {
-        value = false;
-      }
+      value = comp == 1 || comp === 0;
     } else if (node.operator == '<') {
-      if (leftSide.isPrimitive && rightSide.isPrimitive) {
-        value = leftSide.data < rightSide.data;
-      } else {
-        value = false;
-      }
+      value = comp == -1;
     } else if (node.operator == '<=') {
-      if (leftSide.isPrimitive && rightSide.isPrimitive) {
-        value = leftSide.data <= rightSide.data;
-      } else {
-        value = false;
-      }
+      value = comp == -1 || comp === 0;
     } else if (node.operator == '+') {
       if (leftSide.type == 'string' || rightSide.type == 'string') {
         var leftValue = leftSide.toString();
@@ -980,6 +1014,8 @@ Interpreter.prototype['stepCallExpression'] = function() {
       } else if (state.func_.nativeFunc) {
         state.value = state.func_.nativeFunc.apply(state.funcThis_,
                                                    state.arguments);
+      } else {
+        throw new TypeError('functon not a function (huh?)');
       }
     } else {
       this.stateStack.shift();
