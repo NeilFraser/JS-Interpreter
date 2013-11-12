@@ -157,6 +157,8 @@ Interpreter.prototype.initFunction = function(scope) {
         thisInterpreter.stateStack[thisInterpreter.stateStack.length - 1].scope;
     var ast = acorn.parse('$ = function(' + args + ') {' + code + '};');
     newFunc.node = ast.body[0].expression.right;
+    thisInterpreter.setProperty(newFunc,
+        thisInterpreter.createPrimitive('length'), newFunc.node.length, true);
     return newFunc;
   };
   this.FUNCTION = this.createObject(null);
@@ -167,6 +169,31 @@ Interpreter.prototype.initFunction = function(scope) {
   this.setProperty(this.FUNCTION, this.createPrimitive('prototype'),
       this.createObject(null));
   this.FUNCTION.nativeFunc = wrapper;
+
+  // Create stub functions for apply and call.
+  // These are processed as specia cases in stepCallExpression.
+  var node = {
+    type: 'FunctionApply',
+    params: [],
+    id: null,
+    body: null,
+    start: 0,
+    end: 0
+  };
+  this.setProperty(this.FUNCTION.properties.prototype,
+                   this.createPrimitive('apply'),
+                   this.createFunction(node, {}));
+  var node = {
+    type: 'FunctionCall',
+    params: [],
+    id: null,
+    body: null,
+    start: 0,
+    end: 0
+  };
+  this.setProperty(this.FUNCTION.properties.prototype,
+                   this.createPrimitive('call'),
+                   this.createFunction(node, {}));
 };
 
 /**
@@ -488,6 +515,8 @@ Interpreter.prototype.createFunction = function(node, opt_scope) {
   var func = this.createObject(this.FUNCTION);
   func.parentScope = opt_scope || this.getScope();
   func.node = node;
+  this.setProperty(func, this.createPrimitive('length'),
+                   this.createPrimitive(func.node.params.length), true);
   return func;
 };
 
@@ -499,6 +528,8 @@ Interpreter.prototype.createFunction = function(node, opt_scope) {
 Interpreter.prototype.createNativeFunction = function(nativeFunc) {
   var func = this.createObject(this.FUNCTION);
   func.nativeFunc = nativeFunc;
+  this.setProperty(func, this.createPrimitive('length'),
+                   this.createPrimitive(nativeFunc.length), true);
   return func;
 };
 
@@ -959,6 +990,7 @@ Interpreter.prototype['stepCallExpression'] = function() {
       if (state.value.type == 'function') {
         state.func_ = state.value;
       } else {
+        state.member_ = state.value[0];
         state.func_ = this.getValue(state.value);
         if (!state.func_ || state.func_.type != 'function') {
           throw new TypeError((state.func_ && state.func_.type) +
@@ -988,6 +1020,25 @@ Interpreter.prototype['stepCallExpression'] = function() {
       this.stateStack.unshift({node: node.arguments[n]});
     } else if (!state.doneExec) {
       state.doneExec = true;
+      if (state.func_.node &&
+          (state.func_.node.type == 'FunctionApply' ||
+           state.func_.node.type == 'FunctionCall')) {
+        state.funcThis_ = state.arguments.shift();
+        if (state.func_.node.type == 'FunctionApply') {
+          // Unpack all the arguments from the provided array.
+          var argsList = state.arguments.shift();
+          if (argsList && this.isa(argsList, this.ARRAY)) {
+            state.arguments = [];
+            for (var i = 0; i < argsList.length; i++) {
+              state.arguments[i] = this.getProperty(argsList,
+                  this.createPrimitive(i));
+            }
+          } else {
+            state.arguments = [];
+          }
+        }
+        state.func_ = state.member_;
+      }
       if (state.func_.node) {
         var scope =
             this.createScope(state.func_.node.body, state.func_.parentScope);
