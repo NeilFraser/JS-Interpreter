@@ -78,6 +78,7 @@ Interpreter.prototype.initGlobalScope = function(scope) {
   // Unable to set scope's parent prior (this.OBJECT did not exist).
   scope.parent = this.OBJECT;
   this.initArray(scope);
+  this.initNumber(scope);
   this.initMath(scope);
 
   // Initialize global functions.
@@ -171,7 +172,7 @@ Interpreter.prototype.initFunction = function(scope) {
   this.FUNCTION.nativeFunc = wrapper;
 
   // Create stub functions for apply and call.
-  // These are processed as specia cases in stepCallExpression.
+  // These are processed as special cases in stepCallExpression.
   var node = {
     type: 'FunctionApply',
     params: [],
@@ -355,6 +356,63 @@ Interpreter.prototype.initArray = function(scope) {
 };
 
 /**
+ * Initialize the Number class.
+ * @param {!Object} scope Global scope.
+ */
+Interpreter.prototype.initNumber = function(scope) {
+  var thisInterpreter = this;
+  var wrapper;
+  // Number constructor.
+  wrapper = function(value) {
+    value = value.toNumber();
+    if (this.parent == thisInterpreter.NUMBER) {
+      this.toBoolean = function() {return !!value;};
+      this.toNumber = function() {return value;};
+      this.toString = function() {return String(value);};
+      return undefined;
+    } else {
+      return thisInterpreter.createPrimitive(value);
+    }
+  };
+  this.NUMBER = this.createNativeFunction(wrapper);
+  this.setProperty(scope, this.createPrimitive('Number'), this.NUMBER);
+
+  var numConsts = ['MAX_VALUE', 'MIN_VALUE', 'NaN', 'NEGATIVE_INFINITY',
+                   'POSITIVE_INFINITY'];
+  for (var i = 0; i < numConsts.length; i++) {
+    this.setProperty(this.NUMBER, this.createPrimitive(numConsts[i]),
+                     this.createPrimitive(Number[numConsts[i]]));
+  }
+
+  wrapper = function(fractionDigits) {
+    fractionDigits = fractionDigits ? fractionDigits.toNumber() : undefined;
+    var n = this.toNumber();
+    return thisInterpreter.createPrimitive(n.toExponential(fractionDigits));
+  };
+  this.setProperty(this.NUMBER.properties.prototype,
+                   this.createPrimitive('toExponential'),
+                   this.createNativeFunction(wrapper));
+
+  wrapper = function(digits) {
+    digits = digits ? digits.toNumber() : undefined;
+    var n = this.toNumber();
+    return thisInterpreter.createPrimitive(n.toFixed(digits));
+  };
+  this.setProperty(this.NUMBER.properties.prototype,
+                   this.createPrimitive('toFixed'),
+                   this.createNativeFunction(wrapper));
+
+  wrapper = function(precision) {
+    precision = precision ? precision.toNumber() : undefined;
+    var n = this.toNumber();
+    return thisInterpreter.createPrimitive(n.toPrecision(precision));
+  };
+  this.setProperty(this.NUMBER.properties.prototype,
+                   this.createPrimitive('toPrecision'),
+                   this.createNativeFunction(wrapper));
+};
+
+/**
  * Initialize Math object.
  * @param {!Object} scope Global scope.
  */
@@ -472,6 +530,9 @@ Interpreter.prototype.createPrimitive = function(data) {
     toNumber: function() {return Number(this.data);},
     toString: function() {return String(this.data);}
   };
+  if (typeof data == 'number') {
+    obj.parent = this.NUMBER;
+  }
   return obj;
 };
 

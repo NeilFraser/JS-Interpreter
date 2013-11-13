@@ -1,9 +1,10 @@
 switch
 for-in loops
 
-Array methods
+Array methods (50% done)
 String methods
 Date
 Regex
+toString/toValue
 
 Try catch/finally

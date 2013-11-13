@@ -88,16 +88,18 @@
   click <em>Step</em> repeatedly, or click <em>Run</em> once.
   Open your browser's console for errors.</p>
   <p><textarea id="code">
-function fibonacci(n) {
+var result = [];
+function fibonacci(n, output) {
   var a = 1, b = 1, sum;
   for (var i = 0; i &lt; n; i++) {
-    alert(a);
+    output.push(a);
     sum = a + b;
     a = b;
     b = sum;
   }
 }
-fibonacci(5);
+fibonacci(16, result);
+alert(result.join(', '));
 </textarea><br>
   <button onclick="parseButton()">Parse</button>
   <button onclick="stepButton()" id="stepButton" disabled="disabled">Step</button>
