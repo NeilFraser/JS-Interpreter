@@ -79,33 +79,36 @@ Interpreter.prototype.initGlobalScope = function(scope) {
   scope.parent = this.OBJECT;
   this.initArray(scope);
   this.initNumber(scope);
+  this.initString(scope);
+  this.initBoolean(scope);
   this.initMath(scope);
 
   // Initialize global functions.
   var thisInterpreter = this;
   var wrapper;
   wrapper = function(text) {
-    return alert(text.toString());
+    return thisInterpreter.createPrimitive(alert(text.toString()));
   };
   this.setProperty(scope, this.createPrimitive('alert'),
                    this.createNativeFunction(wrapper));
   wrapper = function(num) {
-    return isNaN(num.toNumber());
+    return thisInterpreter.createPrimitive(isNaN(num.toNumber()));
   };
   this.setProperty(scope, this.createPrimitive('isNaN'),
                    this.createNativeFunction(wrapper));
   wrapper = function(num) {
-    return isFinite(num.toNumber());
+    return thisInterpreter.createPrimitive(isFinite(num.toNumber()));
   };
   this.setProperty(scope, this.createPrimitive('isFinite'),
                    this.createNativeFunction(wrapper));
   wrapper = function(str) {
-    return parseFloat(str.toNumber());
+    return thisInterpreter.createPrimitive(parseFloat(str.toNumber()));
   };
   this.setProperty(scope, this.createPrimitive('parseFloat'),
                    this.createNativeFunction(wrapper));
   wrapper = function(str, radix) {
-    return parseInt(str.toString(), radix.toNumber());
+    return thisInterpreter.createPrimitive(
+        parseInt(str.toString(), radix.toNumber()));
   };
   this.setProperty(scope, this.createPrimitive('parseInt'),
                    this.createNativeFunction(wrapper));
@@ -120,7 +123,7 @@ Interpreter.prototype.initGlobalScope = function(scope) {
   for (var i = 0; i < strFunctions.length; i++) {
     wrapper = (function(nativeFunc) {
       return function(str) {
-        return nativeFunc(str.toString());
+        return thisInterpreter.createPrimitive(nativeFunc(str.toString()));
       };
     })(window[strFunctions[i]]);
     this.setProperty(scope, this.createPrimitive(strFunctions[i]),
@@ -413,10 +416,183 @@ Interpreter.prototype.initNumber = function(scope) {
 };
 
 /**
+ * Initialize the String class.
+ * @param {!Object} scope Global scope.
+ */
+Interpreter.prototype.initString = function(scope) {
+  var thisInterpreter = this;
+  var wrapper;
+  // String constructor.
+  wrapper = function(value) {
+    value = value.toString();
+    if (this.parent == thisInterpreter.STRING) {
+      this.toBoolean = function() {return !!value;};
+      this.toNumber = function() {return Number(value);};
+      this.toString = function() {return value;};
+      return undefined;
+    } else {
+      return thisInterpreter.createPrimitive(value);
+    }
+  };
+  this.STRING = this.createNativeFunction(wrapper);
+  this.setProperty(scope, this.createPrimitive('String'), this.STRING);
+
+  var functions = ['toLowerCase', 'toUpperCase',
+                   'toLocaleLowerCase', 'toLocaleUpperCase'];
+  for (var i = 0; i < functions.length; i++) {
+    var wrapper = (function(nativeFunc) {
+      return function() {
+        return thisInterpreter.createPrimitive(nativeFunc.apply(this));
+      };
+    })(String.prototype[functions[i]]);
+    this.setProperty(this.STRING.properties.prototype,
+                     this.createPrimitive(functions[i]),
+                     this.createNativeFunction(wrapper));
+  }
+
+  // Trim function may not exist in host browser.  Write them from scratch.
+  wrapper = function() {
+    var str = this.toString();
+    return thisInterpreter.createPrimitive(str.replace(/^\s+|\s+$/g, ''));
+  };
+  this.setProperty(this.STRING.properties.prototype,
+                   this.createPrimitive('trim'),
+                   this.createNativeFunction(wrapper));
+  wrapper = function() {
+    var str = this.toString();
+    return thisInterpreter.createPrimitive(str.replace(/^\s+/g, ''));
+  };
+  this.setProperty(this.STRING.properties.prototype,
+                   this.createPrimitive('trimLeft'),
+                   this.createNativeFunction(wrapper));
+  wrapper = function() {
+    var str = this.toString();
+    return thisInterpreter.createPrimitive(str.replace(/\s+$/g, ''));
+  };
+  this.setProperty(this.STRING.properties.prototype,
+                   this.createPrimitive('trimRight'),
+                   this.createNativeFunction(wrapper));
+
+  wrapper = function(num) {
+    var str = this.toString();
+    num = num.toNumber();
+    return thisInterpreter.createPrimitive(str.charAt(num));
+  };
+  this.setProperty(this.STRING.properties.prototype,
+                   this.createPrimitive('charAt'),
+                   this.createNativeFunction(wrapper));
+
+  wrapper = function(num) {
+    var str = this.toString();
+    num = num.toNumber();
+    return thisInterpreter.createPrimitive(str.charCodeAt(num));
+  };
+  this.setProperty(this.STRING.properties.prototype,
+                   this.createPrimitive('charCodeAt'),
+                   this.createNativeFunction(wrapper));
+
+  wrapper = function(searchValue, fromIndex) {
+    var str = this.toString();
+    searchValue = searchValue.toString();
+    fromIndex = fromIndex ? fromIndex.toNumber() : undefined;
+    return thisInterpreter.createPrimitive(
+        str.indexOf(searchValue, fromIndex));
+  };
+  this.setProperty(this.STRING.properties.prototype,
+                   this.createPrimitive('indexOf'),
+                   this.createNativeFunction(wrapper));
+
+  wrapper = function(searchValue, fromIndex) {
+    var str = this.toString();
+    searchValue = searchValue.toString();
+    fromIndex = fromIndex ? fromIndex.toNumber() : undefined;
+    return thisInterpreter.createPrimitive(
+        str.lastIndexOf(searchValue, fromIndex));
+  };
+  this.setProperty(this.STRING.properties.prototype,
+                   this.createPrimitive('lastIndexOf'),
+                   this.createNativeFunction(wrapper));
+
+  wrapper = function(separator, limit) {
+    var str = this.toString();
+    separator = separator ? separator.toString() : undefined;
+    limit = limit ? limit.toNumber() : undefined;
+    var jsList = str.split(separator, limit);
+    var pseudoList = thisInterpreter.createObject(thisInterpreter.ARRAY);
+    for (var i = 0; i < jsList.length; i++) {
+      thisInterpreter.setProperty(pseudoList,
+          thisInterpreter.createPrimitive(i),
+          thisInterpreter.createPrimitive(jsList[i]));
+    }
+    return pseudoList;
+  };
+  this.setProperty(this.STRING.properties.prototype,
+                   this.createPrimitive('split'),
+                   this.createNativeFunction(wrapper));
+
+  wrapper = function(indexA, indexB) {
+    var str = this.toString();
+    indexA = indexA.toNumber();
+    indexB = indexB ? indexB.toNumber() : undefined;
+    return thisInterpreter.createPrimitive(
+        str.substring(indexA, indexB));
+  };
+  this.setProperty(this.STRING.properties.prototype,
+                   this.createPrimitive('substring'),
+                   this.createNativeFunction(wrapper));
+
+  wrapper = function(start, length) {
+    var str = this.toString();
+    start = start.toNumber();
+    length = length ? length.toNumber() : undefined;
+    return thisInterpreter.createPrimitive(
+        str.substr(start, length));
+  };
+  this.setProperty(this.STRING.properties.prototype,
+                   this.createPrimitive('substr'),
+                   this.createNativeFunction(wrapper));
+
+  wrapper = function(var_args) {
+    var str = this.toString();
+    for (var i = 0; i< arguments.length; i++) {
+      str += arguments[i].toString();
+    }
+    return thisInterpreter.createPrimitive(str);
+  };
+  this.setProperty(this.STRING.properties.prototype,
+                   this.createPrimitive('concat'),
+                   this.createNativeFunction(wrapper));
+};
+
+/**
+ * Initialize the Boolean class.
+ * @param {!Object} scope Global scope.
+ */
+Interpreter.prototype.initBoolean = function(scope) {
+  var thisInterpreter = this;
+  var wrapper;
+  // Boolean constructor.
+  wrapper = function(value) {
+    value = value.toBoolean();
+    if (this.parent == thisInterpreter.STRING) {
+      this.toBoolean = function() {return value;};
+      this.toNumber = function() {return Number(value);};
+      this.toString = function() {return String(value);};
+      return undefined;
+    } else {
+      return thisInterpreter.createPrimitive(value);
+    }
+  };
+  this.BOOLEAN = this.createNativeFunction(wrapper);
+  this.setProperty(scope, this.createPrimitive('Boolean'), this.BOOLEAN);
+};
+
+/**
  * Initialize Math object.
  * @param {!Object} scope Global scope.
  */
 Interpreter.prototype.initMath = function(scope) {
+  var thisInterpreter = this;
   var myMath = this.createObject(this.OBJECT);
   this.setProperty(scope, this.createPrimitive('Math'), myMath);
   var mathConsts = ['E', 'LN2', 'LN10', 'LOG2E', 'LOG10E', 'PI',
@@ -434,7 +610,8 @@ Interpreter.prototype.initMath = function(scope) {
         for (var j = 0; j < arguments.length; j++) {
           arguments[j] = arguments[j].toNumber();
         }
-        return nativeFunc.apply(Math, arguments);
+        return thisInterpreter.createPrimitive(
+            nativeFunc.apply(Math, arguments));
       };
     })(Math[numFunctions[i]]);
     this.setProperty(myMath, this.createPrimitive(numFunctions[i]),
@@ -522,16 +699,21 @@ Interpreter.prototype.arrayIndex = function(n) {
  * @return {!Object} New data object.
  */
 Interpreter.prototype.createPrimitive = function(data) {
+  var type = typeof data;
   var obj = {
     data: data,
     isPrimitive: true,
-    type: typeof data,
+    type: type,
     toBoolean: function() {return Boolean(this.data);},
     toNumber: function() {return Number(this.data);},
     toString: function() {return String(this.data);}
   };
-  if (typeof data == 'number') {
+  if (type == 'number') {
     obj.parent = this.NUMBER;
+  } else if (type == 'string') {
+    obj.parent = this.STRING;
+  } else if (type == 'boolean') {
+    obj.parent = this.BOOLEAN;
   }
   return obj;
 };
