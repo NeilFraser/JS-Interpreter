@@ -356,6 +356,40 @@ Interpreter.prototype.initArray = function(scope) {
   this.setProperty(this.ARRAY.properties.prototype,
                    this.createPrimitive('join'),
                    this.createNativeFunction(wrapper));
+
+  wrapper = function(var_args) {
+    var list = thisInterpreter.createObject(thisInterpreter.ARRAY);
+    var length = 0;
+    // Start by copying the current array.
+    for (var i = 0; i < this.length; i++) {
+      var element = thisInterpreter.getProperty(this,
+          thisInterpreter.createPrimitive(i));
+      thisInterpreter.setProperty(list,
+          thisInterpreter.createPrimitive(length++),
+          element);
+    }
+    // Loop through all arguments and copy them in.
+    for (var i = 0; i < arguments.length; i++) {
+      var value = arguments[i];
+      if (thisInterpreter.isa(value, thisInterpreter.ARRAY)) {
+        for (var j = 0; j < value.length; j++) {
+          var element = thisInterpreter.getProperty(value,
+              thisInterpreter.createPrimitive(j));
+          thisInterpreter.setProperty(list,
+              thisInterpreter.createPrimitive(length++),
+              element);
+        }
+      } else {
+        thisInterpreter.setProperty(list,
+            thisInterpreter.createPrimitive(length++),
+            value);
+      }
+    }
+    return list;
+  };
+  this.setProperty(this.ARRAY.properties.prototype,
+                   this.createPrimitive('concat'),
+                   this.createNativeFunction(wrapper));
 };
 
 /**
@@ -554,7 +588,7 @@ Interpreter.prototype.initString = function(scope) {
 
   wrapper = function(var_args) {
     var str = this.toString();
-    for (var i = 0; i< arguments.length; i++) {
+    for (var i = 0; i < arguments.length; i++) {
       str += arguments[i].toString();
     }
     return thisInterpreter.createPrimitive(str);

@@ -1,6 +1,6 @@
 switch
 for-in loops
-
+String[n] access
 Array methods (50% done)
 Date
 Regex
