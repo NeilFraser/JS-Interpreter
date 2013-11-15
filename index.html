@@ -30,8 +30,8 @@
       var wrapper = function(text) {
         return interpreter.createPrimitive(alert(text.toString()));
       };
-      this.setProperty(scope, 'alert',
-                       interpreter.createNativeFunction(wrapper));
+      interpreter.setProperty(scope, 'alert',
+          interpreter.createNativeFunction(wrapper));
     };
 
     function parseButton() {

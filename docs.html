@@ -62,14 +62,14 @@
   <pre>
     var myCode = 'alert(url);';
     var initFunc = function(interpreter, scope) {
-      this.setProperty(scope, 'url',
+      interpreter.setProperty(scope, 'url',
           interpreter.createPrimitive(location.toString()));
 
       var wrapper = function(text) {
         return interpreter.createPrimitive(alert(text.toString()));
       };
-      this.setProperty(scope, 'alert',
-                       interpreter.createNativeFunction(wrapper));
+      interpreter.setProperty(scope, 'alert',
+          interpreter.createNativeFunction(wrapper));
     };
     var myInterpreter = new Interpreter(myCode, initFunc);
   </pre>
@@ -101,7 +101,6 @@
       <li>Date class</li>
       <li>Regex class</li>
       <li>String search methods</li>
-      <li>toString/toValue</li>
     </ul>
     </dd>
   </dl>

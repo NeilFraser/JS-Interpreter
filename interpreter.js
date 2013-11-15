@@ -147,9 +147,13 @@ Interpreter.prototype.initFunction = function(scope) {
       // Called with new.
       var newFunc = this;
     } else {
-      var newFunc = thisInterpreter.createObject(this.FUNCTION);
+      var newFunc = thisInterpreter.createObject(thisInterpreter.FUNCTION);
     }
-    var code = arguments[arguments.length - 1].toString();
+    if (arguments.length) {
+      var code = arguments[arguments.length - 1].toString();
+    } else {
+      var code = '';
+    }
     var args = [];
     for (var i = 0; i < arguments.length - 1; i++) {
       args.push(arguments[i].toString());
@@ -197,6 +201,23 @@ Interpreter.prototype.initFunction = function(scope) {
   };
   this.setProperty(this.FUNCTION.properties.prototype, 'call',
                    this.createFunction(node, {}));
+
+  // Function has no parent to inherit from, so it needs its own mandatory
+  // toString and valueOf functions.
+  wrapper = function() {
+    return thisInterpreter.createPrimitive(this.toString());
+  };
+  this.setProperty(this.FUNCTION.properties.prototype, 'toString',
+                   this.createNativeFunction(wrapper));
+  this.setProperty(this.FUNCTION, 'toString',
+                   this.createNativeFunction(wrapper));
+  wrapper = function() {
+    return thisInterpreter.createPrimitive(this.valueOf());
+  };
+  this.setProperty(this.FUNCTION.properties.prototype, 'valueOf',
+                   this.createNativeFunction(wrapper));
+  this.setProperty(this.FUNCTION, 'valueOf',
+                   this.createNativeFunction(wrapper));
 };
 
 /**
@@ -204,8 +225,31 @@ Interpreter.prototype.initFunction = function(scope) {
  * @param {!Object} scope Global scope.
  */
 Interpreter.prototype.initObject = function(scope) {
-  this.OBJECT = this.createObject(this.FUNCTION);
+  var thisInterpreter = this;
+  var wrapper;
+  // Object constructor.
+  wrapper = function(var_args) {
+    if (this.parent == thisInterpreter.OBJECT) {
+      // Called with new.
+      var newObj = this;
+    } else {
+      var newObj = thisInterpreter.createObject(thisInterpreter.OBJECT);
+    }
+    return newObj;
+  };
+  this.OBJECT = this.createNativeFunction(wrapper);
   this.setProperty(scope, 'Object', this.OBJECT);
+
+  wrapper = function() {
+    return thisInterpreter.createPrimitive(this.toString());
+  };
+  this.setProperty(this.OBJECT.properties.prototype, 'toString',
+                   this.createNativeFunction(wrapper));
+  wrapper = function() {
+    return thisInterpreter.createPrimitive(this.valueOf());
+  };
+  this.setProperty(this.OBJECT.properties.prototype, 'valueOf',
+                   this.createNativeFunction(wrapper));
 };
 
 /**
@@ -443,6 +487,7 @@ Interpreter.prototype.initString = function(scope) {
       this.toBoolean = function() {return !!value;};
       this.toNumber = function() {return Number(value);};
       this.toString = function() {return value;};
+      this.valueOf = function() {return value;};
       return undefined;
     } else {
       return thisInterpreter.createPrimitive(value);
@@ -579,6 +624,7 @@ Interpreter.prototype.initBoolean = function(scope) {
       this.toBoolean = function() {return value;};
       this.toNumber = function() {return Number(value);};
       this.toString = function() {return String(value);};
+      this.valueOf = function() {return value;};
       return undefined;
     } else {
       return thisInterpreter.createPrimitive(value);
@@ -707,7 +753,8 @@ Interpreter.prototype.createPrimitive = function(data) {
     type: type,
     toBoolean: function() {return Boolean(this.data);},
     toNumber: function() {return Number(this.data);},
-    toString: function() {return String(this.data);}
+    toString: function() {return String(this.data);},
+    valueOf: function() {return this.data;}
   };
   if (type == 'number') {
     obj.parent = this.NUMBER;
@@ -733,7 +780,8 @@ Interpreter.prototype.createObject = function(parent) {
     properties: Object.create(null),
     toBoolean: function() {return true;},
     toNumber: function() {return 0;},
-    toString: function() {return '[Object]';}
+    toString: function() {return '[' + this.type + ']';},
+    valueOf: function() {return this;}
   };
   // Functions have prototype objects.
   if (this.isa(obj, this.FUNCTION)) {
@@ -743,6 +791,13 @@ Interpreter.prototype.createObject = function(parent) {
   // Arrays have length.
   if (this.isa(obj, this.ARRAY)) {
     obj.length = 0;
+    obj.toString = function() {
+      var strs = [];
+      for (var i = 0; i < this.length; i++) {
+        strs[i] = this.properties[i].toString();
+      }
+      return strs.join(',');
+    };
   };
 
   return obj;
@@ -1308,7 +1363,7 @@ Interpreter.prototype['stepCallExpression'] = function() {
         state.value = state.func_.nativeFunc.apply(state.funcThis_,
                                                    state.arguments);
       } else {
-        throw new TypeError('functon not a function (huh?)');
+        throw new TypeError('function not a function (huh?)');
       }
     } else {
       this.stateStack.shift();
