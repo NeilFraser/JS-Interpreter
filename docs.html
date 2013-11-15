@@ -21,7 +21,7 @@
   <p>JS-Interpreter is a sandboxed JavaScript interpreter written in JavaScript.
   It allows for execution of arbitrary JavaScript code line by line.  Execution
   is completely isolated from the main JavaScript environment.  Multiple
-  instances of te JS-Interpreter allow for musti-threaded concurrent JavaScript
+  instances of the JS-Interpreter allow for multi-threaded concurrent JavaScript
   without the use of Web Workers.</p>
 
   <p>Play with the <a href="index.html">JS-Interpreter demo</a>.</p>
@@ -35,7 +35,7 @@
   </pre>
   <p>Next, instantiate an interpreter with the JavaScript code that needs to be parsed:</p>
   <pre>
-    var myCode = 'var a=1;for(var i=0;i&lt;4;i++){a*=i;}alert(a);';
+    var myCode = 'var a=1; for(var i=0;i&lt;4;i++){a*=i;} a;';
     var myInterpreter = new Interpreter(myCode);
   </pre>
   <p>To run the code step by step, call the <code>step</code> function
@@ -57,8 +57,24 @@
   <h2>External API</h2>
   <p>Similar to the <code>eval</code> function, the result of the last
   statement executed is available in <code>myInterpreter.value</code>.
-  Additionally, API calls may be added to the interpreter after it has been
-  created.  See the <code>initGlobalScope</code> function for examples.
+  Additionally, API calls may be added to the interpreter during creation.
+  Here is the addition of <code>alert()</code> and a <code>url</code> variable:</p>
+  <pre>
+    var myCode = 'alert(url);';
+    var initFunc = function(interpreter, scope) {
+      this.setProperty(scope, 'url',
+          interpreter.createPrimitive(location.toString()));
+
+      var wrapper = function(text) {
+        return interpreter.createPrimitive(alert(text.toString()));
+      };
+      this.setProperty(scope, 'alert',
+                       interpreter.createNativeFunction(wrapper));
+    };
+    var myInterpreter = new Interpreter(myCode, initFunc);
+  </pre>
+  <p>For more examples, see the <code>initGlobalScope</code> function which
+  creates APIs for Math, Array, Function, an other globals.</p>
 
   <h2>Limitations</h2>
   <p>The version of JavaScript implemented by the interpreter has a few
@@ -74,10 +90,24 @@
     <dt>Wat</dt>
     <dd>Some of the more obscure type conversions (e.g. <code>[] + {}</code>)
     may return different results from JavaScript.  Patches are welcome.</dd>
+    <dt>Todo</dt>
+    <dd>A laundry list of random items that are currently missing but are being
+    worked on:
+    <ul>
+      <li>switch statements</li>
+      <li>for-in loops</li>
+      <li>String[n] access</li>
+      <li>Array methods (50% done)</li>
+      <li>Date class</li>
+      <li>Regex class</li>
+      <li>String search methods</li>
+      <li>toString/toValue</li>
+    </ul>
+    </dd>
   </dl>
 
-  <h2>Dependancy</h2>
-  <p>The only dependancy is <a href="http://marijnhaverbeke.nl/acorn/">Acorn</a>,
+  <h2>Dependency</h2>
+  <p>The only dependency is <a href="http://marijnhaverbeke.nl/acorn/">Acorn</a>,
   a beautifully written JavaScript parser by Marijn Haverbeke.  It is included
   in the JS-Interpreter package.</p>
 

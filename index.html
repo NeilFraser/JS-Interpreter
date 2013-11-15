@@ -26,9 +26,17 @@
   <script src="interpreter.js"></script>
   <script>
     var myInterpreter;
+    function initAlert(interpreter, scope) {
+      var wrapper = function(text) {
+        return interpreter.createPrimitive(alert(text.toString()));
+      };
+      this.setProperty(scope, 'alert',
+                       interpreter.createNativeFunction(wrapper));
+    };
+
     function parseButton() {
       var code = document.getElementById('code').value
-      myInterpreter = new Interpreter(code);
+      myInterpreter = new Interpreter(code, initAlert);
       disable('');
     }
 
