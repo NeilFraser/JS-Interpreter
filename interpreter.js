@@ -349,16 +349,17 @@ Interpreter.prototype.initArray = function(scope) {
                    this.createNativeFunction(wrapper));
 
   wrapper = function(index, howmany, var_args) {
-    index = index.toNumber();
+    index = index ? index.toNumber() : 0;
     if (index < 0) {
       index = Math.max(this.length + index, 0);
     } else {
       index = Math.min(index, this.length);
     }
-    howmany = Math.min(howmany.toNumber(), this.length - index);
+    howmany = howmany ? howmany.toNumber() : Infinity;
+    howmany = Math.min(howmany, this.length - index);
     var removed = thisInterpreter.createObject(thisInterpreter.ARRAY);
     // Remove specified elements.
-    for (var i = index; i < this.length - howmany; i++) {
+    for (var i = index; i < index + howmany; i++) {
       removed.properties[removed.length++] = this.properties[i];
       this.properties[i] = this.properties[i + howmany];
     }
@@ -377,6 +378,28 @@ Interpreter.prototype.initArray = function(scope) {
     return removed;
   };
   this.setProperty(this.ARRAY.properties.prototype, 'splice',
+                   this.createNativeFunction(wrapper));
+
+  wrapper = function(opt_begin, opt_end) {
+    var list = thisInterpreter.createObject(thisInterpreter.ARRAY);
+    var begin = opt_begin ? opt_begin.toNumber() : 0;
+    if (begin < 0) {
+      begin = this.length + begin;
+    }
+    begin = Math.max(0, Math.min(begin, this.length));
+    var end = opt_end ? opt_end.toNumber() : this.length;
+    if (end < 0) {
+      end = this.length + end;
+    }
+    end = Math.max(0, Math.min(end, this.length));
+    var length = 0;
+    for (var i = begin; i < end; i++) {
+      var element = thisInterpreter.getProperty(this, i);
+      thisInterpreter.setProperty(list, length++, element);
+    }
+    return list;
+  };
+  this.setProperty(this.ARRAY.properties.prototype, 'slice',
                    this.createNativeFunction(wrapper));
 
   wrapper = function(opt_separator) {
@@ -1794,7 +1817,7 @@ Interpreter.prototype['stepUnaryExpression'] = function() {
     } else if (node.operator == '~') {
       value = ~state.value.toNumber();
     } else if (node.operator == 'typeof') {
-      value = typeof state.value.type;
+      value = state.value.type;
     } else if (node.operator == 'delete') {
       if (state.value instanceof Array) {
         var obj = state.value[0];
@@ -1810,30 +1833,6 @@ Interpreter.prototype['stepUnaryExpression'] = function() {
       throw 'Unknown unary operator: ' + node.operator;
     }
     this.stateStack[0].value = this.createPrimitive(value);
-  }
-};
-
-Interpreter.prototype['stepVariableDeclaration'] = function() {
-  var state = this.stateStack[0];
-  var node = state.node;
-  var n = state.n || 0;
-  if (node.declarations[n]) {
-    state.n = n + 1;
-    this.stateStack.unshift({node: node.declarations[n]});
-  } else {
-    this.stateStack.shift();
-  }
-};
-
-Interpreter.prototype['stepVariableDeclarator'] = function() {
-  var state = this.stateStack[0];
-  var node = state.node;
-  if (node.init && !state.done) {
-    state.done = true;
-    this.stateStack.unshift({node: node.init});
-  } else {
-    this.setValue(this.createPrimitive(node.id.name), state.value);
-    this.stateStack.shift();
   }
 };
 
@@ -1858,6 +1857,30 @@ Interpreter.prototype['stepUpdateExpression'] = function() {
     this.setValue(leftSide, changeValue);
     var returnValue = node.prefix ? returnValue : leftValue;
     this.stateStack[0].value = this.createPrimitive(returnValue);
+  }
+};
+
+Interpreter.prototype['stepVariableDeclaration'] = function() {
+  var state = this.stateStack[0];
+  var node = state.node;
+  var n = state.n || 0;
+  if (node.declarations[n]) {
+    state.n = n + 1;
+    this.stateStack.unshift({node: node.declarations[n]});
+  } else {
+    this.stateStack.shift();
+  }
+};
+
+Interpreter.prototype['stepVariableDeclarator'] = function() {
+  var state = this.stateStack[0];
+  var node = state.node;
+  if (node.init && !state.done) {
+    state.done = true;
+    this.stateStack.unshift({node: node.init});
+  } else {
+    this.setValue(this.createPrimitive(node.id.name), state.value);
+    this.stateStack.shift();
   }
 };
 
