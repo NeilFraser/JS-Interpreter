@@ -84,6 +84,7 @@ Interpreter.prototype.initGlobalScope = function(scope) {
   this.initNumber(scope);
   this.initString(scope);
   this.initBoolean(scope);
+  this.initDate(scope);
   this.initMath(scope);
 
   // Initialize global functions.
@@ -632,6 +633,129 @@ Interpreter.prototype.initBoolean = function(scope) {
   };
   this.BOOLEAN = this.createNativeFunction(wrapper);
   this.setProperty(scope, 'Boolean', this.BOOLEAN);
+};
+
+/**
+ * Initialize the Date class.
+ * @param {!Object} scope Global scope.
+ */
+Interpreter.prototype.initDate = function(scope) {
+  var thisInterpreter = this;
+  var wrapper;
+  // Date constructor.
+  wrapper = function(a, b, c, d, e, f, h) {
+    if (this.parent == thisInterpreter.DATE) {
+      var newDate = this;
+    } else {
+      var newDate = thisInterpreter.createObject(thisInterpreter.DATE);
+    }
+    var dateString = a;
+    if (!arguments.length) {
+      newDate.date = new Date();
+    } else if (arguments.length == 1 && (dateString.type == 'string' ||
+        thisInterpreter.isa(dateString, thisInterpreter.STRING))) {
+      newDate.date = new Date(dateString.toString());
+    } else {
+      var args = [];
+      for (var i = 0; i < aguments.length; i++) {
+        args[i] = arguments[i] ? arguments[i].toNumber() : undefined
+      }
+      // Sadly there is no way to use 'apply' on a constructor.
+      if (args.length == 1) {
+        newDate.date = new Date(args[0]);
+      } else if (args.length == 2) {
+        newDate.date = new Date(args[0], args[1]);
+      } else if (args.length == 3) {
+        newDate.date = new Date(args[0], args[1], args[2]);
+      } else if (args.length == 4) {
+        newDate.date = new Date(args[0], args[1], args[2], args[3]);
+      } else if (args.length == 5) {
+        newDate.date = new Date(args[0], args[1], args[2], args[3], args[4]);
+      } else if (args.length == 7) {
+        newDate.date = new Date(args[0], args[1], args[2], args[3], args[4],
+                                args[5]);
+      } else {
+        newDate.date = new Date(args[0], args[1], args[2], args[3], args[4],
+                                args[5], args[6]);
+      }
+    }
+    newDate.toString = function() {return String(this.date);};
+    newDate.toNumber = function() {return Number(this.date);};
+    newDate.valueOf = function() {return this.date.valueOf();};
+    return newDate;
+  };
+  this.DATE = this.createNativeFunction(wrapper);
+  this.setProperty(scope, 'Date', this.DATE);
+
+  // Static methods on Date.
+  wrapper = function() {
+    return thisInterpreter.createPrimitive(new Date().getTime());
+  };
+  this.setProperty(this.DATE, 'now', this.createNativeFunction(wrapper));
+
+  wrapper = function(dateString) {
+    return thisInterpreter.createPrimitive(Date.parse(dateString.toString()));
+  };
+  this.setProperty(this.DATE, 'parse', this.createNativeFunction(wrapper));
+
+  wrapper = function(a, b, c, d, e, f, h) {
+    var args = [];
+    for (var i = 0; i < arguments.length; i++) {
+      args[i] = arguments[i] ? arguments[i].toNumber() : undefined;
+    }
+    return thisInterpreter.createPrimitive(Date.UTC.apply(Date, args));
+  };
+  this.setProperty(this.DATE, 'UTC', this.createNativeFunction(wrapper));
+
+  // Getter methods.
+  var getFunctions = ['getDate', 'getDay', 'getFullYear', 'getHours',
+      'getMilliseconds', 'getMinutes', 'getMonth', 'getSeconds', 'getTime',
+      'getTimezoneOffset', 'getUTCDate', 'getUTCDay', 'getUTCFullYear',
+      'getUTCHours', 'getUTCMilliseconds', 'getUTCMinutes', 'getUTCMonth',
+      'getUTCSeconds', 'getYear'];
+  for (var i = 0; i < getFunctions.length; i++) {
+    wrapper = (function(nativeFunc) {
+      return function() {
+        return thisInterpreter.createPrimitive(this.date[nativeFunc]());
+      };
+    })(getFunctions[i]);
+    this.setProperty(this.DATE.properties.prototype, getFunctions[i],
+                     this.createNativeFunction(wrapper));
+  }
+
+  // Setter methods.
+  var setFunctions = ['setDate', 'setFullYear', 'setHours', 'setMilliseconds',
+      'setMinutes', 'setMonth', 'setSeconds', 'setTime', 'setUTCDate',
+      'setUTCFullYear', 'setUTCHours', 'setUTCMilliseconds', 'setUTCMinutes',
+      'setUTCMonth', 'setUTCSeconds', 'setYear'];
+  for (var i = 0; i < setFunctions.length; i++) {
+    wrapper = (function(nativeFunc) {
+      return function(var_args) {
+        var args = [];
+        for (var i = 0; i < arguments.length; i++) {
+          args[i] = arguments[i] ? arguments[i].toNumber() : undefined;
+        }
+        return thisInterpreter.createPrimitive(
+            this.date[nativeFunc].apply(this.date, args));
+      };
+    })(setFunctions[i]);
+    this.setProperty(this.DATE.properties.prototype, setFunctions[i],
+                     this.createNativeFunction(wrapper));
+  }
+
+  // Conversion getter methods.
+  var getFunctions = ['toDateString', 'toISOString', 'toGMTString',
+      'toLocaleDateString', 'toLocaleString', 'toLocaleTimeString',
+      'toTimeString', 'toUTCString'];
+  for (var i = 0; i < getFunctions.length; i++) {
+    wrapper = (function(nativeFunc) {
+      return function() {
+        return thisInterpreter.createPrimitive(this.date[nativeFunc]());
+      };
+    })(getFunctions[i]);
+    this.setProperty(this.DATE.properties.prototype, getFunctions[i],
+                     this.createNativeFunction(wrapper));
+  }
 };
 
 /**
