@@ -512,6 +512,7 @@ Interpreter.prototype.initString = function(scope) {
       this.toNumber = function() {return Number(value);};
       this.toString = function() {return value;};
       this.valueOf = function() {return value;};
+      this.data = value;
       return undefined;
     } else {
       return thisInterpreter.createPrimitive(value);
@@ -987,11 +988,15 @@ Interpreter.prototype.createNativeFunction = function(nativeFunc) {
 Interpreter.prototype.getProperty = function(obj, name) {
   name = name.toString();
   // Special cases for magic length property.
-  if (obj.isPrimitive && name == 'length' &&
-      obj.type == 'string') {
-    return this.createPrimitive(obj.data.length);
-  } else if (!obj.isPrimitive && name == 'length' &&
-      this.isa(obj, this.ARRAY)) {
+  if (this.isa(obj, this.STRING)) {
+    if (name == 'length') {
+      return this.createPrimitive(obj.data.length);
+    }
+    var n = this.arrayIndex(name);
+    if (!isNaN(n) && n < obj.data.length) {
+      return this.createPrimitive(obj.data[n]);
+    }
+  } else if (this.isa(obj, this.ARRAY) && name == 'length') {
     return this.createPrimitive(obj.length);
   }
   while (obj) {
@@ -1016,9 +1021,18 @@ Interpreter.prototype.getProperty = function(obj, name) {
  */
 Interpreter.prototype.hasProperty = function(obj, name) {
   name = name.toString();
-  if (name == 'length' && (obj.isPrimitive ?
-      obj.type == 'string' : this.isa(obj, this.ARRAY))) {
+  if (obj.isPrimitive) {
+    throw new TypeError('Primitive data type has no properties');
+  }
+  if (name == 'length' &&
+      (this.isa(obj, this.STRING) || this.isa(obj, this.ARRAY))) {
     return true;
+  }
+  if (this.isa(obj, this.STRING)) {
+    var n = this.arrayIndex(name);
+    if (!isNaN(n) && n < obj.data.length) {
+      return true;
+    }
   }
   while (obj) {
     if (obj.properties && name in obj.properties) {
@@ -1045,6 +1059,13 @@ Interpreter.prototype.setProperty = function(obj, name, value, opt_fixed) {
   name = name.toString();
   if (obj.isPrimitive || obj.fixed[name]) {
     return;
+  }
+  if (this.isa(obj, this.STRING)) {
+    var n = this.arrayIndex(name);
+    if (name == 'length' || (!isNaN(n) && n < obj.data.length)) {
+      // Can't set length or letters on Strings.
+      return;
+    }
   }
   if (this.isa(obj, this.ARRAY)) {
     // Arrays have a magic length variable that is bound to the elements.
