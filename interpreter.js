@@ -1900,7 +1900,8 @@ Interpreter.prototype['stepVariableDeclarator'] = function() {
     state.done = true;
     this.stateStack.unshift({node: node.init});
   } else {
-    this.setValue(this.createPrimitive(node.id.name), state.value);
+    this.setValue(this.createPrimitive(node.id.name),
+                  node.init ? state.value : this.UNDEFINED);
     this.stateStack.shift();
   }
 };
