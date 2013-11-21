@@ -91,21 +91,26 @@ Interpreter.prototype.initGlobalScope = function(scope) {
   var thisInterpreter = this;
   var wrapper;
   wrapper = function(num) {
+    num = num || thisInterpreter.UNDEFINED;
     return thisInterpreter.createPrimitive(isNaN(num.toNumber()));
   };
   this.setProperty(scope, 'isNaN',
                    this.createNativeFunction(wrapper));
   wrapper = function(num) {
+    num = num || thisInterpreter.UNDEFINED;
     return thisInterpreter.createPrimitive(isFinite(num.toNumber()));
   };
   this.setProperty(scope, 'isFinite',
                    this.createNativeFunction(wrapper));
   wrapper = function(str) {
+    str = str || thisInterpreter.UNDEFINED;
     return thisInterpreter.createPrimitive(parseFloat(str.toNumber()));
   };
   this.setProperty(scope, 'parseFloat',
                    this.createNativeFunction(wrapper));
   wrapper = function(str, radix) {
+    str = str || thisInterpreter.UNDEFINED;
+    radix = radix || thisInterpreter.UNDEFINED;
     return thisInterpreter.createPrimitive(
         parseInt(str.toString(), radix.toNumber()));
   };
@@ -116,12 +121,14 @@ Interpreter.prototype.initGlobalScope = function(scope) {
   };
   this.setProperty(scope, 'eval',
                    this.createNativeFunction(wrapper()));
+
   var strFunctions = ['escape', 'unescape',
                       'decodeURI', 'decodeURIComponent',
                       'encodeURI', 'encodeURIComponent'];
   for (var i = 0; i < strFunctions.length; i++) {
     wrapper = (function(nativeFunc) {
       return function(str) {
+        str = str || thisInterpreter.UNDEFINED;
         return thisInterpreter.createPrimitive(nativeFunc(str.toString()));
       };
     })(window[strFunctions[i]]);
@@ -183,7 +190,7 @@ Interpreter.prototype.initFunction = function(scope) {
   // Create stub functions for apply and call.
   // These are processed as special cases in stepCallExpression.
   var node = {
-    type: 'FunctionApply',
+    type: 'FunctionApply_',
     params: [],
     id: null,
     body: null,
@@ -193,7 +200,7 @@ Interpreter.prototype.initFunction = function(scope) {
   this.setProperty(this.FUNCTION.properties.prototype, 'apply',
                    this.createFunction(node, {}));
   var node = {
-    type: 'FunctionCall',
+    type: 'FunctionCall_',
     params: [],
     id: null,
     body: null,
@@ -452,7 +459,7 @@ Interpreter.prototype.initNumber = function(scope) {
   var wrapper;
   // Number constructor.
   wrapper = function(value) {
-    value = value.toNumber();
+    value = value ? value.toNumber() : 0;
     if (this.parent == thisInterpreter.NUMBER) {
       this.toBoolean = function() {return !!value;};
       this.toNumber = function() {return value;};
@@ -506,7 +513,7 @@ Interpreter.prototype.initString = function(scope) {
   var wrapper;
   // String constructor.
   wrapper = function(value) {
-    value = value.toString();
+    value = (value || thisInterpreter.UNDEFINED).toString();
     if (this.parent == thisInterpreter.STRING) {
       this.toBoolean = function() {return !!value;};
       this.toNumber = function() {return Number(value);};
@@ -555,7 +562,7 @@ Interpreter.prototype.initString = function(scope) {
 
   wrapper = function(num) {
     var str = this.toString();
-    num = num.toNumber();
+    num = (num || thisInterpreter.UNDEFINED).toNumber();
     return thisInterpreter.createPrimitive(str.charAt(num));
   };
   this.setProperty(this.STRING.properties.prototype, 'charAt',
@@ -563,7 +570,7 @@ Interpreter.prototype.initString = function(scope) {
 
   wrapper = function(num) {
     var str = this.toString();
-    num = num.toNumber();
+    num = (num || thisInterpreter.UNDEFINED).toNumber();
     return thisInterpreter.createPrimitive(str.charCodeAt(num));
   };
   this.setProperty(this.STRING.properties.prototype, 'charCodeAt',
@@ -571,7 +578,7 @@ Interpreter.prototype.initString = function(scope) {
 
   wrapper = function(searchValue, fromIndex) {
     var str = this.toString();
-    searchValue = searchValue.toString();
+    searchValue = (searchValue || thisInterpreter.UNDEFINED).toString();
     fromIndex = fromIndex ? fromIndex.toNumber() : undefined;
     return thisInterpreter.createPrimitive(
         str.indexOf(searchValue, fromIndex));
@@ -581,7 +588,7 @@ Interpreter.prototype.initString = function(scope) {
 
   wrapper = function(searchValue, fromIndex) {
     var str = this.toString();
-    searchValue = searchValue.toString();
+    searchValue = (searchValue || thisInterpreter.UNDEFINED).toString();
     fromIndex = fromIndex ? fromIndex.toNumber() : undefined;
     return thisInterpreter.createPrimitive(
         str.lastIndexOf(searchValue, fromIndex));
@@ -606,20 +613,18 @@ Interpreter.prototype.initString = function(scope) {
 
   wrapper = function(indexA, indexB) {
     var str = this.toString();
-    indexA = indexA.toNumber();
+    indexA = indexA ? indexA.toNumber() : undefined;
     indexB = indexB ? indexB.toNumber() : undefined;
-    return thisInterpreter.createPrimitive(
-        str.substring(indexA, indexB));
+    return thisInterpreter.createPrimitive(str.substring(indexA, indexB));
   };
   this.setProperty(this.STRING.properties.prototype, 'substring',
                    this.createNativeFunction(wrapper));
 
   wrapper = function(start, length) {
     var str = this.toString();
-    start = start.toNumber();
+    start = start ? start.toNumber() : undefined;
     length = length ? length.toNumber() : undefined;
-    return thisInterpreter.createPrimitive(
-        str.substr(start, length));
+    return thisInterpreter.createPrimitive(str.substr(start, length));
   };
   this.setProperty(this.STRING.properties.prototype, 'substr',
                    this.createNativeFunction(wrapper));
@@ -644,7 +649,7 @@ Interpreter.prototype.initBoolean = function(scope) {
   var wrapper;
   // Boolean constructor.
   wrapper = function(value) {
-    value = value.toBoolean();
+    value = value ? value.toBoolean() : false;
     if (this.parent == thisInterpreter.STRING) {
       this.toBoolean = function() {return value;};
       this.toNumber = function() {return Number(value);};
@@ -718,7 +723,8 @@ Interpreter.prototype.initDate = function(scope) {
   this.setProperty(this.DATE, 'now', this.createNativeFunction(wrapper));
 
   wrapper = function(dateString) {
-    return thisInterpreter.createPrimitive(Date.parse(dateString.toString()));
+    dateString = dateString ? dateString.toString() : undefined;
+    return thisInterpreter.createPrimitive(Date.parse(dateString));
   };
   this.setProperty(this.DATE, 'parse', this.createNativeFunction(wrapper));
 
@@ -1487,10 +1493,10 @@ Interpreter.prototype['stepCallExpression'] = function() {
     } else if (!state.doneExec) {
       state.doneExec = true;
       if (state.func_.node &&
-          (state.func_.node.type == 'FunctionApply' ||
-           state.func_.node.type == 'FunctionCall')) {
+          (state.func_.node.type == 'FunctionApply_' ||
+           state.func_.node.type == 'FunctionCall_')) {
         state.funcThis_ = state.arguments.shift();
-        if (state.func_.node.type == 'FunctionApply') {
+        if (state.func_.node.type == 'FunctionApply_') {
           // Unpack all the arguments from the provided array.
           var argsList = state.arguments.shift();
           if (argsList && this.isa(argsList, this.ARRAY)) {
