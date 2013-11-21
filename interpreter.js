@@ -116,11 +116,11 @@ Interpreter.prototype.initGlobalScope = function(scope) {
   };
   this.setProperty(scope, 'parseInt',
                    this.createNativeFunction(wrapper));
-  wrapper = function() {
-    return function(code) {return thisInterpreter.evalFunction_(code);};
-  };
-  this.setProperty(scope, 'eval',
-                   this.createNativeFunction(wrapper()));
+
+  var func = this.createObject(this.FUNCTION);
+  func.eval = true;
+  this.setProperty(func, 'length', this.createPrimitive(1), true);
+  this.setProperty(scope, 'eval', func);
 
   var strFunctions = ['escape', 'unescape',
                       'decodeURI', 'decodeURIComponent',
@@ -818,22 +818,6 @@ Interpreter.prototype.initMath = function(scope) {
     this.setProperty(myMath, numFunctions[i],
                      this.createNativeFunction(wrapper));
   }
-};
-
-/**
- * Evaluate the provided code.
- * @param {Object} Code to be evaluated.
- * @return {!Object} Evaluated output.
- * @private
- */
-Interpreter.prototype.evalFunction_ = function(code) {
-  if (!code) {
-    return this.UNDEFINED;
-  }
-  var evalInterpreter = new Interpreter(code.toString());
-  evalInterpreter.stateStack[0].scope.parentScope = this.getScope();
-  evalInterpreter.run();
-  return evalInterpreter.value || this.UNDEFINED;
 };
 
 /**
@@ -1536,6 +1520,20 @@ Interpreter.prototype['stepCallExpression'] = function() {
       } else if (state.func_.nativeFunc) {
         state.value = state.func_.nativeFunc.apply(state.funcThis_,
                                                    state.arguments);
+      } else if (state.func_.eval) {
+        var code = state.arguments[0];
+        if (!code) {
+          state.value = this.UNDEFINED;
+        } else {
+          var evalInterpreter = new Interpreter(code.toString());
+          evalInterpreter.stateStack[0].scope.parentScope =
+              this.getScope();
+          var state = {
+            node: {type: 'Eval_'},
+            interpreter: evalInterpreter
+          };
+          this.stateStack.unshift(state);
+        }
       } else {
         throw new TypeError('function not a function (huh?)');
       }
@@ -1611,6 +1609,14 @@ Interpreter.prototype['stepDoWhileStatement'] = function() {
 
 Interpreter.prototype['stepEmptyStatement'] = function() {
   this.stateStack.shift();
+};
+
+Interpreter.prototype['stepEval_'] = function() {
+  var state = this.stateStack[0];
+  if (!state.interpreter.step()) {
+    this.stateStack.shift();
+    this.stateStack[0].value = state.interpreter.value || this.UNDEFINED;
+  }
 };
 
 Interpreter.prototype['stepExpressionStatement'] = function() {
