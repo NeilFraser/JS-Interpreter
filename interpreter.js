@@ -1524,6 +1524,10 @@ Interpreter.prototype['stepCallExpression'] = function() {
         var code = state.arguments[0];
         if (!code) {
           state.value = this.UNDEFINED;
+        } else if (!code.isPrimitive) {
+          // JS does not parse String objects:
+          // eval(new String('1 + 1')) -> '1 + 1'
+          state.value = code;
         } else {
           var evalInterpreter = new Interpreter(code.toString());
           evalInterpreter.stateStack[0].scope.parentScope =
