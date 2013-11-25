@@ -266,6 +266,14 @@ Interpreter.prototype.initObject = function(scope) {
  */
 Interpreter.prototype.initArray = function(scope) {
   var thisInterpreter = this;
+  var getInt = function(obj, def) {
+    // Return an integer, or the default.
+    var n = obj ? Math.floor(obj.toNumber()) : def;
+    if (isNaN(n)) {
+      n = def;
+    }
+    return n;
+  };
   var wrapper;
   // Array constructor.
   wrapper = function(var_args) {
@@ -356,13 +364,13 @@ Interpreter.prototype.initArray = function(scope) {
                    this.createNativeFunction(wrapper));
 
   wrapper = function(index, howmany, var_args) {
-    index = index ? index.toNumber() : 0;
+    index = getInt(index, 0);
     if (index < 0) {
       index = Math.max(this.length + index, 0);
     } else {
       index = Math.min(index, this.length);
     }
-    howmany = howmany ? howmany.toNumber() : Infinity;
+    howmany = getInt(howmany, Infinity);
     howmany = Math.min(howmany, this.length - index);
     var removed = thisInterpreter.createObject(thisInterpreter.ARRAY);
     // Remove specified elements.
@@ -389,12 +397,12 @@ Interpreter.prototype.initArray = function(scope) {
 
   wrapper = function(opt_begin, opt_end) {
     var list = thisInterpreter.createObject(thisInterpreter.ARRAY);
-    var begin = opt_begin ? opt_begin.toNumber() : 0;
+    var begin = getInt(opt_begin, 0);
     if (begin < 0) {
       begin = this.length + begin;
     }
     begin = Math.max(0, Math.min(begin, this.length));
-    var end = opt_end ? opt_end.toNumber() : this.length;
+    var end = getInt(opt_end, this.length);
     if (end < 0) {
       end = this.length + end;
     }
@@ -447,6 +455,42 @@ Interpreter.prototype.initArray = function(scope) {
     return list;
   };
   this.setProperty(this.ARRAY.properties.prototype, 'concat',
+                   this.createNativeFunction(wrapper));
+
+  wrapper = function(searchElement, opt_fromIndex) {
+    searchElement = searchElement || thisInterpreter.UNDEFINED;
+    var fromIndex = getInt(opt_fromIndex, 0);
+    if (fromIndex < 0) {
+      fromIndex = this.length + fromIndex;
+    }
+    fromIndex = Math.max(0, Math.min(fromIndex, this.length));
+    for (var i = fromIndex; i < this.length; i++) {
+      var element = thisInterpreter.getProperty(this, i);
+      if (thisInterpreter.comp(element, searchElement) == 0) {
+        return thisInterpreter.createPrimitive(i);
+      }
+    }
+    return thisInterpreter.createPrimitive(-1);
+  };
+  this.setProperty(this.ARRAY.properties.prototype, 'indexOf',
+                   this.createNativeFunction(wrapper));
+
+  wrapper = function(searchElement, opt_fromIndex) {
+    searchElement = searchElement || thisInterpreter.UNDEFINED;
+    var fromIndex = getInt(opt_fromIndex, this.length);
+    if (fromIndex < 0) {
+      fromIndex = this.length + fromIndex;
+    }
+    fromIndex = Math.max(0, Math.min(fromIndex, this.length));
+    for (var i = fromIndex; i >= 0; i--) {
+      var element = thisInterpreter.getProperty(this, i);
+      if (thisInterpreter.comp(element, searchElement) == 0) {
+        return thisInterpreter.createPrimitive(i);
+      }
+    }
+    return thisInterpreter.createPrimitive(-1);
+  };
+  this.setProperty(this.ARRAY.properties.prototype, 'lastIndexOf',
                    this.createNativeFunction(wrapper));
 };
 
