@@ -1680,6 +1680,50 @@ Interpreter.prototype['stepExpressionStatement'] = function() {
   }
 };
 
+Interpreter.prototype['stepForInStatement'] = function() {
+  var state = this.stateStack[0];
+  state.isLoop = true;
+  var node = state.node;
+  if (!state.doneVariable_) {
+    state.doneVariable_ = true;
+    var left = node.left;
+    if (left.type == 'VariableDeclaration') {
+      // Inline variable declaration: for (var x in y)
+      left = left.declarations[0].id;
+    }
+    this.stateStack.unshift({node: left, components: true});
+  } else if (!state.doneObject_) {
+    state.doneObject_ = true;
+    state.variable = state.value;
+    console.log(state.variable);
+    this.stateStack.unshift({node: node.right});
+  } else {
+    if (typeof state.iterator == 'undefined') {
+      // First iteration.
+      state.object = state.value;
+      state.iterator = 0;
+    }
+    var i = state.iterator;
+    state.iterator++;
+    var name = null;
+    for (var prop in state.object.properties) {
+      if (i == 0) {
+        name = prop;
+        break;
+      }
+      i--;
+    }
+    if (name === null) {
+      this.stateStack.shift();
+    } else {
+      this.setValueToScope(state.variable, this.createPrimitive(name));
+      if (node.body) {
+        this.stateStack.unshift({node: node.body});
+      }
+    }
+  }
+};
+
 Interpreter.prototype['stepForStatement'] = function() {
   var state = this.stateStack[0];
   state.isLoop = true;
@@ -1751,17 +1795,17 @@ Interpreter.prototype['stepLogicalExpression'] = function() {
   if (node.operator != '&&' && node.operator != '||') {
     throw 'Unknown logical operator: ' + node.operator;
   }
-  if (!state.doneLeft) {
-    state.doneLeft = true;
+  if (!state.doneLeft_) {
+    state.doneLeft_ = true;
     this.stateStack.unshift({node: node.left});
-  } else if (!state.doneRight) {
+  } else if (!state.doneRight_) {
     if ((node.operator == '&&' && !state.value.toBoolean()) ||
         (node.operator == '||' && state.value.toBoolean())) {
       // Shortcut evaluation.
       this.stateStack.shift();
       this.stateStack[0].value = state.value;
     } else {
-      state.doneRight = true;
+      state.doneRight_ = true;
       this.stateStack.unshift({node: node.right});
     }
   } else {
@@ -1773,13 +1817,16 @@ Interpreter.prototype['stepLogicalExpression'] = function() {
 Interpreter.prototype['stepMemberExpression'] = function() {
   var state = this.stateStack[0];
   var node = state.node;
-  if (!state.doneObject) {
-    state.doneObject = true;
+  if (!state.doneObject_) {
+    state.doneObject_ = true;
     this.stateStack.unshift({node: node.object});
-  } else if (!state.doneProperty) {
-    state.doneProperty = true;
+  } else if (!state.doneProperty_) {
+    state.doneProperty_ = true;
     state.object = state.value;
-    this.stateStack.unshift({node: node.property, components: true});
+    this.stateStack.unshift({
+      node: node.property,
+      components: !node.computed
+    });
   } else {
     this.stateStack.shift();
     if (state.components) {

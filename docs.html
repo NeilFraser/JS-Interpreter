@@ -33,7 +33,8 @@
     &lt;script src="acorn.js"&gt;&lt;/script&gt;
     &lt;script src="interpreter.js"&gt;&lt;/script&gt;
   </pre>
-  <p>Next, instantiate an interpreter with the JavaScript code that needs to be parsed:</p>
+  <p>Next, instantiate an interpreter with the JavaScript code that needs to be
+  parsed:</p>
   <pre>
     var myCode = 'var a=1; for(var i=0;i&lt;4;i++){a*=i;} a;';
     var myInterpreter = new Interpreter(myCode);
@@ -48,8 +49,8 @@
     }
     nextStep();
   </pre>
-  <p>Alternatively, if the code is known to be safe from infinite loops,
-  it may be executed to completion by calling the <code>run</code> function once:</p>
+  <p>Alternatively, if the code is known to be safe from infinite loops, it may
+  be executed to completion by calling the <code>run</code> function once:</p>
   <pre>
     myInterpreter.run();
   </pre>
@@ -58,7 +59,8 @@
   <p>Similar to the <code>eval</code> function, the result of the last
   statement executed is available in <code>myInterpreter.value</code>.
   Additionally, API calls may be added to the interpreter during creation.
-  Here is the addition of <code>alert()</code> and a <code>url</code> variable:</p>
+  Here is the addition of <code>alert()</code> and a <code>url</code>
+  variable:</p>
   <pre>
     var myCode = 'alert(url);';
     var initFunc = function(interpreter, scope) {
@@ -82,12 +84,11 @@
   differences from that which executes in a browser:</p>
   <dl>
     <dt>API</dt>
-    <dd>None of the DOM APIs are exposed.  That's kind of the point of a sandbox.
-    If you need these, write your own interfaces.</dd>
+    <dd>None of the DOM APIs are exposed.  That's kind of the point of a
+    sandbox.  If you need these, write your own interfaces.</dd>
     <dt>Try</dt>
-    <dd>The <code>try/catch</code> and <code>try/finally</code>
-    constructs are not currently supported.  Feel free to add them if you need
-    them.</dd>
+    <dd>The <code>try/catch</code> and <code>try/finally</code> constructs are
+    not currently supported.  Feel free to add them if you need them.</dd>
     <dt>Wat</dt>
     <dd>Some of the more obscure type conversions (e.g. <code>[] + {}</code>)
     may return different results from JavaScript.  Patches are welcome.</dd>
@@ -96,7 +97,6 @@
     worked on:
     <ul>
       <li>switch statements</li>
-      <li>for-in loops</li>
       <li>Regex class</li>
       <li>String search methods</li>
       <li>Array sort</li>
