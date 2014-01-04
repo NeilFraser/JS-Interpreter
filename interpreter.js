@@ -1619,7 +1619,7 @@ Interpreter.prototype['stepConditionalExpression'] = function() {
     }
   } else {
     this.stateStack.shift();
-    if (state.node.type == 'stepConditionalExpression') {
+    if (state.node.type == 'ConditionalExpression') {
       this.stateStack[0].value = state.value;
     }
   }
