@@ -1,4 +1,5 @@
 /**
+ * @license
  * JavaScript Interpreter
  *
  * Copyright 2013 Google Inc.
@@ -916,8 +917,8 @@ Interpreter.prototype.comp = function(a, b) {
 /**
  * Is a value a legal integer for an array?
  * @param {*} n Value to check.
- * @return {NaN|number} Zero, or a positive integer if the value can be
- * converted to such.  NaN otherwise.
+ * @return {number} Zero, or a positive integer if the value can be
+ *     converted to such.  NaN otherwise.
  */
 Interpreter.prototype.arrayIndex = function(n) {
   n = Number(n);
@@ -1023,7 +1024,7 @@ Interpreter.prototype.createNativeFunction = function(nativeFunc) {
  * Fetch a property value from a data object.
  * @param {!Object} obj Data object.
  * @param {*} name Name of property.
- * @return {Object} Property value (may be undefined).
+ * @return {!Object} Property value (may be UNDEFINED).
  */
 Interpreter.prototype.getProperty = function(obj, name) {
   name = name.toString();
@@ -1039,7 +1040,7 @@ Interpreter.prototype.getProperty = function(obj, name) {
   } else if (this.isa(obj, this.ARRAY) && name == 'length') {
     return this.createPrimitive(obj.length);
   }
-  while (obj) {
+  while (true) {
     if (obj.properties && name in obj.properties) {
       return obj.properties[name];
     }
@@ -1047,7 +1048,8 @@ Interpreter.prototype.getProperty = function(obj, name) {
         obj.parent.properties.prototype) {
       obj = obj.parent.properties.prototype;
     } else {
-      obj = null;
+      // No parent, reached the top.
+      break;
     }
   }
   return this.UNDEFINED;
@@ -1074,7 +1076,7 @@ Interpreter.prototype.hasProperty = function(obj, name) {
       return true;
     }
   }
-  while (obj) {
+  while (true) {
     if (obj.properties && name in obj.properties) {
       return true;
     }
@@ -1082,7 +1084,8 @@ Interpreter.prototype.hasProperty = function(obj, name) {
         obj.parent.properties.prototype) {
       obj = obj.parent.properties.prototype;
     } else {
-      obj = null;
+      // No parent, reached the top.
+      break;
     }
   }
   return false;
@@ -1174,7 +1177,8 @@ Interpreter.prototype.getScope = function() {
 
 /**
  * Create a new scope dictionary.
- * @param {Object} node AST node defining the scope container (e.g. a function).
+ * @param {!Object} node AST node defining the scope container
+ *     (e.g. a function).
  * @param {Object} parentScope Scope to link to.
  * @return {!Object} New scope.
  */
@@ -1183,13 +1187,6 @@ Interpreter.prototype.createScope = function(node, parentScope) {
   scope.parentScope = parentScope;
   if (!parentScope) {
     this.initGlobalScope(scope);
-  }
-
-  if (node.type == 'FunctionDeclaration' ||
-      node.type == 'FunctionExpression') {
-    for (var i = 0; i < node.params.length; i++) {
-      this.setProperty(state.scope, node.params[i].name, undefined);
-    }
   }
   this.populateScope_(node, scope);
   return scope;
@@ -1202,31 +1199,31 @@ Interpreter.prototype.createScope = function(node, parentScope) {
  */
 Interpreter.prototype.getValueFromScope = function(name) {
   var scope = this.getScope();
-  name = name.toString();
+  var nameStr = name.toString();
   while (scope) {
-    if (this.hasProperty(scope, name)) {
-      return this.getProperty(scope, name);
+    if (this.hasProperty(scope, nameStr)) {
+      return this.getProperty(scope, nameStr);
     }
     scope = scope.parentScope;
   }
-  throw 'Unknown identifier: ' + name;
+  throw 'Unknown identifier: ' + nameStr;
 };
 
 /**
  * Sets a value to the current scope.
- * @param {string} name Name of variable.
+ * @param {!Object} name Name of variable.
  * @param {*} value Value.
  */
 Interpreter.prototype.setValueToScope = function(name, value) {
   var scope = this.getScope();
-  name = name.toString();
+  var nameStr = name.toString();
   while (scope) {
-    if (this.hasProperty(scope, name)) {
-      return this.setProperty(scope, name, value);
+    if (this.hasProperty(scope, nameStr)) {
+      return this.setProperty(scope, nameStr, value);
     }
     scope = scope.parentScope;
   }
-  throw 'Unknown identifier: ' + name;
+  throw 'Unknown identifier: ' + nameStr;
 };
 
 /**
@@ -1269,10 +1266,10 @@ Interpreter.prototype.populateScope_ = function(node, scope) {
 
 /**
  * Gets a value from the scope chain or from an object property.
- * @param {!Object|!Array} name Name of variable or object/propname tuple.
- * @return {*} Value.
+ * @param {!Object|!Array} left Name of variable or object/propname tuple.
+ * @return {!Object} Value.
  */
-Interpreter.prototype.getValue = function(left, value) {
+Interpreter.prototype.getValue = function(left) {
   if (left instanceof Array) {
     var obj = left[0];
     var prop = left[1];
@@ -1284,8 +1281,8 @@ Interpreter.prototype.getValue = function(left, value) {
 
 /**
  * Sets a value to the scope chain or to an object property.
- * @param {!Object|!Array} name Name of variable or object/propname tuple.
- * @param {*} value Value.
+ * @param {!Object|!Array} left Name of variable or object/propname tuple.
+ * @param {!Object} value Value.
  */
 Interpreter.prototype.setValue = function(left, value) {
   if (left instanceof Array) {
@@ -2035,3 +2032,9 @@ Interpreter.prototype['stepVariableDeclarator'] = function() {
 
 Interpreter.prototype['stepWhileStatement'] =
     Interpreter.prototype['stepDoWhileStatement'];
+
+// Preserve top-level API functions from being pruned by JS compilers.
+// Add others as needed.
+window['Interpreter'] = Interpreter;
+Interpreter.prototype['step'] = Interpreter.prototype.step;
+Interpreter.prototype['run'] = Interpreter.prototype.run;
