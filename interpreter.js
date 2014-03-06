@@ -1253,7 +1253,8 @@ Interpreter.prototype.populateScope_ = function(node, scope) {
   for (var name in node) {
     var prop = node[name];
     if (prop && typeof prop == 'object') {
-      if (prop instanceof Array) {
+      if (typeof prop.length == 'number' && prop.splice) {
+        // Prop is an array.
         for (var i = 0; i < prop.length; i++) {
           recurse(prop[i]);
         }
@@ -1270,7 +1271,7 @@ Interpreter.prototype.populateScope_ = function(node, scope) {
  * @return {!Object} Value.
  */
 Interpreter.prototype.getValue = function(left) {
-  if (left instanceof Array) {
+  if (left.length) {
     var obj = left[0];
     var prop = left[1];
     return this.getProperty(obj, prop);
@@ -1285,7 +1286,7 @@ Interpreter.prototype.getValue = function(left) {
  * @param {!Object} value Value.
  */
 Interpreter.prototype.setValue = function(left, value) {
-  if (left instanceof Array) {
+  if (left.length) {
     var obj = left[0];
     var prop = left[1];
     this.setProperty(obj, prop, value);
@@ -1509,7 +1510,7 @@ Interpreter.prototype['stepCallExpression'] = function() {
       if (state.node.type == 'NewExpression') {
         state.funcThis_ = this.createObject(state.func_);
         state.isConstructor_ = true;
-      } else if (state.value instanceof Array) {
+      } else if (state.value.length) {
         state.funcThis_ = state.value[0];
       } else {
         state.funcThis_ =
@@ -1962,7 +1963,7 @@ Interpreter.prototype['stepUnaryExpression'] = function() {
     } else if (node.operator == 'typeof') {
       value = state.value.type;
     } else if (node.operator == 'delete') {
-      if (state.value instanceof Array) {
+      if (state.value.length) {
         var obj = state.value[0];
         var name = state.value[1];
       } else {
