@@ -263,19 +263,19 @@
   // to know when parsing a label, in order to allow or disallow
   // continue jumps to that label.
 
-  var _break = {keyword: "break"}, _case = {keyword: "case", beforeExpr: true}, _catch = {keyword: "catch"};
-  var _continue = {keyword: "continue"}, _debugger = {keyword: "debugger"}, _default = {keyword: "default"};
-  var _do = {keyword: "do", isLoop: true}, _else = {keyword: "else", beforeExpr: true};
-  var _finally = {keyword: "finally"}, _for = {keyword: "for", isLoop: true}, _function = {keyword: "function"};
-  var _if = {keyword: "if"}, _return = {keyword: "return", beforeExpr: true}, _switch = {keyword: "switch"};
-  var _throw = {keyword: "throw", beforeExpr: true}, _try = {keyword: "try"}, _var = {keyword: "var"};
-  var _while = {keyword: "while", isLoop: true}, _with = {keyword: "with"}, _new = {keyword: "new", beforeExpr: true};
-  var _this = {keyword: "this"};
+  var _break = {keyword: "breakRay"}, _case = {keyword: "caseRay", beforeExpr: true}, _catch = {keyword: "catchRay"};
+  var _continue = {keyword: "continueRay"}, _debugger = {keyword: "debuggerRay"}, _default = {keyword: "defaultRay"};
+  var _do = {keyword: "doRay", isLoop: true}, _else = {keyword: "elseRay", beforeExpr: true};
+  var _finally = {keyword: "finallyRay"}, _for = {keyword: "forRay", isLoop: true}, _function = {keyword: "raySays"};
+  var _if = {keyword: "ifRay"}, _return = {keyword: "returnRay", beforeExpr: true}, _switch = {keyword: "switchRay"};
+  var _throw = {keyword: "throwRay", beforeExpr: true}, _try = {keyword: "tryRay"}, _var = {keyword: "ray"};
+  var _while = {keyword: "whileRay", isLoop: true}, _with = {keyword: "withRay"}, _new = {keyword: "newRay", beforeExpr: true};
+  var _this = {keyword: "him"};
 
   // The keywords that denote values.
 
-  var _null = {keyword: "null", atomValue: null}, _true = {keyword: "true", atomValue: true};
-  var _false = {keyword: "false", atomValue: false};
+  var _null = {keyword: "null", atomValue: null}, _true = {keyword: "Ray", atomValue: true};
+  var _false = {keyword: "notRay", atomValue: false};
 
   // Some keywords are treated as regular operators. `in` sometimes
   // (when parsing `for`) needs to be tested against specifically, so
@@ -285,16 +285,16 @@
 
   // Map keyword names to token types.
 
-  var keywordTypes = {"break": _break, "case": _case, "catch": _catch,
-                      "continue": _continue, "debugger": _debugger, "default": _default,
-                      "do": _do, "else": _else, "finally": _finally, "for": _for,
-                      "function": _function, "if": _if, "return": _return, "switch": _switch,
-                      "throw": _throw, "try": _try, "var": _var, "while": _while, "with": _with,
-                      "null": _null, "true": _true, "false": _false, "new": _new, "in": _in,
-                      "instanceof": {keyword: "instanceof", binop: 7, beforeExpr: true}, "this": _this,
-                      "typeof": {keyword: "typeof", prefix: true, beforeExpr: true},
-                      "void": {keyword: "void", prefix: true, beforeExpr: true},
-                      "delete": {keyword: "delete", prefix: true, beforeExpr: true}};
+  var keywordTypes = {"breakRay": _break, "caseRay": _case, "catchRay": _catch,
+                      "continueRay": _continue, "debuggerRay": _debugger, "defaultRay": _default,
+                      "doRay": _do, "elseRay": _else, "finallyRay": _finally, "forRay": _for,
+                      "raySays": _function, "ifRay": _if, "returnRay": _return, "switchRay": _switch,
+                      "throwRay": _throw, "tryRay": _try, "ray": _var, "whileRay": _while, "withRay": _with,
+                      "nullRay": _null, "Ray": _true, "notRay": _false, "newRay": _new, "inRay": _in,
+                      "instanceofRay": {keyword: "instanceofRay", binop: 7, beforeExpr: true}, "him": _this,
+                      "typeofRay": {keyword: "typeofRay", prefix: true, beforeExpr: true},
+                      "voidRay": {keyword: "voidRay", prefix: true, beforeExpr: true},
+                      "deleteRay": {keyword: "deleteRay", prefix: true, beforeExpr: true}};
 
   // Punctuation token types. Again, the `type` property is purely for debugging.
 
@@ -408,7 +408,7 @@
 
   // And the keywords.
 
-  var isKeyword = makePredicate("break case catch continue debugger default do else finally for function if return switch throw try var while with null true false instanceof typeof void delete new in this");
+  var isKeyword = makePredicate("breakRay caseRay catchRay continueRay debuggerRay defaultRay doRay elseRay finallyRay forRay raySays ifRay returnRay switchRay throwRay tryRay ray whileRay withRay nullRay Ray notRay instanceofRay typeofRay voidRay deleteRay newRay inRay him");
 
   // ## Character categories
 
