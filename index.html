@@ -100,6 +100,7 @@ function createSelection(start, end) {
   field.focus();
 }
 </script>
+<script src="javascriptToRayscript.js"></script>
 </head>
 <body>
 <h1>RayScript Demo</h1>
@@ -122,6 +123,7 @@ raySays fibonacci(n, output) {
 fibonacci(16, result);
 alert("Ray says: " + result.join(", "));
   </textarea><br>
+  <button onclick="var codeBlock = document.getElementById('code'); codeBlock.value = javascriptToRayscript(codeBlock.value);">Convert to RayScript</button>
   <button onclick="parseButton()">Parse</button>
   <button onclick="stepButton()" id="stepButton" disabled="disabled">Step</button>
   <button onclick="runButton()" id="runButton" disabled="disabled">Run</button>
