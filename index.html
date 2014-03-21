@@ -107,7 +107,7 @@ function createSelection(start, end) {
 <p>Write your code in RayScript below, then click <em>Parse</em>.  To execute, either
 click <em>Step</em> repeatedly, or click <em>Run</em> once.
 Open your browser's console for errors. Happy Raying!</p><p><textarea id="code">
-ray result = [];
+ray raysult = [];
 raySays fibonacci(n, output) {
   ifRay(Ray)
     alert("ray");
@@ -119,8 +119,8 @@ raySays fibonacci(n, output) {
       b = sum;
     }
   }
-fibonacci(16, result);
-alert("Ray says: " + result.join(", "));
+fibonacci(16, raysult);
+alert("Ray says: " + raysult.join(", "));
   </textarea><br>
   <button onclick="parseButton()">Parse</button>
   <button onclick="stepButton()" id="stepButton" disabled="disabled">Step</button>
