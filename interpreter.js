@@ -1570,6 +1570,7 @@ Interpreter.prototype['stepCallExpression'] = function() {
           thisExpression: state.funcThis_
         };
         this.stateStack.unshift(funcState);
+        state.value = this.UNDEFINED;  // Default value if no explicit return.
       } else if (state.func_.nativeFunc) {
         state.value = state.func_.nativeFunc.apply(state.funcThis_,
                                                    state.arguments);
@@ -1894,7 +1895,7 @@ Interpreter.prototype['stepReturnStatement'] = function() {
     state.done = true;
     this.stateStack.unshift({node: node.argument});
   } else {
-    var value = state.value;  // Possibly undefined.
+    var value = state.value || this.UNDEFINED;
     do {
       this.stateStack.shift();
       if (this.stateStack.length == 0) {
