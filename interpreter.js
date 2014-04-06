@@ -1235,7 +1235,7 @@ Interpreter.prototype.setValueToScope = function(name, value) {
 Interpreter.prototype.populateScope_ = function(node, scope) {
   if (node.type == 'VariableDeclaration') {
     for (var i = 0; i < node.declarations.length; i++) {
-      this.setProperty(scope, node.declarations[i].id.name, undefined);
+      this.setProperty(scope, node.declarations[i].id.name, this.UNDEFINED);
     }
   } else if (node.type == 'FunctionDeclaration') {
     this.setProperty(scope, node.id.name,
