@@ -684,6 +684,15 @@ Interpreter.prototype.initString = function(scope) {
   };
   this.setProperty(this.STRING.properties.prototype, 'concat',
                    this.createNativeFunction(wrapper), false, true);
+
+  wrapper = function(beginSlice, endSlice) {
+    var str = this.toString();
+    beginSlice = beginSlice ? beginSlice.toNumber() : undefined;
+    endSlice = endSlice ? endSlice.toNumber() : undefined;
+    return thisInterpreter.createPrimitive(str.slice(beginSlice, endSlice));
+  };
+  this.setProperty(this.STRING.properties.prototype, 'slice',
+                   this.createNativeFunction(wrapper), false, true);
 };
 
 /**
