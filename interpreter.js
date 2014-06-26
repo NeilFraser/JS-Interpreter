@@ -548,6 +548,14 @@ Interpreter.prototype.initNumber = function(scope) {
   };
   this.setProperty(this.NUMBER.properties.prototype, 'toPrecision',
                    this.createNativeFunction(wrapper), false, true);
+
+  wrapper = function(radix) {
+    radix = radix ? radix.toNumber() : 10;
+    var n = this.toNumber();
+    return thisInterpreter.createPrimitive(n.toString(radix));
+  };
+  this.setProperty(this.OBJECT.properties.prototype, 'toString',
+                   this.createNativeFunction(wrapper), false, true);
 };
 
 /**
