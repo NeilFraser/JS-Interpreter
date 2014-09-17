@@ -183,7 +183,7 @@ Interpreter.prototype.initFunction = function(scope) {
   };
   this.FUNCTION = this.createObject(null);
   this.setProperty(scope, 'Function', this.FUNCTION);
-  // Manually setup type and prototype becuase createObj doesn't recognize
+  // Manually setup type and prototype because createObj doesn't recognize
   // this object as a function (this.FUNCTION did not exist).
   this.FUNCTION.type = 'function';
   this.setProperty(this.FUNCTION, 'prototype', this.createObject(null));
@@ -763,7 +763,7 @@ Interpreter.prototype.initDate = function(scope) {
         newDate.date = new Date(args[0], args[1], args[2], args[3]);
       } else if (args.length == 5) {
         newDate.date = new Date(args[0], args[1], args[2], args[3], args[4]);
-      } else if (args.length == 7) {
+      } else if (args.length == 6) {
         newDate.date = new Date(args[0], args[1], args[2], args[3], args[4],
                                 args[5]);
       } else {
@@ -909,7 +909,7 @@ Interpreter.prototype.isa = function(child, parent) {
  * @param {!Object} a First object.
  * @param {!Object} b Second object.
  * @return {number} -1 if a is smaller, 0 if a == b, 1 if a is bigger,
- *     NaN if they are not comparible.
+ *     NaN if they are not comparable.
  */
 Interpreter.prototype.comp = function(a, b) {
   if (a.isPrimitive && typeof a == 'number' && isNaN(a.data) ||
@@ -1113,7 +1113,7 @@ Interpreter.prototype.hasProperty = function(obj, name) {
  * @param {!Object} obj Data object.
  * @param {*} name Name of property.
  * @param {*} value New property value.
- * @param {boolean} opt_fixed Unchangable property if true.
+ * @param {boolean} opt_fixed Unchangeable property if true.
  * @param {boolean} opt_nonenum Non-enumerable property if true.
  */
 Interpreter.prototype.setProperty = function(obj, name, value,
