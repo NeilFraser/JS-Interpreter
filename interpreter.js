@@ -1974,6 +1974,8 @@ Interpreter.prototype['stepUnaryExpression'] = function() {
     var value;
     if (node.operator == '-') {
       value = -state.value.toNumber();
+    } else if (node.operator == '+') {
+      value = state.value.toNumber();
     } else if (node.operator == '!') {
       value = !state.value.toNumber();
     } else if (node.operator == '~') {
