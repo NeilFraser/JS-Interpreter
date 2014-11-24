@@ -1484,7 +1484,7 @@ Interpreter.prototype['stepBreakStatement'] = function() {
   }
   state = this.stateStack.shift();
   while (state && state.node.type != 'callExpression') {
-    if (label ? label == state.label : state.isLoop) {
+    if (label ? label == state.label : (state.isLoop || state.isSwitch)) {
       return;
     }
     state = this.stateStack.shift();
@@ -1934,6 +1934,48 @@ Interpreter.prototype['stepSequenceExpression'] = function() {
   } else {
     this.stateStack.shift();
     this.stateStack[0].value = state.value;
+  }
+};
+
+Interpreter.prototype['stepSwitchStatement'] = function() {
+  var state = this.stateStack[0];
+  state.checked = state.checked || [];
+  state.isSwitch = true;
+
+  if (!state.test) {
+    state.test = true;
+    this.stateStack.unshift({node: state.node.discriminant});
+  } else {
+    if (!state.switchValue) {
+      // preserve switch value between case tests
+      state.switchValue = state.value;
+    }
+
+    var index = state.index || 0;
+    var currentCase = state.node.cases[index];
+    if (currentCase) {
+      if (!state.done && !state.checked[index] && currentCase.test) {
+        state.checked[index] = true;
+        this.stateStack.unshift({node: currentCase.test});
+      } else {
+        // test on the default case will be null
+        if (state.done || !currentCase.test || this.comp(state.value, state.switchValue) == 0) {
+          state.done = true;
+          var n = state.n || 0;
+          if (currentCase.consequent[n]) {
+            this.stateStack.unshift({node: currentCase.consequent[n]});
+            state.n = n + 1;
+            return;
+          }
+        }
+
+        state.n = 0;
+        state.index = index + 1;
+      }
+    }
+    else {
+      this.stateStack.shift();
+    }
   }
 };
 
