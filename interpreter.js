@@ -47,7 +47,12 @@ Interpreter.prototype.step = function() {
   if (this.stateStack.length == 0) {
     return false;
   }
+  
   var state = this.stateStack[0];
+  if (!('step' + state.node.type in this)) {
+    throw new RangeError("Unsupported node type: " + state.node.type);
+  }
+
   this['step' + state.node.type]();
   return true;
 };
@@ -494,6 +499,16 @@ Interpreter.prototype.initArray = function(scope) {
   };
   this.setProperty(this.ARRAY.properties.prototype, 'lastIndexOf',
                    this.createNativeFunction(wrapper), false, true);
+
+  wrapper = function(callback, thisArg) {
+    for (var i = 0; i < this.length; i++) {
+      var callbackExec = thisInterpreter.createExecution(callback.node, 
+        [this.properties[i], thisInterpreter.createPrimitive(i), this], thisArg, callback.parentScope);
+      thisInterpreter.stateStack.splice(i, 0, callbackExec);
+    }
+  };
+  this.setProperty(this.ARRAY.properties.prototype, 'forEach',
+    this.createNativeFunction(wrapper), false, true);
 };
 
 /**
@@ -1007,6 +1022,38 @@ Interpreter.prototype.createObject = function(parent) {
   };
 
   return obj;
+};
+
+/**
+ * Create an executable node from a function node.
+ * @param {Object} node AST node defining the function.
+ * @param {Array} args the argument values.
+ * @param {Object} thisArg the expression to use for `this`.
+ * @param {Object} parentScope parent scope.
+ * @return {!Object} New executable function node.
+ */
+Interpreter.prototype.createExecution = function(funcNode, args, thisArg, parentScope) {
+  var scope = this.createScope(funcNode.body, parentScope);
+
+  // Add all arguments.
+  for (var i = 0; i < funcNode.params.length; i++) {
+    var paramName = this.createPrimitive(funcNode.params[i].name);
+    var paramValue = args.length > i ? args[i] : this.UNDEFINED;
+    this.setProperty(scope, paramName, paramValue);
+  }
+
+  // Build arguments variable.
+  var argsList = this.createObject(this.ARRAY);
+  for (var i = 0; i < args.length; i++) {
+    this.setProperty(argsList, this.createPrimitive(i), args[i]);
+  }
+  this.setProperty(scope, 'arguments', argsList);
+  
+  return {
+    node: funcNode.body,
+    scope: scope,
+    thisExpression: thisArg || this.UNDEFINED
+  };
 };
 
 /**
@@ -1565,27 +1612,7 @@ Interpreter.prototype['stepCallExpression'] = function() {
         state.func_ = state.member_;
       }
       if (state.func_.node) {
-        var scope =
-            this.createScope(state.func_.node.body, state.func_.parentScope);
-        // Add all arguments.
-        for (var i = 0; i < state.func_.node.params.length; i++) {
-          var paramName = this.createPrimitive(state.func_.node.params[i].name);
-          var paramValue = state.arguments.length > i ? state.arguments[i] :
-              this.UNDEFINED;
-          this.setProperty(scope, paramName, paramValue);
-        }
-        // Build arguments variable.
-        var argsList = this.createObject(this.ARRAY);
-        for (var i = 0; i < state.arguments.length; i++) {
-          this.setProperty(argsList, this.createPrimitive(i),
-                           state.arguments[i]);
-        }
-        this.setProperty(scope, 'arguments', argsList);
-        var funcState = {
-          node: state.func_.node.body,
-          scope: scope,
-          thisExpression: state.funcThis_
-        };
+        var funcState = this.createExecution(state.func_.node, state.arguments, state.funcThis_, state.func_.parentScope);
         this.stateStack.unshift(funcState);
         state.value = this.UNDEFINED;  // Default value if no explicit return.
       } else if (state.func_.nativeFunc) {
