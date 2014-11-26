@@ -1947,7 +1947,7 @@ Interpreter.prototype['stepSwitchStatement'] = function() {
     this.stateStack.unshift({node: state.node.discriminant});
   } else {
     if (!state.switchValue) {
-      // preserve switch value between case tests
+      // Preserve switch value between case tests.
       state.switchValue = state.value;
     }
 
@@ -1958,8 +1958,9 @@ Interpreter.prototype['stepSwitchStatement'] = function() {
         state.checked[index] = true;
         this.stateStack.unshift({node: currentCase.test});
       } else {
-        // test on the default case will be null
-        if (state.done || !currentCase.test || this.comp(state.value, state.switchValue) == 0) {
+        // Test on the default case will be null.
+        if (state.done || !currentCase.test ||
+            this.comp(state.value, state.switchValue) == 0) {
           state.done = true;
           var n = state.n || 0;
           if (currentCase.consequent[n]) {
@@ -1968,12 +1969,10 @@ Interpreter.prototype['stepSwitchStatement'] = function() {
             return;
           }
         }
-
         state.n = 0;
         state.index = index + 1;
       }
-    }
-    else {
+    } else {
       this.stateStack.shift();
     }
   }
