@@ -307,12 +307,6 @@ Interpreter.prototype.initArray = function(scope) {
   this.ARRAY = this.createNativeFunction(wrapper);
   this.setProperty(scope, 'Array', this.ARRAY);
 
-  wrapper = function(obj) {
-    var result = thisInterpreter.isa(obj, thisInterpreter.ARRAY);
-    return thisInterpreter.createPrimitive(result);
-  };
-  this.setProperty(this.ARRAY, 'isArray', this.createNativeFunction(wrapper), false, true);
-
   wrapper = function() {
     if (this.length) {
       var value = this.properties[this.length - 1];
