@@ -87,6 +87,7 @@ Interpreter.prototype.initGlobalScope = function(scope) {
   this.initBoolean(scope);
   this.initDate(scope);
   this.initMath(scope);
+  this.initRegExp(scope);
 
   // Initialize global functions.
   var thisInterpreter = this;
@@ -887,6 +888,64 @@ Interpreter.prototype.initMath = function(scope) {
 };
 
 /**
+ * Initialize Regular Expression object.
+ * @param {!Object} scope Global scope.
+ */
+Interpreter.prototype.initRegExp = function(scope) {
+  var thisInterpreter = this;
+  var wrapper;
+  // constructor
+  wrapper = function(pattern, flags) {
+    pattern = pattern.toString();
+    flags = flags && flags.toString();
+    var data = new RegExp(pattern, flags || "");
+
+    if (this.parent == thisInterpreter.REGEX) {
+      return thisInterpreter.createRegExp(data, this);
+    }
+    return thisInterpreter.createRegExp(data);
+  };
+  this.REGEXP = this.createNativeFunction(wrapper);
+  this.setProperty(scope, 'RegExp', this.REGEXP);
+
+  wrapper = function() {
+    return thisInterpreter.createPrimitive(this.data.toString());
+  };
+  this.setProperty(this.REGEXP.properties.prototype, 'toString', 
+                   this.createNativeFunction(wrapper), false, true);
+
+  wrapper = function(str) {
+    str = str.toString();
+    return thisInterpreter.createPrimitive(this.data.test(str));
+  }
+  this.setProperty(this.REGEXP.properties.prototype, 'test', 
+                   this.createNativeFunction(wrapper), false, true);
+
+  wrapper = function(str) {
+    str = str.toString();
+
+    // get lastIndex from wrapped regex, since this is settable
+    this.data.lastIndex = thisInterpreter.getProperty(this, 'lastIndex').toNumber();
+    var match = this.data.exec(str);
+    thisInterpreter.setProperty(this, 'lastIndex', thisInterpreter.createPrimitive(this.data.lastIndex));
+
+    if (match) {
+      var result = thisInterpreter.createObject(thisInterpreter.ARRAY);
+      for (var i = 0; i < match.length; i++) {
+        thisInterpreter.setProperty(result, i, thisInterpreter.createPrimitive(match[i]));
+      }
+      // match has additional properties
+      thisInterpreter.setProperty(result, 'index', thisInterpreter.createPrimitive(match.index));
+      thisInterpreter.setProperty(result, 'input', thisInterpreter.createPrimitive(match.input));
+      return result;
+    }
+    return thisInterpreter.createPrimitive(null);
+  };
+  this.setProperty(this.REGEXP.properties.prototype, 'exec',
+                   this.createNativeFunction(wrapper), false, true);
+};
+
+/**
  * Is an object of a certain class?
  * @param {Object} child Object to check.
  * @param {!Object} parent Class of object.
@@ -951,6 +1010,9 @@ Interpreter.prototype.arrayIndex = function(n) {
  * @return {!Object} New data object.
  */
 Interpreter.prototype.createPrimitive = function(data) {
+  if (data instanceof RegExp) {
+    return this.createRegExp(data);
+  }
   var type = typeof data;
   var obj = {
     data: data,
@@ -1008,6 +1070,24 @@ Interpreter.prototype.createObject = function(parent) {
 
   return obj;
 };
+
+/**
+ * Creates a new regular expression object.
+ * @param {Object} data The native regular expression.
+ * @param {Object} source Optional The existing object to set.
+ * @return {!Object} New regular expression object.
+ */
+Interpreter.prototype.createRegExp = function(data, opt_source) {
+  var source = opt_source || this.createObject(this.REGEXP);
+  source.data = data
+  // set read-only attributes
+  this.setProperty(source, 'lastIndex', this.createPrimitive(source.data.lastIndex), false, true);
+  this.setProperty(source, 'source', this.createPrimitive(source.data.source), true, true);
+  this.setProperty(source, 'global', this.createPrimitive(source.data.global), true, true);
+  this.setProperty(source, 'ignoreCase', this.createPrimitive(source.data.ignoreCase), true, true);
+  this.setProperty(source, 'multiline', this.createPrimitive(source.data.multiline), true, true);
+  return source;
+}
 
 /**
  * Create a new function.
