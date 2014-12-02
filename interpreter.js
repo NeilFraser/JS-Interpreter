@@ -894,7 +894,7 @@ Interpreter.prototype.initMath = function(scope) {
 Interpreter.prototype.initRegExp = function(scope) {
   var thisInterpreter = this;
   var wrapper;
-  // constructor
+  // Regex constructor.
   wrapper = function(pattern, flags) {
     pattern = pattern.toString();
     flags = flags && flags.toString();
@@ -911,32 +911,36 @@ Interpreter.prototype.initRegExp = function(scope) {
   wrapper = function() {
     return thisInterpreter.createPrimitive(this.data.toString());
   };
-  this.setProperty(this.REGEXP.properties.prototype, 'toString', 
+  this.setProperty(this.REGEXP.properties.prototype, 'toString',
                    this.createNativeFunction(wrapper), false, true);
 
   wrapper = function(str) {
     str = str.toString();
     return thisInterpreter.createPrimitive(this.data.test(str));
-  }
-  this.setProperty(this.REGEXP.properties.prototype, 'test', 
+  };
+  this.setProperty(this.REGEXP.properties.prototype, 'test',
                    this.createNativeFunction(wrapper), false, true);
 
   wrapper = function(str) {
     str = str.toString();
-
-    // get lastIndex from wrapped regex, since this is settable
-    this.data.lastIndex = thisInterpreter.getProperty(this, 'lastIndex').toNumber();
+    // Get lastIndex from wrapped regex, since this is settable.
+    this.data.lastIndex =
+        thisInterpreter.getProperty(this, 'lastIndex').toNumber();
     var match = this.data.exec(str);
-    thisInterpreter.setProperty(this, 'lastIndex', thisInterpreter.createPrimitive(this.data.lastIndex));
+    thisInterpreter.setProperty(this, 'lastIndex',
+        thisInterpreter.createPrimitive(this.data.lastIndex));
 
     if (match) {
       var result = thisInterpreter.createObject(thisInterpreter.ARRAY);
       for (var i = 0; i < match.length; i++) {
-        thisInterpreter.setProperty(result, i, thisInterpreter.createPrimitive(match[i]));
+        thisInterpreter.setProperty(result, i,
+            thisInterpreter.createPrimitive(match[i]));
       }
-      // match has additional properties
-      thisInterpreter.setProperty(result, 'index', thisInterpreter.createPrimitive(match.index));
-      thisInterpreter.setProperty(result, 'input', thisInterpreter.createPrimitive(match.input));
+      // match has additional properties.
+      thisInterpreter.setProperty(result, 'index',
+          thisInterpreter.createPrimitive(match.index));
+      thisInterpreter.setProperty(result, 'input',
+          thisInterpreter.createPrimitive(match.input));
       return result;
     }
     return thisInterpreter.createPrimitive(null);
