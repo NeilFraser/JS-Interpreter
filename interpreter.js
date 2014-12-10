@@ -900,12 +900,12 @@ Interpreter.prototype.initRegExp = function(scope) {
     if (this.parent == thisInterpreter.REGEXP) {
       rgx = this;
     } else {
-      rgx = thisInterpreter.createObject(thisInterpreter.REGEXP);      
+      rgx = thisInterpreter.createObject(thisInterpreter.REGEXP);
     }
 
     pattern = pattern.toString();
     flags = flags && flags.toString();
-    thisInterpreter.createRegExp(rgx, new RegExp(pattern, flags || ""));
+    thisInterpreter.createRegExp(rgx, new RegExp(pattern, flags || ''));
     return rgx;
   };
   this.REGEXP = this.createNativeFunction(wrapper);
