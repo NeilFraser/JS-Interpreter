@@ -896,14 +896,17 @@ Interpreter.prototype.initRegExp = function(scope) {
   var wrapper;
   // Regex constructor.
   wrapper = function(pattern, flags) {
+    var rgx;
+    if (this.parent == thisInterpreter.REGEXP) {
+      rgx = this;
+    } else {
+      rgx = thisInterpreter.createObject(thisInterpreter.REGEXP);      
+    }
+
     pattern = pattern.toString();
     flags = flags && flags.toString();
-    var data = new RegExp(pattern, flags || "");
-
-    if (this.parent == thisInterpreter.REGEX) {
-      return thisInterpreter.createRegExp(data, this);
-    }
-    return thisInterpreter.createRegExp(data);
+    thisInterpreter.createRegExp(rgx, new RegExp(pattern, flags || ""));
+    return rgx;
   };
   this.REGEXP = this.createNativeFunction(wrapper);
   this.setProperty(scope, 'RegExp', this.REGEXP);
@@ -1015,7 +1018,7 @@ Interpreter.prototype.arrayIndex = function(n) {
  */
 Interpreter.prototype.createPrimitive = function(data) {
   if (data instanceof RegExp) {
-    return this.createRegExp(data);
+    return this.createRegExp(this.createObject(this.REGEXP), data);
   }
   var type = typeof data;
   var obj = {
@@ -1077,20 +1080,19 @@ Interpreter.prototype.createObject = function(parent) {
 
 /**
  * Creates a new regular expression object.
+ * @param {Object} obj The existing object to set.
  * @param {Object} data The native regular expression.
- * @param {Object} source Optional The existing object to set.
  * @return {!Object} New regular expression object.
  */
-Interpreter.prototype.createRegExp = function(data, opt_source) {
-  var source = opt_source || this.createObject(this.REGEXP);
-  source.data = data
-  // set read-only attributes
-  this.setProperty(source, 'lastIndex', this.createPrimitive(source.data.lastIndex), false, true);
-  this.setProperty(source, 'source', this.createPrimitive(source.data.source), true, true);
-  this.setProperty(source, 'global', this.createPrimitive(source.data.global), true, true);
-  this.setProperty(source, 'ignoreCase', this.createPrimitive(source.data.ignoreCase), true, true);
-  this.setProperty(source, 'multiline', this.createPrimitive(source.data.multiline), true, true);
-  return source;
+Interpreter.prototype.createRegExp = function(obj, data) {
+  obj.data = data
+  // lastIndex is settable, all others are read-only attributes
+  this.setProperty(obj, 'lastIndex', this.createPrimitive(obj.data.lastIndex), false, true);
+  this.setProperty(obj, 'source', this.createPrimitive(obj.data.source), true, true);
+  this.setProperty(obj, 'global', this.createPrimitive(obj.data.global), true, true);
+  this.setProperty(obj, 'ignoreCase', this.createPrimitive(obj.data.ignoreCase), true, true);
+  this.setProperty(obj, 'multiline', this.createPrimitive(obj.data.multiline), true, true);
+  return obj;
 }
 
 /**
