@@ -708,6 +708,9 @@ Interpreter.prototype.initString = function(scope) {
     var str = this.toString();
     regexp = regexp ? regexp.data : undefined;
     var match = str.match(regexp);
+    if (match === null) {
+      return thisInterpreter.createPrimitive(null);
+    }
     var pseudoList = thisInterpreter.createObject(thisInterpreter.ARRAY);
     for (var i = 0; i < match.length; i++) {
       thisInterpreter.setProperty(pseudoList, i,
