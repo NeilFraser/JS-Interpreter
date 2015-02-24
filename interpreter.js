@@ -88,6 +88,7 @@ Interpreter.prototype.initGlobalScope = function(scope) {
   this.initDate(scope);
   this.initMath(scope);
   this.initRegExp(scope);
+  this.initJSON(scope);
 
   // Initialize global functions.
   var thisInterpreter = this;
@@ -702,6 +703,23 @@ Interpreter.prototype.initString = function(scope) {
   };
   this.setProperty(this.STRING.properties.prototype, 'slice',
                    this.createNativeFunction(wrapper), false, true);
+
+  wrapper = function(regexp) {
+    var str = this.toString();
+    regexp = regexp ? regexp.data : undefined;
+    var match = str.match(regexp);
+    if (match === null) {
+      return thisInterpreter.createPrimitive(null);
+    }
+    var pseudoList = thisInterpreter.createObject(thisInterpreter.ARRAY);
+    for (var i = 0; i < match.length; i++) {
+      thisInterpreter.setProperty(pseudoList, i,
+          thisInterpreter.createPrimitive(match[i]));
+    }
+    return pseudoList;
+  };
+  this.setProperty(this.STRING.properties.prototype, 'match',
+                   this.createNativeFunction(wrapper), false, true);
 };
 
 /**
@@ -950,6 +968,89 @@ Interpreter.prototype.initRegExp = function(scope) {
   };
   this.setProperty(this.REGEXP.properties.prototype, 'exec',
                    this.createNativeFunction(wrapper), false, true);
+};
+
+/**
+ * Initialize JSON object.
+ * @param {!Object} scope Global scope.
+ */
+Interpreter.prototype.initJSON = function(scope) {
+  var thisInterpreter = this;
+  var myJSON = thisInterpreter.createObject(this.OBJECT);
+  this.setProperty(scope, 'JSON', myJSON);
+
+  /**
+   * Converts from native JS object to this.OBJECT.
+   * @param {!Object} nativeObj The native JS object to be converted.
+   * @return {Object} The equivalent this.OBJECT.
+   */
+  function toPseudoObject(nativeObj) {
+    if (typeof nativeObj !== 'object') {
+      return thisInterpreter.createPrimitive(nativeObj);
+    }
+
+    var pseudoObject;
+    if (nativeObj instanceof Array) { // is array
+      pseudoObject = thisInterpreter.createObject(thisInterpreter.ARRAY);
+      for (var i = 0; i < nativeObj.length; i++) {
+        thisInterpreter.setProperty(pseudoObject, i,
+                                    toPseudoObject(nativeObj[i]));
+      }
+    } else { // is object
+      pseudoObject = thisInterpreter.createObject(thisInterpreter.OBJECT);
+      for (var key in nativeObj) {
+        thisInterpreter.setProperty(pseudoObject, key,
+                                    toPseudoObject(nativeObj[key]));
+      }
+    }
+
+    return pseudoObject;
+  }
+
+  var wrapper = (function(nativeFunc) {
+    return function() {
+      var arg = arguments[0].data;
+      var nativeObj = nativeFunc.call(JSON, arg);
+      return toPseudoObject(nativeObj);
+    };
+  })(JSON.parse);
+  this.setProperty(myJSON, 'parse',
+                   this.createNativeFunction(wrapper));
+
+  /**
+   * Converts from this.OBJECT object to native JS object.
+   * @param {!Object} obj The this.OBJECT object to be converted.
+   * @return {Object} The equivalent native JS object.
+   */
+  function toNativeObject(obj) {
+    if (obj.isPrimitive) {
+      return obj.data;
+    }
+
+    var nativeObj;
+    if (obj.length) { // is array
+      nativeObj = [];
+      for (var i = 0; i < obj.length; i++) {
+        nativeObj[i] = toNativeObject(obj.properties[i]);
+      }
+    } else { // is object
+      nativeObj = {};
+      for (var key in obj.properties) {
+        nativeObj[key] = toNativeObject(obj.properties[key]);
+      }
+    }
+
+    return nativeObj;
+  }
+
+  wrapper = (function(nativeFunc) {
+    return function() {
+      var arg = toNativeObject(arguments[0]);
+      return thisInterpreter.createPrimitive(nativeFunc.call(JSON, arg));
+    };
+  })(JSON.stringify);
+  this.setProperty(myJSON, 'stringify',
+                   this.createNativeFunction(wrapper));
 };
 
 /**
