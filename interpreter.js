@@ -702,6 +702,20 @@ Interpreter.prototype.initString = function(scope) {
   };
   this.setProperty(this.STRING.properties.prototype, 'slice',
                    this.createNativeFunction(wrapper), false, true);
+
+  wrapper = function(regexp) {
+    var str = this.toString();
+    regexp = regexp ? regexp.data : undefined;
+    var match = str.match(regexp);
+    var pseudoList = thisInterpreter.createObject(thisInterpreter.ARRAY);
+    for (var i = 0; i < match.length; i++) {
+      thisInterpreter.setProperty(pseudoList, i,
+          thisInterpreter.createPrimitive(match[i]));
+    }
+    return pseudoList;
+  };
+  this.setProperty(this.STRING.properties.prototype, 'match',
+                   this.createNativeFunction(wrapper), false, true);
 };
 
 /**
