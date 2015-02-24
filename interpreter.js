@@ -980,8 +980,8 @@ Interpreter.prototype.initJSON = function(scope) {
   this.setProperty(scope, 'JSON', myJSON);
 
   /**
-   * Converts from native js object to this.OBJECT.
-   * @param {!Object} nativeObj The native js object to be converted.
+   * Converts from native JS object to this.OBJECT.
+   * @param {!Object} nativeObj The native JS object to be converted.
    * @return {Object} The equivalent this.OBJECT.
    */
   function toPseudoObject(nativeObj) {
@@ -991,14 +991,16 @@ Interpreter.prototype.initJSON = function(scope) {
 
     var pseudoObject;
     if (nativeObj instanceof Array) { // is array
-      pseudoObject = thisInterpreter.createObject(thisInterpreter.ARRAY)
+      pseudoObject = thisInterpreter.createObject(thisInterpreter.ARRAY);
       for (var i = 0; i < nativeObj.length; i++) {
-        thisInterpreter.setProperty(pseudoObject, i, toPseudoObject(nativeObj[i]));
+        thisInterpreter.setProperty(pseudoObject, i,
+                                    toPseudoObject(nativeObj[i]));
       }
     } else { // is object
-      pseudoObject = thisInterpreter.createObject(thisInterpreter.OBJECT)
+      pseudoObject = thisInterpreter.createObject(thisInterpreter.OBJECT);
       for (var key in nativeObj) {
-        thisInterpreter.setProperty(pseudoObject, key, toPseudoObject(nativeObj[key]));
+        thisInterpreter.setProperty(pseudoObject, key,
+                                    toPseudoObject(nativeObj[key]));
       }
     }
 
@@ -1016,9 +1018,9 @@ Interpreter.prototype.initJSON = function(scope) {
                    this.createNativeFunction(wrapper));
 
   /**
-   * Converts from this.OBJECT object to native js object.
+   * Converts from this.OBJECT object to native JS object.
    * @param {!Object} obj The this.OBJECT object to be converted.
-   * @return {Object} The equivalent native js object.
+   * @return {Object} The equivalent native JS object.
    */
   function toNativeObject(obj) {
     if (obj.isPrimitive) {
@@ -1027,9 +1029,9 @@ Interpreter.prototype.initJSON = function(scope) {
 
     var nativeObj;
     if (obj.length) { // is array
-      nativeObj = new Array();
+      nativeObj = [];
       for (var i = 0; i < obj.length; i++) {
-        nativeObj.push(toNativeObject(obj.properties[i]));
+        nativeObj[i] = toNativeObject(obj.properties[i]);
       }
     } else { // is object
       nativeObj = {};
