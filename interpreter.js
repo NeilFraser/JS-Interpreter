@@ -725,6 +725,14 @@ Interpreter.prototype.initString = function(scope) {
   };
   this.setProperty(this.STRING.properties.prototype, 'match',
                    this.createNativeFunction(wrapper), false, true);
+
+  wrapper = function(regexp) {
+    var str = this.toString();
+    regexp = regexp ? regexp.data : undefined;
+    return thisInterpreter.createPrimitive(str.search(regexp));
+  };
+  this.setProperty(this.STRING.properties.prototype, 'search',
+                   this.createNativeFunction(wrapper), false, true);
 };
 
 /**
