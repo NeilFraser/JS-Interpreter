@@ -654,7 +654,12 @@ Interpreter.prototype.initString = function(scope) {
 
   wrapper = function(separator, limit) {
     var str = this.toString();
-    separator = separator ? separator.toString() : undefined;
+    if (separator) {
+      separator = thisInterpreter.isa(separator, thisInterpreter.REGEXP) 
+                  ? separator.data : separator.toString();
+    } else { // is this really necessary?
+      separator = undefined;
+    }
     limit = limit ? limit.toNumber() : undefined;
     var jsList = str.split(separator, limit);
     var pseudoList = thisInterpreter.createObject(thisInterpreter.ARRAY);
