@@ -496,6 +496,69 @@ Interpreter.prototype.initArray = function(scope) {
   };
   this.setProperty(this.ARRAY.properties.prototype, 'lastIndexOf',
                    this.createNativeFunction(wrapper), false, true);
+
+  wrapper = function(opt_compFunc) {
+    var compFuncWrapper;
+    if (opt_compFunc) {
+      var node = opt_compFunc.node;
+      var body = node.body;
+      // set callee depending whether the call is via
+      // inline function or function name
+      var callee = node.type == 'FunctionDeclaration'
+                    ? node.id : opt_compFunc.node;
+      compFuncWrapper = function(x, y) {
+        var callState = {
+          callee: callee,
+          arguments: node.params,
+          type: 'CallExpression',
+          start: 0,
+          end: 0
+        };
+        var exprState = {
+          expression: callState,
+          type: 'ExpressionStatement',
+          start: 0,
+          end: 0
+        };
+        var scope = thisInterpreter.createScope(opt_compFunc, opt_compFunc.parentScope);
+        // Add all arguments.
+        for (var i = 0; i < node.params.length; i++) {
+          var paramName = thisInterpreter.createPrimitive(node.params[i].name);
+          var paramValue = arguments.length > i ? arguments[i] :
+              thisInterpreter.UNDEFINED;
+          thisInterpreter.setProperty(scope, paramName, paramValue);
+        }
+        // Build arguments variable.
+        var argsList = thisInterpreter.createObject(thisInterpreter.ARRAY);
+        for (var i = 0; i < arguments.length; i++) {
+          thisInterpreter.setProperty(argsList, thisInterpreter.createPrimitive(i),
+                                      arguments[i]);
+        }
+        thisInterpreter.setProperty(scope, 'arguments', argsList);
+        thisInterpreter.stateStack.unshift({
+          node: exprState,
+          scope: scope,
+          breakpoint: true
+        });
+        // run the function
+        do {
+          thisInterpreter.step();
+        } while (!thisInterpreter.stateStack[0].breakpoint)
+        return thisInterpreter.stateStack[0].value.data;
+      }
+    }
+    var jsList = [];
+    for (var i = 0; i < this.length; i++) {
+      jsList[i] = this.properties[i];
+    }
+    jsList.sort(compFuncWrapper);
+    for (var i = 0; i < jsList.length; i++) {
+      thisInterpreter.setProperty(this, i, jsList[i]);
+    }
+    return this;
+  };
+  this.setProperty(this.ARRAY.properties.prototype, 'sort',
+                   this.createNativeFunction(wrapper), false, true);
 };
 
 /**
@@ -654,7 +717,12 @@ Interpreter.prototype.initString = function(scope) {
 
   wrapper = function(separator, limit) {
     var str = this.toString();
-    separator = separator ? separator.toString() : undefined;
+    if (separator) {
+      separator = thisInterpreter.isa(separator, thisInterpreter.REGEXP) 
+                  ? separator.data : separator.toString();
+    } else { // is this really necessary?
+      separator = undefined;
+    }
     limit = limit ? limit.toNumber() : undefined;
     var jsList = str.split(separator, limit);
     var pseudoList = thisInterpreter.createObject(thisInterpreter.ARRAY);
@@ -719,6 +787,14 @@ Interpreter.prototype.initString = function(scope) {
     return pseudoList;
   };
   this.setProperty(this.STRING.properties.prototype, 'match',
+                   this.createNativeFunction(wrapper), false, true);
+
+  wrapper = function(regexp) {
+    var str = this.toString();
+    regexp = regexp ? regexp.data : undefined;
+    return thisInterpreter.createPrimitive(str.search(regexp));
+  };
+  this.setProperty(this.STRING.properties.prototype, 'search',
                    this.createNativeFunction(wrapper), false, true);
 };
 
