@@ -35,6 +35,7 @@ var Interpreter = function(code, opt_initFunc) {
   this.initFunc_ = opt_initFunc;
   this.UNDEFINED = this.createPrimitive(undefined);
   this.ast = acorn.parse(code);
+  this.paused = false;
   var scope = this.createScope(this.ast, null);
   this.stateStack = [{node: this.ast, scope: scope, thisExpression: scope}];
 };
@@ -49,7 +50,7 @@ Interpreter.prototype.step = function() {
   }
   var state = this.stateStack[0];
   this['step' + state.node.type]();
-  return true;
+  return !this.paused;
 };
 
 /**
@@ -57,6 +58,13 @@ Interpreter.prototype.step = function() {
  */
 Interpreter.prototype.run = function() {
   while(this.step()) {};
+};
+
+/**
+ * Pause the interpreter.
+ */
+Interpreter.prototype.pause = function() {
+  this.paused = true;
 };
 
 /**
