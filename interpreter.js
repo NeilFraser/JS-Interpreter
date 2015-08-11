@@ -262,6 +262,14 @@ Interpreter.prototype.initObject = function(scope) {
   };
   this.setProperty(this.OBJECT.properties.prototype, 'valueOf',
                    this.createNativeFunction(wrapper), false, true);
+  wrapper = function(property) {
+    for (var key in this.properties)
+      if (key == property)
+        return b.createPrimitive(true);
+    return b.createPrimitive(false);
+  };
+  this.setProperty(this.OBJECT.properties.prototype, 'hasOwnProperty',
+                   this.createNativeFunction(wrapper), false, true);
 };
 
 /**
