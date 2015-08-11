@@ -57,6 +57,7 @@ Interpreter.prototype.step = function() {
  * Execute the interpreter to program completion.
  */
 Interpreter.prototype.run = function() {
+  this.paused = false;
   while(this.step()) {};
 };
 
