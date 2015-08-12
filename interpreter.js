@@ -2323,8 +2323,7 @@ Interpreter.prototype['stepUpdateExpression'] = function() {
       throw 'Unknown update expression: ' + node.operator;
     }
     this.setValue(leftSide, changeValue);
-    var returnValue = node.prefix ? returnValue : leftValue;
-    this.stateStack[0].value = this.createPrimitive(returnValue);
+    this.stateStack[0].value = node.prefix ? changeValue : this.createPrimitive(leftValue);
   }
 };
 
