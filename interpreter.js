@@ -265,8 +265,8 @@ Interpreter.prototype.initObject = function(scope) {
   wrapper = function(property) {
     for (var key in this.properties)
       if (key == property)
-        return b.createPrimitive(true);
-    return b.createPrimitive(false);
+        return thisInterpreter.createPrimitive(true);
+    return thisInterpreter.createPrimitive(false);
   };
   this.setProperty(this.OBJECT.properties.prototype, 'hasOwnProperty',
                    this.createNativeFunction(wrapper), false, true);
@@ -726,7 +726,7 @@ Interpreter.prototype.initString = function(scope) {
   wrapper = function(separator, limit) {
     var str = this.toString();
     if (separator) {
-      separator = thisInterpreter.isa(separator, thisInterpreter.REGEXP) 
+      separator = thisInterpreter.isa(separator, thisInterpreter.REGEXP)
                   ? separator.data : separator.toString();
     } else { // is this really necessary?
       separator = undefined;
