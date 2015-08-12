@@ -1683,7 +1683,11 @@ Interpreter.prototype['stepBinaryExpression'] = function() {
     var value;
     var comp = this.comp(leftSide, rightSide);
     if (node.operator == '==' || node.operator == '!=') {
-      value = comp === 0;
+      if (leftSide.isPrimitive && rightSide.isPrimitive)
+        value = leftSide.data == rightSide.data;
+      else
+        value = comp === 0;
+        
       if (node.operator == '!=') {
         value = !value;
       }
@@ -2289,7 +2293,10 @@ Interpreter.prototype['stepUnaryExpression'] = function() {
     } else if (node.operator == '+') {
       value = state.value.toNumber();
     } else if (node.operator == '!') {
-      value = !state.value.toNumber();
+      if (state.value.isPrimitive)
+        value = !state.value.data;
+      else
+        value = !state.value.toNumber();
     } else if (node.operator == '~') {
       value = ~state.value.toNumber();
     } else if (node.operator == 'typeof') {
