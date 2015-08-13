@@ -2,19 +2,11 @@
 <html>
 <head>
   <meta charset="utf-8">
-  <title>JS-Interpreter Demo</title>
-  <link href="demos/style.css" rel="stylesheet" type="text/css">
-
+  <title>JS-Interpreter Sort Demo</title>
+  <link href="style.css" rel="stylesheet" type="text/css">
+  <script src="../acorn.js"></script>
+  <script src="../interpreter.js"></script>
   <script>
-    // Depending on the URL argument, test the compressed or uncompressed version.
-    var compressed = (document.location.search == '?compressed');
-    if (compressed) {
-      document.write('<scr'+'ipt src="acorn_interpreter.js"></scr'+'ipt>');
-    } else {
-      document.write('<scr'+'ipt src="acorn.js"></scr'+'ipt>');
-      document.write('<scr'+'ipt src="interpreter.js"></scr'+'ipt>');
-    }
-
     var myInterpreter;
     function initAlert(interpreter, scope) {
       var wrapper = function(text) {
@@ -52,7 +44,7 @@
 
     function runButton() {
       disable('disabled');
-      myInterpreter.run();
+      myInterpreter.run()
     }
 
     function disable(disabled) {
@@ -79,43 +71,52 @@
   </script>
 </head>
 <body>
-  <h1>JS-Interpreter Demo</h1>
+  <h1>JS-Interpreter Sort Demo</h1>
 
-  <p>Enter JavaScript code below, then click <em>Parse</em>.  To execute, either
-  click <em>Step</em> repeatedly, or click <em>Run</em> once.
-  Open your browser's console for errors.</p>
-  <p><textarea id="code">
-var result = [];
-function fibonacci(n, output) {
-  var a = 1, b = 1, sum;
-  for (var i = 0; i &lt; n; i++) {
-    output.push(a);
-    sum = a + b;
-    a = b;
-    b = sum;
+  <p>JavaScript's <code>Array.sort</code> function takes an optional argument
+  that is used by sort as a comparator function.  This is difficult to replicate
+  in the JS-Interpreter, since execution would need to step through this
+  function an arbitrary number of times.  As a result, the provided
+  <code>Array.sort</code> function does not support custom comparator
+  functions.</p>
+
+  <p>If this functionality is needed, the easiest way to implement it to
+  monkey patch the environment at runtime.  Just add the
+  <code>Array.prototype.sort</code> definition shown below, and custom
+  comparator functions will be fully supported.</p>
+
+  <p>Click <em>Parse</em>, then either click <em>Step</em> repeatedly,
+  or click <em>Run</em> once.  Open your browser's console for errors.</p>
+
+  <p><textarea id="code" style="height: 25em;">
+Array.prototype.sort = function(opt_comp) {
+  for (var i = 0; i < this.length; i++) {
+    var changes = 0;
+    for (var j = 0; j < this.length - i - 1; j++) {
+      if (opt_comp ? opt_comp(this[j], this[j + 1]) > 0 : this[j] > this[j + 1]) {
+        var swap = this[j];
+        this[j] = this[j + 1];
+        this[j + 1] = swap;
+        changes++;
+      }
+    }
+    if (changes > 1) break;
   }
-}
-fibonacci(16, result);
-alert(result.join(', '));
+  return this;
+};
+
+alert(['C', 'a', 'd', 'B'].sort(function (a, b) {
+    return a.toLowerCase().localeCompare(b.toLowerCase());
+}));
 </textarea><br>
   <button onclick="parseButton()">Parse</button>
   <button onclick="stepButton()" id="stepButton" disabled="disabled">Step</button>
   <button onclick="runButton()" id="runButton" disabled="disabled">Run</button>
   </p>
+  <p>Back to the <a href="../docs.html">JS-Interpreter documentation</a>.</p>
 
-  <p><small>
   <script>
-    if (compressed) {
-      document.write('[ Running compressed bundle.  Switch to <A HREF="?uncompressed">raw sources</A>. ]');
-    } else {
-      document.write('[ Running raw sources.  Switch to <A HREF="?compressed">compressed bundle</A>. ]');
-    }
     disable('disabled');
   </script>
-  </small></p>
-
-  <p>Read the <a href="docs.html">JS-Interpreter documentation</a>.</p>
-  <p>Get the <a href="https://github.com/NeilFraser/JS-Interpreter">source code</a>.</p>
-
 </body>
 </html>

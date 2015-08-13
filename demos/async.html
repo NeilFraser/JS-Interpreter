@@ -3,37 +3,9 @@
 <head>
   <meta charset="utf-8">
   <title>JS-Interpreter Async Demo</title>
-  <style>
-    body {
-      background-color: #fff;
-      font-family: sans-serif;
-    }
-    a:hover {
-      color: red
-    }
-    h1, h2, h3 {
-      font-weight: normal;
-    }
-    #code {
-      font-family: monospace;
-      font-size: larger;
-      height: 15em;
-      width: 100%;
-      max-width: 111ex;
-    }
-  </style>
-
-  <script type="text/javascript">
-    // Depending on the URL argument, test the compressed or uncompressed version.
-    var compressed = (document.location.search == '?compressed');
-    if (compressed) {
-      document.write('<scr'+'ipt src="acorn_interpreter.js"></scr'+'ipt>');
-    } else {
-      document.write('<scr'+'ipt src="acorn.js"></scr'+'ipt>');
-      document.write('<scr'+'ipt src="interpreter.js"></scr'+'ipt>');
-    }
-  </script>
-
+  <link href="style.css" rel="stylesheet" type="text/css">
+  <script src="../acorn.js"></script>
+  <script src="../interpreter.js"></script>
   <script>
     var myInterpreter;
     function initAlert(interpreter, scope) {
@@ -120,33 +92,37 @@
 <body>
   <h1>JS-Interpreter Async Demo</h1>
 
-  <p>Enter JavaScript code below, then click <em>Parse</em>.  To execute either,
-  click <em>Step</em> repeatedly, or click <em>Run</em> once.
-  Open your browser's console for errors.</p>
+  <p>Asynchronous function calls in the real world can be wrapped to appear
+  synchronous to code running in the JS-Interpreter.  The example below
+  (see this page's source) creates a <code>getXhr</code> function that
+  fetches a URL and returns the content.</p>
+
+  <p>This function is defined using <code>createAsyncFunction</code> during
+  initialization.  When called, the interpreter is paused until the callback
+  occurs.  During this paused state, <code>step</code> and <code>run</code>
+  will both do nothing, returning <code>true</code> to indicate that the program
+  still has code to execute.</p>
+
+  <p>Click <em>Parse</em>, then either click <em>Step</em> repeatedly,
+  or click <em>Run</em> once.  Open your browser's console for errors.</p>
+
   <p><textarea id="code">
-alert(getXhr('README.md'));
+alert(getXhr('async.txt'));
 </textarea><br>
   <button onclick="parseButton()">Parse</button>
   <button onclick="stepButton()" id="stepButton" disabled="disabled">Step</button>
   <button onclick="runButton()" id="runButton" disabled="disabled">Run</button>
   </p>
 
-  <p><small>
-  <script type="text/javascript">
-    if (compressed) {
-      document.write('[ Running compressed bundle.  Switch to <A HREF="?uncompressed">raw sources</A>. ]');
-    } else {
-      document.write('[ Running raw sources.  Switch to <A HREF="?compressed">compressed bundle</A>. ]');
-    }
+  <p>Back to the <a href="../docs.html">JS-Interpreter documentation</a>.</p>
+
+  <script>
     disable('disabled');
-    if (location.protocol == 'file:') {
+    if (location.protocol == 'file:' &&
+        navigator.userAgent.indexOf('Firefox') == -1) {
       alert('Warning: This page is loaded with the "file:" protocol.\n' +
             'Your browser might prevent XHR from working here.')
     }
   </script>
-  </small></p>
-
-  <p>Back to the <a href="docs.html">JS-Interpreter documentation</a>.</p>
-
 </body>
 </html>
