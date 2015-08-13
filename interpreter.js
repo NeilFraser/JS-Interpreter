@@ -276,6 +276,18 @@ Interpreter.prototype.initObject = function(scope) {
   };
   this.setProperty(this.OBJECT.properties.prototype, 'hasOwnProperty',
                    this.createNativeFunction(wrapper), false, true);
+
+  wrapper = function(obj) {
+    var pseudoList = thisInterpreter.createObject(thisInterpreter.ARRAY);
+    var i = 0;
+    for (var key in obj.properties) {
+      thisInterpreter.setProperty(pseudoList, i,
+          thisInterpreter.createPrimitive(key));
+      i++;
+    }
+    return pseudoList;
+  };
+  this.setProperty(this.OBJECT, 'keys', this.createNativeFunction(wrapper));
 };
 
 /**
@@ -679,6 +691,14 @@ Interpreter.prototype.initString = function(scope) {
         str.lastIndexOf(searchValue, fromIndex));
   };
   this.setProperty(this.STRING.properties.prototype, 'lastIndexOf',
+                   this.createNativeFunction(wrapper), false, true);
+
+  wrapper = function(compareString) {
+    var str = this.toString();
+    compareString = (compareString || thisInterpreter.UNDEFINED).toString();
+    return thisInterpreter.createPrimitive(str.localeCompare(compareString));
+  };
+  this.setProperty(this.STRING.properties.prototype, 'localeCompare',
                    this.createNativeFunction(wrapper), false, true);
 
   wrapper = function(separator, limit) {
