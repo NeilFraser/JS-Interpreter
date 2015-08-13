@@ -209,7 +209,7 @@ Interpreter.prototype.initFunction = function(scope) {
   };
   this.setProperty(this.FUNCTION.properties.prototype, 'apply',
                    this.createFunction(node, {}), false, true);
-  var node = {
+  node = {
     type: 'FunctionCall_',
     params: [],
     id: null,
@@ -616,7 +616,7 @@ Interpreter.prototype.initString = function(scope) {
   var functions = ['toLowerCase', 'toUpperCase',
                    'toLocaleLowerCase', 'toLocaleUpperCase'];
   for (var i = 0; i < functions.length; i++) {
-    var wrapper = (function(nativeFunc) {
+    wrapper = (function(nativeFunc) {
       return function() {
         return thisInterpreter.createPrimitive(nativeFunc.apply(this));
       };
@@ -901,7 +901,7 @@ Interpreter.prototype.initDate = function(scope) {
   }
 
   // Conversion getter methods.
-  var getFunctions = ['toDateString', 'toISOString', 'toGMTString',
+  getFunctions = ['toDateString', 'toISOString', 'toGMTString',
       'toLocaleDateString', 'toLocaleString', 'toLocaleTimeString',
       'toTimeString', 'toUTCString'];
   for (var i = 0; i < getFunctions.length; i++) {
@@ -1056,8 +1056,7 @@ Interpreter.prototype.initJSON = function(scope) {
       return toPseudoObject(nativeObj);
     };
   })(JSON.parse);
-  this.setProperty(myJSON, 'parse',
-                   this.createNativeFunction(wrapper));
+  this.setProperty(myJSON, 'parse', this.createNativeFunction(wrapper));
 
   /**
    * Converts from this.OBJECT object to native JS object.
@@ -1156,7 +1155,8 @@ Interpreter.prototype.arrayIndex = function(n) {
 
 /**
  * Create a new data object for a primitive.
- * @param {undefined|null|boolean|number|string} data Data to encapsulate.
+ * @param {undefined|null|boolean|number|string|RegExp} data Data to
+ *     encapsulate.
  * @return {!Object} New data object.
  */
 Interpreter.prototype.createPrimitive = function(data) {
@@ -1862,7 +1862,7 @@ Interpreter.prototype['stepCallExpression'] = function() {
           var evalInterpreter = new Interpreter(code.toString());
           evalInterpreter.stateStack[0].scope.parentScope =
               this.getScope();
-          var state = {
+          state = {
             node: {type: 'Eval_'},
             interpreter: evalInterpreter
           };
