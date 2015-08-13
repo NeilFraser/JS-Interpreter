@@ -2,7 +2,7 @@
 <html>
 <head>
   <meta charset="utf-8">
-  <title>JS-Interpreter Demo</title>
+  <title>JS-Interpreter Async Demo</title>
   <style>
     body {
       background-color: #fff;
@@ -43,6 +43,20 @@
       };
       interpreter.setProperty(scope, 'alert',
           interpreter.createNativeFunction(wrapper));
+
+      var wrapper = function getXhr(href, callback) {
+        href = href ? href.toString() : '';
+        var req = new XMLHttpRequest();
+        req.open('GET', href, true);
+        req.onreadystatechange = function() {
+          if (req.readyState == 4 && req.status == 200) {
+            callback(req.responseText);
+          }
+        };
+        req.send(null);
+      };
+      interpreter.setProperty(scope, 'getXhr',
+          interpreter.createAsyncFunction(wrapper));
     };
 
     function parseButton() {
@@ -72,7 +86,12 @@
 
     function runButton() {
       disable('disabled');
-      myInterpreter.run();
+      if (myInterpreter.run()) {
+        // Ran until an async call.  Give this call a chance to run.
+        // Then start running again later.
+        // 1000ms is waaay too long, but is used here to demo the pause.
+        setTimeout(runButton, 1000);
+      }
     }
 
     function disable(disabled) {
@@ -99,24 +118,13 @@
   </script>
 </head>
 <body>
-  <h1>JS-Interpreter Demo</h1>
+  <h1>JS-Interpreter Async Demo</h1>
 
-  <p>Enter JavaScript code below, then click <em>Parse</em>.  To execute, either
+  <p>Enter JavaScript code below, then click <em>Parse</em>.  To execute either,
   click <em>Step</em> repeatedly, or click <em>Run</em> once.
   Open your browser's console for errors.</p>
   <p><textarea id="code">
-var result = [];
-function fibonacci(n, output) {
-  var a = 1, b = 1, sum;
-  for (var i = 0; i &lt; n; i++) {
-    output.push(a);
-    sum = a + b;
-    a = b;
-    b = sum;
-  }
-}
-fibonacci(16, result);
-alert(result.join(', '));
+alert(getXhr('README.md'));
 </textarea><br>
   <button onclick="parseButton()">Parse</button>
   <button onclick="stepButton()" id="stepButton" disabled="disabled">Step</button>
@@ -131,11 +139,14 @@ alert(result.join(', '));
       document.write('[ Running raw sources.  Switch to <A HREF="?compressed">compressed bundle</A>. ]');
     }
     disable('disabled');
+    if (location.protocol == 'file:') {
+      alert('Warning: This page is loaded with the "file:" protocol.\n' +
+            'Your browser might prevent XHR from working here.')
+    }
   </script>
   </small></p>
 
-  <p>Read the <a href="docs.html">JS-Interpreter documentation</a>.</p>
-  <p>Get the <a href="https://github.com/NeilFraser/JS-Interpreter">source code</a>.</p>
+  <p>Back to the <a href="docs.html">JS-Interpreter documentation</a>.</p>
 
 </body>
 </html>

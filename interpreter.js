@@ -35,7 +35,7 @@ var Interpreter = function(code, opt_initFunc) {
   this.initFunc_ = opt_initFunc;
   this.UNDEFINED = this.createPrimitive(undefined);
   this.ast = acorn.parse(code);
-  this.paused = false;
+  this.paused_ = false;
   var scope = this.createScope(this.ast, null);
   this.stateStack = [{node: this.ast, scope: scope, thisExpression: scope}];
 };
@@ -45,27 +45,24 @@ var Interpreter = function(code, opt_initFunc) {
  * @return {boolean} True if a step was executed, false if no more instructions.
  */
 Interpreter.prototype.step = function() {
-  if (this.stateStack.length == 0) {
+  if (!this.stateStack.length) {
     return false;
+  } else if (this.paused_) {
+    return true;
   }
   var state = this.stateStack[0];
   this['step' + state.node.type]();
-  return !this.paused;
+  return true;
 };
 
 /**
- * Execute the interpreter to program completion.
+ * Execute the interpreter to program completion.  Vulnerable to infinite loops.
+ * @return {boolean} True if a execution is asynchonously blocked,
+ *     false if no more instructions.
  */
 Interpreter.prototype.run = function() {
-  this.paused = false;
-  while(this.step()) {};
-};
-
-/**
- * Pause the interpreter.
- */
-Interpreter.prototype.pause = function() {
-  this.paused = true;
+  while(!this.paused_ && this.step()) {};
+  return this.paused_;
 };
 
 /**
@@ -1163,7 +1160,9 @@ Interpreter.prototype.arrayIndex = function(n) {
  * @return {!Object} New data object.
  */
 Interpreter.prototype.createPrimitive = function(data) {
-  if (data instanceof RegExp) {
+  if (data === undefined && this.UNDEFINED) {
+    return this.UNDEFINED;  // Reuse the same object.
+  } else if (data instanceof RegExp) {
     return this.createRegExp(this.createObject(this.REGEXP), data);
   }
   var type = typeof data;
@@ -1266,6 +1265,19 @@ Interpreter.prototype.createNativeFunction = function(nativeFunc) {
   func.nativeFunc = nativeFunc;
   this.setProperty(func, 'length',
                    this.createPrimitive(nativeFunc.length), true);
+  return func;
+};
+
+/**
+ * Create a new native asynchronous function.
+ * @param {!Function} asyncFunc JavaScript function.
+ * @return {!Object} New function.
+ */
+Interpreter.prototype.createAsyncFunction = function(asyncFunc) {
+  var func = this.createObject(this.FUNCTION);
+  func.asyncFunc = asyncFunc;
+  this.setProperty(func, 'length',
+                   this.createPrimitive(asyncFunc.length), true);
   return func;
 };
 
@@ -1827,6 +1839,17 @@ Interpreter.prototype['stepCallExpression'] = function() {
       } else if (state.func_.nativeFunc) {
         state.value = state.func_.nativeFunc.apply(state.funcThis_,
                                                    state.arguments);
+      } else if (state.func_.asyncFunc) {
+        var thisInterpreter = this;
+        var callback = function(value) {
+          state.value = value || this.UNDEFINED;
+          thisInterpreter.stateStack.unshift(state)
+          thisInterpreter.paused_ = false;
+        };
+        var argsWithCallback = state.arguments.concat(callback);
+        state.func_.asyncFunc.apply(state.funcThis_, argsWithCallback);
+        this.paused_ = true;
+        return;
       } else if (state.func_.eval) {
         var code = state.arguments[0];
         if (!code) {

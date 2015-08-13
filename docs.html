@@ -58,6 +58,9 @@
   <pre>
     myInterpreter.run();
   </pre>
+  <p>In cases where the code encounters asynchronous API calls (see below),
+  <code>run</code> will return true if it is blocked and needs to be reexecuted
+  at a later time.</p>
 
   <h2>External API</h2>
   <p>Similar to the <code>eval</code> function, the result of the last
@@ -89,6 +92,36 @@
   <p>For more examples, see the <code>initGlobalScope</code> function which
   creates APIs for Math, Array, Function, and other globals.</p>
 
+  <p>Asynchronous API functions may wrapped so that they appear to be
+  synchronous to interpreter.  For example, a <code>getXhr(url)</code> function
+  that returns the contents of an XMLHttpRequest could be defined in
+  <code>initFunc</code> like this:</p>
+  <pre>
+    var wrapper = function getXhr(href, callback) {
+      href = href ? href.toString() : '';
+      var req = new XMLHttpRequest();
+      req.open('GET', href, true);
+      req.onreadystatechange = function() {
+        if (req.readyState == 4 && req.status == 200) {
+          callback(req.responseText);
+        }
+      };
+      req.send(null);
+    };
+    interpreter.setProperty(scope, 'getXhr',
+        interpreter.createAsyncFunction(wrapper));
+  </pre>
+  <p>This snippet uses <code>createAsyncFunction</code> in the same way that
+  <code>createNativeFunction</code> was used earlier.  The difference is that
+  the wrapped asynchronous function's return value is ignored.  Instead, an
+  extra callback function is passed in when the wrapper is called.  When the
+  wrapper is ready to return, it calls the callback function with the value it
+  wishes to return.  From the point of view of the code running inside the
+  JS-Interpreter, a function call was made and the result was returned
+  immediately.</p>
+  <p>For a working example, see the
+  <a href="async_demo.html">async demo</a>.</p>
+
   <h2>Limitations</h2>
   <p>The version of JavaScript implemented by the interpreter has a few
   differences from that which executes in a browser:</p>
@@ -102,14 +135,9 @@
     <dt>Wat</dt>
     <dd>Some of the more obscure type conversions (e.g. <code>[] + {}</code>)
     may return different results from JavaScript.  Patches are welcome.</dd>
-    <dt>Todo</dt>
-    <dd>Random items that are currently missing but are slowly being worked on:
-    <ul>
-      <li>String search and replace methods</li>
-      <li>String split on regex</li>
-      <li>Array sort method</li>
-    </ul>
-    </dd>
+    <dt>Passed functions</dt>
+    <dd>Neither <code>Array.sort</code> nor <code>String.replace</code>
+    currently support custom compare or replacement functions.</dd>
     <dt>Performance</dt>
     <dd>No attempt has been made to make the interpreter particularly
     efficient.</dd>
