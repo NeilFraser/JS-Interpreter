@@ -63,7 +63,7 @@ Interpreter.prototype.step = function() {
 Interpreter.prototype.run = function(callback) {
   if (!this.callback) this.callback = callback;
   while(!this.paused_ && this.step()) {};
-  if (typeof this.callback == "function")
+  if (typeof this.callback == "function" && !this.paused_)
     this.callback();
   return this.paused_;
 };
