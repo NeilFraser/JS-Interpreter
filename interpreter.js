@@ -382,7 +382,12 @@ Interpreter.prototype.initArray = function(scope) {
       removed.properties[removed.length++] = this.properties[i];
       this.properties[i] = this.properties[i + howmany];
     }
-    for (var i = index + howmany; i < this.length; i++) {
+    // move other element to fill the gap
+    for (var i = index + howmany; i < this.length - howmany; i++) {
+      this.properties[i] = this.properties[i + howmany];
+    }
+    // delete superfluous properties
+    for (var i = this.length - howmany; i < this.length; i++) {
       delete this.properties[i];
     }
     this.length -= howmany;
@@ -718,7 +723,7 @@ Interpreter.prototype.initString = function(scope) {
   wrapper = function(separator, limit) {
     var str = this.toString();
     if (separator) {
-      separator = thisInterpreter.isa(separator, thisInterpreter.REGEXP) 
+      separator = thisInterpreter.isa(separator, thisInterpreter.REGEXP)
                   ? separator.data : separator.toString();
     } else { // is this really necessary?
       separator = undefined;
