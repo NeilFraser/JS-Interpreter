@@ -718,7 +718,7 @@ Interpreter.prototype.initString = function(scope) {
   wrapper = function(separator, limit) {
     var str = this.toString();
     if (separator) {
-      separator = thisInterpreter.isa(separator, thisInterpreter.REGEXP) 
+      separator = thisInterpreter.isa(separator, thisInterpreter.REGEXP)
                   ? separator.data : separator.toString();
     } else { // is this really necessary?
       separator = undefined;
@@ -1231,7 +1231,7 @@ Interpreter.prototype.createObject = function(parent) {
     nonenumerable: Object.create(null),
     properties: Object.create(null),
     toBoolean: function() {return true;},
-    toNumber: function() {return 0;},
+    toNumber: function() {return NaN;},
     toString: function() {return '[' + this.type + ']';},
     valueOf: function() {return this;}
   };
@@ -1243,6 +1243,7 @@ Interpreter.prototype.createObject = function(parent) {
   // Arrays have length.
   if (this.isa(obj, this.ARRAY)) {
     obj.length = 0;
+    obj.toNumber = function () {return 0;};
     obj.toString = function() {
       var strs = [];
       for (var i = 0; i < this.length; i++) {
@@ -2281,7 +2282,7 @@ Interpreter.prototype['stepUnaryExpression'] = function() {
     } else if (node.operator == '+') {
       value = state.value.toNumber();
     } else if (node.operator == '!') {
-      value = !state.value.toNumber();
+      value = !state.value.toBoolean();
     } else if (node.operator == '~') {
       value = ~state.value.toNumber();
     } else if (node.operator == 'typeof') {
