@@ -1498,12 +1498,11 @@ Interpreter.prototype.setValueToScope = function(name, value) {
   var scope = this.getScope();
   var nameStr = name.toString();
   while (scope) {
-    if (this.hasProperty(scope, nameStr)) {
+    if (this.hasProperty(scope, nameStr) || !scope.parentScope) {
       return this.setProperty(scope, nameStr, value);
     }
     scope = scope.parentScope;
   }
-  throw 'Unknown identifier: ' + nameStr;
 };
 
 /**
