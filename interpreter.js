@@ -408,11 +408,11 @@ Interpreter.prototype.initArray = function(scope) {
       removed.properties[removed.length++] = this.properties[i];
       this.properties[i] = this.properties[i + howmany];
     }
-    // move other element to fill the gap
+    // Move other element to fill the gap.
     for (var i = index + howmany; i < this.length - howmany; i++) {
       this.properties[i] = this.properties[i + howmany];
     }
-    // delete superfluous properties
+    // Delete superfluous properties.
     for (var i = this.length - howmany; i < this.length; i++) {
       delete this.properties[i];
     }
@@ -1207,7 +1207,7 @@ Interpreter.prototype.createObject = function(parent) {
     nonenumerable: Object.create(null),
     properties: Object.create(null),
     toBoolean: function() {return true;},
-    toNumber: function() {return 0;},
+    toNumber: function() {return NaN;},
     toString: function() {return '[' + this.type + ']';},
     valueOf: function() {return this;}
   };
@@ -1219,6 +1219,7 @@ Interpreter.prototype.createObject = function(parent) {
   // Arrays have length.
   if (this.isa(obj, this.ARRAY)) {
     obj.length = 0;
+    obj.toNumber = function () {return 0;};
     obj.toString = function() {
       var strs = [];
       for (var i = 0; i < this.length; i++) {
@@ -2285,11 +2286,7 @@ Interpreter.prototype['stepUnaryExpression'] = function() {
     } else if (node.operator == '+') {
       value = state.value.toNumber();
     } else if (node.operator == '!') {
-      if (state.value.isPrimitive) {
-        value = !state.value.data;
-      } else {
-        value = !state.value.toNumber();
-      }
+      value = !state.value.toBoolean();
     } else if (node.operator == '~') {
       value = ~state.value.toNumber();
     } else if (node.operator == 'typeof') {
