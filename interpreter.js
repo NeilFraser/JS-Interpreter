@@ -408,7 +408,12 @@ Interpreter.prototype.initArray = function(scope) {
       removed.properties[removed.length++] = this.properties[i];
       this.properties[i] = this.properties[i + howmany];
     }
-    for (var i = index + howmany; i < this.length; i++) {
+    // move other element to fill the gap
+    for (var i = index + howmany; i < this.length - howmany; i++) {
+      this.properties[i] = this.properties[i + howmany];
+    }
+    // delete superfluous properties
+    for (var i = this.length - howmany; i < this.length; i++) {
       delete this.properties[i];
     }
     this.length -= howmany;
