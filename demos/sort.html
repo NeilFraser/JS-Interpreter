@@ -100,7 +100,7 @@ Array.prototype.sort = function(opt_comp) {
         changes++;
       }
     }
-    if (changes > 1) break;
+    if (changes <= 1) break;
   }
   return this;
 };
