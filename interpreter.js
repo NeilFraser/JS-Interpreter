@@ -1459,6 +1459,20 @@ Interpreter.prototype.createScope = function(node, parentScope) {
     this.initGlobalScope(scope);
   }
   this.populateScope_(node, scope);
+
+  // Determine if this scope starts with 'use strict'.
+  scope.strict = false;
+  if (parentScope && parentScope.strict) {
+    scope.strict = true;
+  } else {
+    var firstNode = node.body && node.body[0];
+    if (firstNode && firstNode.expression) {
+      if (firstNode.expression.type == 'Literal' &&
+          firstNode.expression.value == 'use strict') {
+        scope.strict = true;
+      }
+    }
+  }
   return scope;
 };
 
@@ -1486,13 +1500,15 @@ Interpreter.prototype.getValueFromScope = function(name) {
  */
 Interpreter.prototype.setValueToScope = function(name, value) {
   var scope = this.getScope();
+  var strict = scope.strict;
   var nameStr = name.toString();
   while (scope) {
-    if (this.hasProperty(scope, nameStr) || !scope.parentScope) {
+    if (this.hasProperty(scope, nameStr) || (!strict && !scope.parentScope)) {
       return this.setProperty(scope, nameStr, value);
     }
     scope = scope.parentScope;
   }
+  throw 'Unknown identifier: ' + nameStr;
 };
 
 /**
