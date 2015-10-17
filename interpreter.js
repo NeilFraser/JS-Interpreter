@@ -838,24 +838,7 @@ Interpreter.prototype.initDate = function(scope) {
       for (var i = 0; i < arguments.length; i++) {
         args[i] = arguments[i] ? arguments[i].toNumber() : undefined
       }
-      // Sadly there is no way to use 'apply' on a constructor.
-      if (args.length == 1) {
-        newDate.date = new Date(args[0]);
-      } else if (args.length == 2) {
-        newDate.date = new Date(args[0], args[1]);
-      } else if (args.length == 3) {
-        newDate.date = new Date(args[0], args[1], args[2]);
-      } else if (args.length == 4) {
-        newDate.date = new Date(args[0], args[1], args[2], args[3]);
-      } else if (args.length == 5) {
-        newDate.date = new Date(args[0], args[1], args[2], args[3], args[4]);
-      } else if (args.length == 6) {
-        newDate.date = new Date(args[0], args[1], args[2], args[3], args[4],
-                                args[5]);
-      } else {
-        newDate.date = new Date(args[0], args[1], args[2], args[3], args[4],
-                                args[5], args[6]);
-      }
+      newDate.date = new (Function.prototype.bind.apply(Date, args));
     }
     newDate.toString = function() {return String(this.date);};
     newDate.toNumber = function() {return Number(this.date);};
