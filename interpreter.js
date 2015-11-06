@@ -1865,10 +1865,11 @@ Interpreter.prototype['stepCallExpression'] = function() {
                                                    state.arguments);
       } else if (state.func_.asyncFunc) {
         var thisInterpreter = this;
-        var callback = function(value) {
+        var callback = function(value, resume) {
           state.value = value || this.UNDEFINED;
           thisInterpreter.stateStack.unshift(state)
           thisInterpreter.paused_ = false;
+          if (resume) thisInterpreter.run();
         };
         var argsWithCallback = state.arguments.concat(callback);
         state.func_.asyncFunc.apply(state.funcThis_, argsWithCallback);
