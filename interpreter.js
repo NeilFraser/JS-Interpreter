@@ -23,6 +23,10 @@
  */
 'use strict';
 
+if (typeof require !== undefined) {
+    var acorn = require('./acorn');
+}
+
 /**
  * Create a new interpreter.
  * @param {string} code Raw JavaScript text.
@@ -77,8 +81,16 @@ Interpreter.prototype.initGlobalScope = function(scope) {
                    this.createPrimitive(NaN), true);
   this.setProperty(scope, 'undefined',
                    this.UNDEFINED, true);
-  this.setProperty(scope, 'window',
-                   scope, true);
+  // broswer
+  if (typeof window !== 'undefined') {
+    this.setProperty(scope, 'window',
+                     scope, true);
+  }
+  // nodejs
+  if (typeof module !== 'undefined') {
+    this.setProperty(scope, 'global',
+                     scope, true);
+  }
   this.setProperty(scope, 'self',
                    scope, false); // Editable.
 
@@ -130,7 +142,7 @@ Interpreter.prototype.initGlobalScope = function(scope) {
   func.eval = true;
   this.setProperty(func, 'length', this.createPrimitive(1), true);
   this.setProperty(scope, 'eval', func);
-
+  var glob = typeof window !== 'undefined' ? window : global;
   var strFunctions = ['escape', 'unescape',
                       'decodeURI', 'decodeURIComponent',
                       'encodeURI', 'encodeURIComponent'];
@@ -140,7 +152,7 @@ Interpreter.prototype.initGlobalScope = function(scope) {
         str = str || thisInterpreter.UNDEFINED;
         return thisInterpreter.createPrimitive(nativeFunc(str.toString()));
       };
-    })(window[strFunctions[i]]);
+    })(glob[strFunctions[i]]);
     this.setProperty(scope, strFunctions[i],
                      this.createNativeFunction(wrapper));
   }
@@ -2379,6 +2391,12 @@ Interpreter.prototype['stepWhileStatement'] =
 
 // Preserve top-level API functions from being pruned by JS compilers.
 // Add others as needed.
-window['Interpreter'] = Interpreter;
 Interpreter.prototype['step'] = Interpreter.prototype.step;
 Interpreter.prototype['run'] = Interpreter.prototype.run;
+if (typeof window !== 'undefined') {
+    window['Interpreter'] = Interpreter;
+}
+
+if (typeof module === 'object') {
+    module.exports = Interpreter;
+}
