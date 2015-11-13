@@ -1,4 +1,4 @@
-declare class JSInterpreter
+declare class Interpreter
 {
 	constructor(codeText : string, initFunc : Function);
 
