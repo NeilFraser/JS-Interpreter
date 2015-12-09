@@ -48,7 +48,8 @@ Interpreter.prototype.step = function() {
     return false;
   }
   var state = this.stateStack[0];
-  this['step' + state.node.type]();
+  //this['step' + state.node.type]();
+  stepTable[state.node.type].call(this);
   return true;
 };
 
@@ -2357,6 +2358,48 @@ Interpreter.prototype['stepVariableDeclarator'] = function() {
 
 Interpreter.prototype['stepWhileStatement'] =
     Interpreter.prototype['stepDoWhileStatement'];
+
+var stepTable = {
+  'ArrayExpression': Interpreter.prototype.stepArrayExpression,
+  'AssignmentExpression': Interpreter.prototype.stepAssignmentExpression,
+  'BinaryExpression': Interpreter.prototype.stepBinaryExpression,
+  'BreakStatement': Interpreter.prototype.stepBreakStatement,
+  'BlockStatement': Interpreter.prototype.stepBlockStatement,
+  'CallExpression': Interpreter.prototype.stepCallExpression,
+  'ConditionalExpression': Interpreter.prototype.stepConditionalExpression,
+  'ContinueStatement': Interpreter.prototype.stepContinueStatement,
+  'DoWhileStatement': Interpreter.prototype.stepDoWhileStatement,
+  'EmptyStatement': Interpreter.prototype.stepEmptyStatement,
+  'Eval_': Interpreter.prototype.stepEval_,
+  'ExpressionStatement': Interpreter.prototype.stepExpressionStatement,
+  'ForInStatement': Interpreter.prototype.stepForInStatement,
+  'ForStatement': Interpreter.prototype.stepForStatement,
+  'FunctionDeclaration': Interpreter.prototype.stepFunctionDeclaration,
+  'FunctionExpression': Interpreter.prototype.stepFunctionExpression,
+  'Identifier': Interpreter.prototype.stepIdentifier,
+  'IfStatement': Interpreter.prototype.stepIfStatement,
+  'ConditionalExpression': Interpreter.prototype.stepConditionalExpression,
+  'LabeledStatement': Interpreter.prototype.stepLabeledStatement,
+  'Literal': Interpreter.prototype.stepLiteral,
+  'LogicalExpression': Interpreter.prototype.stepLogicalExpression,
+  'MemberExpression': Interpreter.prototype.stepMemberExpression,
+  'NewExpression': Interpreter.prototype.stepNewExpression,
+  'CallExpression': Interpreter.prototype.stepCallExpression,
+  'ObjectExpression': Interpreter.prototype.stepObjectExpression,
+  'Program': Interpreter.prototype.stepProgram,
+  'BlockStatement': Interpreter.prototype.stepBlockStatement,
+  'ReturnStatement': Interpreter.prototype.stepReturnStatement,
+  'SequenceExpression': Interpreter.prototype.stepSequenceExpression,
+  'SwitchStatement': Interpreter.prototype.stepSwitchStatement,
+  'ThisExpression': Interpreter.prototype.stepThisExpression,
+  'ThrowStatement': Interpreter.prototype.stepThrowStatement,
+  'UnaryExpression': Interpreter.prototype.stepUnaryExpression,
+  'UpdateExpression': Interpreter.prototype.stepUpdateExpression,
+  'VariableDeclaration': Interpreter.prototype.stepVariableDeclaration,
+  'VariableDeclarator': Interpreter.prototype.stepVariableDeclarator,
+  'WhileStatement': Interpreter.prototype.stepWhileStatement,
+  'DoWhileStatement': Interpreter.prototype.stepDoWhileStatement
+};
 
 // Preserve top-level API functions from being pruned by JS compilers.
 // Add others as needed.
