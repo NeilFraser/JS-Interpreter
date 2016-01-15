@@ -1893,7 +1893,8 @@ Interpreter.prototype['stepCallExpression'] = function() {
       }
     } else {
       this.stateStack.shift();
-      this.stateStack[0].value = state.isConstructor_ ?
+      this.stateStack[0].value =
+          state.isConstructor_ && state.value.type !== 'object' ?
           state.funcThis_ : state.value;
     }
   }
