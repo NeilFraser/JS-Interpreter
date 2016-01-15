@@ -553,7 +553,7 @@ Interpreter.prototype.initNumber = function(scope) {
       this.toBoolean = function() {return !!value;};
       this.toNumber = function() {return value;};
       this.toString = function() {return String(value);};
-      return undefined;
+      return thisInterpreter.UNDEFINED;
     } else {
       return thisInterpreter.createPrimitive(value);
     }
@@ -617,7 +617,7 @@ Interpreter.prototype.initString = function(scope) {
       this.toString = function() {return value;};
       this.valueOf = function() {return value;};
       this.data = value;
-      return undefined;
+      return thisInterpreter.UNDEFINED;
     } else {
       return thisInterpreter.createPrimitive(value);
     }
@@ -799,7 +799,7 @@ Interpreter.prototype.initBoolean = function(scope) {
       this.toNumber = function() {return Number(value);};
       this.toString = function() {return String(value);};
       this.valueOf = function() {return value;};
-      return undefined;
+      return thisInterpreter.UNDEFINED;
     } else {
       return thisInterpreter.createPrimitive(value);
     }
@@ -1751,7 +1751,9 @@ Interpreter.prototype['stepBreakStatement'] = function() {
     label = node.label.name;
   }
   state = this.stateStack.shift();
-  while (state && state.node.type != 'callExpression') {
+  while (state &&
+          state.node.type != 'CallExpression' &&
+          state.node.type != 'NewExpression') {
     if (label ? label == state.label : (state.isLoop || state.isSwitch)) {
       return;
     }
@@ -1893,9 +1895,11 @@ Interpreter.prototype['stepCallExpression'] = function() {
       }
     } else {
       this.stateStack.shift();
-      this.stateStack[0].value =
-          state.isConstructor_ && state.value.type !== 'object' ?
-          state.funcThis_ : state.value;
+      if (state.isConstructor_ && state.value.type !== 'object') {
+        this.stateStack[0].value = state.funcThis_;
+      } else {
+        this.stateStack[0].value = state.value;
+      }
     }
   }
 };
@@ -1929,7 +1933,9 @@ Interpreter.prototype['stepContinueStatement'] = function() {
     label = node.label.name;
   }
   var state = this.stateStack[0];
-  while (state && state.node.type != 'callExpression') {
+  while (state &&
+          state.node.type != 'CallExpression' &&
+          state.node.type != 'NewExpression') {
     if (state.isLoop) {
       if (!label || (label == state.label)) {
         return;
@@ -2199,7 +2205,8 @@ Interpreter.prototype['stepReturnStatement'] = function() {
         throw new SyntaxError('Illegal return statement');
       }
       state = this.stateStack[0];
-    } while (state.node.type != 'CallExpression');
+    } while (state.node.type != 'CallExpression' &&
+              state.node.type != 'NewExpression');
     state.value = value;
   }
 };
