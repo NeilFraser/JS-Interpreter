@@ -408,7 +408,12 @@ Interpreter.prototype.initArray = function(scope) {
       removed.properties[removed.length++] = this.properties[i];
       this.properties[i] = this.properties[i + howmany];
     }
-    for (var i = index + howmany; i < this.length; i++) {
+    // Move other element to fill the gap.
+    for (var i = index + howmany; i < this.length - howmany; i++) {
+      this.properties[i] = this.properties[i + howmany];
+    }
+    // Delete superfluous properties.
+    for (var i = this.length - howmany; i < this.length; i++) {
       delete this.properties[i];
     }
     this.length -= howmany;
@@ -833,24 +838,7 @@ Interpreter.prototype.initDate = function(scope) {
       for (var i = 0; i < arguments.length; i++) {
         args[i] = arguments[i] ? arguments[i].toNumber() : undefined
       }
-      // Sadly there is no way to use 'apply' on a constructor.
-      if (args.length == 1) {
-        newDate.date = new Date(args[0]);
-      } else if (args.length == 2) {
-        newDate.date = new Date(args[0], args[1]);
-      } else if (args.length == 3) {
-        newDate.date = new Date(args[0], args[1], args[2]);
-      } else if (args.length == 4) {
-        newDate.date = new Date(args[0], args[1], args[2], args[3]);
-      } else if (args.length == 5) {
-        newDate.date = new Date(args[0], args[1], args[2], args[3], args[4]);
-      } else if (args.length == 6) {
-        newDate.date = new Date(args[0], args[1], args[2], args[3], args[4],
-                                args[5]);
-      } else {
-        newDate.date = new Date(args[0], args[1], args[2], args[3], args[4],
-                                args[5], args[6]);
-      }
+      newDate.date = new (Function.prototype.bind.apply(Date, args));
     }
     newDate.toString = function() {return String(this.date);};
     newDate.toNumber = function() {return Number(this.date);};
@@ -1219,7 +1207,7 @@ Interpreter.prototype.createObject = function(parent) {
     nonenumerable: Object.create(null),
     properties: Object.create(null),
     toBoolean: function() {return true;},
-    toNumber: function() {return 0;},
+    toNumber: function() {return NaN;},
     toString: function() {return '[' + this.type + ']';},
     valueOf: function() {return this;}
   };
@@ -1231,6 +1219,7 @@ Interpreter.prototype.createObject = function(parent) {
   // Arrays have length.
   if (this.isa(obj, this.ARRAY)) {
     obj.length = 0;
+    obj.toNumber = function () {return 0;};
     obj.toString = function() {
       var strs = [];
       for (var i = 0; i < this.length; i++) {
@@ -1470,6 +1459,20 @@ Interpreter.prototype.createScope = function(node, parentScope) {
     this.initGlobalScope(scope);
   }
   this.populateScope_(node, scope);
+
+  // Determine if this scope starts with 'use strict'.
+  scope.strict = false;
+  if (parentScope && parentScope.strict) {
+    scope.strict = true;
+  } else {
+    var firstNode = node.body && node.body[0];
+    if (firstNode && firstNode.expression) {
+      if (firstNode.expression.type == 'Literal' &&
+          firstNode.expression.value == 'use strict') {
+        scope.strict = true;
+      }
+    }
+  }
   return scope;
 };
 
@@ -1497,9 +1500,10 @@ Interpreter.prototype.getValueFromScope = function(name) {
  */
 Interpreter.prototype.setValueToScope = function(name, value) {
   var scope = this.getScope();
+  var strict = scope.strict;
   var nameStr = name.toString();
   while (scope) {
-    if (this.hasProperty(scope, nameStr)) {
+    if (this.hasProperty(scope, nameStr) || (!strict && !scope.parentScope)) {
       return this.setProperty(scope, nameStr, value);
     }
     scope = scope.parentScope;
@@ -1782,6 +1786,8 @@ Interpreter.prototype['stepCallExpression'] = function() {
     this.stateStack.unshift({node: node.callee, components: true});
   } else {
     if (!state.func_) {
+      state.arguments = [];
+      state.func_ = this.UNDEFINED;
       // Determine value of the function.
       if (state.value.type == 'function') {
         state.func_ = state.value;
@@ -1803,7 +1809,6 @@ Interpreter.prototype['stepCallExpression'] = function() {
         state.funcThis_ =
             this.stateStack[this.stateStack.length - 1].thisExpression;
       }
-      state.arguments = [];
       var n = 0;
     } else {
       var n = state.n_;
@@ -1891,6 +1896,7 @@ Interpreter.prototype['stepCallExpression'] = function() {
           this.stateStack.unshift(state);
         }
       } else {
+        state.value = this.UNDEFINED;
         throw new TypeError('function not a function (huh?)');
       }
     } else {
@@ -2089,8 +2095,13 @@ Interpreter.prototype['stepIdentifier'] = function() {
   var state = this.stateStack[0];
   this.stateStack.shift();
   var name = this.createPrimitive(state.node.name);
-  this.stateStack[0].value =
-      state.components ? name : this.getValueFromScope(name);
+  if (state.components) {
+    this.stateStack[0].value = name;
+  } else {
+    // First set to undefined in case getValueFromScope() throws
+    this.stateStack[0].value = this.UNDEFINED;
+    this.stateStack[0].value = this.getValueFromScope(name);
+  }
 };
 
 Interpreter.prototype['stepIfStatement'] =
@@ -2305,11 +2316,7 @@ Interpreter.prototype['stepUnaryExpression'] = function() {
     } else if (node.operator == '+') {
       value = state.value.toNumber();
     } else if (node.operator == '!') {
-      if (state.value.isPrimitive) {
-        value = !state.value.data;
-      } else {
-        value = !state.value.toNumber();
-      }
+      value = !state.value.toBoolean();
     } else if (node.operator == '~') {
       value = ~state.value.toNumber();
     } else if (node.operator == 'typeof') {
