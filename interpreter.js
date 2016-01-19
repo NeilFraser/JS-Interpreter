@@ -1786,7 +1786,6 @@ Interpreter.prototype['stepCallExpression'] = function() {
     this.stateStack.unshift({node: node.callee, components: true});
   } else {
     if (!state.func_) {
-      state.arguments = [];
       // Determine value of the function.
       if (state.value.type == 'function') {
         state.func_ = state.value;
@@ -1808,6 +1807,7 @@ Interpreter.prototype['stepCallExpression'] = function() {
         state.funcThis_ =
             this.stateStack[this.stateStack.length - 1].thisExpression;
       }
+      state.arguments = [];
       var n = 0;
     } else {
       var n = state.n_;
@@ -1895,7 +1895,6 @@ Interpreter.prototype['stepCallExpression'] = function() {
           this.stateStack.unshift(state);
         }
       } else {
-        state.value = this.UNDEFINED;
         throw new TypeError('function not a function (huh?)');
       }
     } else {
@@ -2094,13 +2093,8 @@ Interpreter.prototype['stepIdentifier'] = function() {
   var state = this.stateStack[0];
   this.stateStack.shift();
   var name = this.createPrimitive(state.node.name);
-  if (state.components) {
-    this.stateStack[0].value = name;
-  } else {
-    // First set to undefined in case getValueFromScope() throws
-    this.stateStack[0].value = this.UNDEFINED;
-    this.stateStack[0].value = this.getValueFromScope(name);
-  }
+  this.stateStack[0].value =
+      state.components ? name : this.getValueFromScope(name);
 };
 
 Interpreter.prototype['stepIfStatement'] =
