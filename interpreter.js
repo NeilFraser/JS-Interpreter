@@ -1787,7 +1787,6 @@ Interpreter.prototype['stepCallExpression'] = function() {
   } else {
     if (!state.func_) {
       state.arguments = [];
-      state.func_ = this.UNDEFINED;
       // Determine value of the function.
       if (state.value.type == 'function') {
         state.func_ = state.value;
