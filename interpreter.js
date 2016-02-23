@@ -2423,6 +2423,7 @@ Interpreter.prototype.createSpecialScope = function (parentScope, startingObj) {
  * @param {Object} throwValue Value being thrown.
  */
 Interpreter.prototype.throwException = function (throwValue) {
+  var state = this.stateStack[0];
   do {
     this.stateStack.shift();
     state = this.stateStack[0];
