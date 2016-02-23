@@ -1490,7 +1490,7 @@ Interpreter.prototype.getValueFromScope = function(name) {
     }
     scope = scope.parentScope;
   }
-  throw 'Unknown identifier: ' + nameStr;
+  this.throwException('Unknown identifier: ' + nameStr);
 };
 
 /**
@@ -1508,7 +1508,7 @@ Interpreter.prototype.setValueToScope = function(name, value) {
     }
     scope = scope.parentScope;
   }
-  throw 'Unknown identifier: ' + nameStr;
+  this.throwException('Unknown identifier: ' + nameStr);
 };
 
 /**
@@ -2279,14 +2279,14 @@ Interpreter.prototype['stepThisExpression'] = function() {
   throw 'No this expression found.';
 };
 
-Interpreter.prototype['stepThrowStatement'] = function() {
+Interpreter.prototype['stepThrowStatement'] = function () {
   var state = this.stateStack[0];
   var node = state.node;
   if (!state.argument) {
     state.argument = true;
     this.stateStack.unshift({node: node.argument});
   } else {
-    throw state.value.toString();
+    this.throwException(state.value);
   }
 };
 
@@ -2383,6 +2383,92 @@ Interpreter.prototype['stepVariableDeclarator'] = function() {
 
 Interpreter.prototype['stepWhileStatement'] =
     Interpreter.prototype['stepDoWhileStatement'];
+
+Interpreter.prototype['stepTryStatement'] = function () {
+  var state = this.stateStack[0];
+  var node = state.node;
+  if (!state.doneBlock) {
+    state.doneBlock = true;
+    this.stateStack.unshift({node: node.block});
+  } else if (!state.doneFinalizer && node.finalizer) {
+    state.doneFinalizer = true;
+    this.stateStack.unshift({node: node.finalizer});
+  } else {
+    this.stateStack.shift();
+  }
+};
+
+/**
+ * Create a new special scope dictionary. Similar to createScope(), but
+ * doesn't assume that the scope is for a function body. This is used for
+ * the catch clause and with statement.
+ * @param {Object} parentScope Scope to link to.
+ * @param {Object} [startingObj] Object to transform into scope.
+ * @return {!Object} New scope.
+ */
+Interpreter.prototype.createSpecialScope = function (parentScope, startingObj) {
+  if (!parentScope) {
+    throw "parentScope required";
+  }
+  var scope = startingObj || this.createObject(null);
+  scope.parentScope = parentScope;
+  scope.strict = parentScope.strict;
+  return scope;
+};
+
+/**
+ * Throw an exception in the interpreter that can be handled by a
+ * interpreter try/catch statement. If unhandled, a real exception will
+ * be thrown.
+ * @param {Object} throwValue Value being thrown.
+ */
+Interpreter.prototype.throwException = function (throwValue) {
+  do {
+    this.stateStack.shift();
+    state = this.stateStack[0];
+  } while (state && state.node.type !== 'TryStatement');
+  if (state) {
+    this.stateStack.unshift({
+      node: state.node.handler,
+      throwValue: throwValue
+    });
+  } else {
+    throw 'Unhandled exception: ' + throwValue.toString();
+  }
+};
+
+Interpreter.prototype['stepCatchClause'] = function () {
+  var state = this.stateStack[0];
+  var node = state.node;
+  if (!state.doneBody) {
+    state.doneBody = true;
+    var scope;
+    if (node.param) {
+      scope = this.createSpecialScope(this.getScope());
+      // Add the argument:
+      var paramName = this.createPrimitive(node.param.name);
+      this.setProperty(scope, paramName, state.throwValue);
+    }
+    this.stateStack.unshift({node: node.body, scope: scope});
+  } else {
+    this.stateStack.shift();
+  }
+};
+
+Interpreter.prototype['stepWithStatement'] = function () {
+  var state = this.stateStack[0];
+  var node = state.node;
+  if (!state.doneObject) {
+    state.doneObject = true;
+    this.stateStack.unshift({node: node.object});
+  } else if (!state.doneBody) {
+    state.doneBody = true;
+    var scope = this.createSpecialScope(this.getScope(), state.value);
+    this.stateStack.unshift({node: node.body, scope: scope});
+  } else {
+    this.stateStack.shift();
+  }
+};
 
 // Preserve top-level API functions from being pruned by JS compilers.
 // Add others as needed.
