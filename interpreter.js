@@ -1307,7 +1307,7 @@ Interpreter.prototype.createObject = function(parent) {
     obj.toString = function() {
       var strs = [];
       for (var i = 0; i < this.length; i++) {
-        strs[i] = this.properties[i].toString();
+        strs[i] = this.properties[i] == undefined || this.properties[i] == null ? "" : this.properties[i].toString();
       }
       return strs.join(',');
     };
