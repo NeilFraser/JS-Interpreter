@@ -32,14 +32,26 @@
  * @constructor
  */
 var Interpreter = function(code, opt_initFunc) {
-  this.initFunc_ = opt_initFunc;
-  this.UNDEFINED = this.createPrimitive(undefined);
-  this.NULL = this.createPrimitive(null);
-  this.TRUE = this.createPrimitive(true);
-  this.FALSE = this.createPrimitive(false);
   this.ast = acorn.parse(code);
+  this.initFunc_ = opt_initFunc;
   this.paused_ = false;
+  // Predefine some common primitives for performance.
+  this.UNDEFINED = new Interpreter.Primitive(undefined, this);
+  this.NULL = new Interpreter.Primitive(null, this);
+  this.TRUE = new Interpreter.Primitive(true, this);
+  this.FALSE = new Interpreter.Primitive(false, this);
+  this.NUMBER_ZERO = new Interpreter.Primitive(0, this);
+  this.NUMBER_ONE = new Interpreter.Primitive(1, this);
+  this.STRING_EMPTY = new Interpreter.Primitive('', this);
   var scope = this.createScope(this.ast, null);
+  // Fix the parent properties now that the global scope exists.
+  //this.UNDEFINED.parent = undefined;
+  //this.NULL.parent = undefined;
+  this.TRUE.parent = this.BOOLEAN;
+  this.FALSE.parent = this.BOOLEAN;
+  this.NUMBER_ZERO.parent = this.NUMBER;
+  this.NUMBER_ONE.parent = this.NUMBER;
+  this.STRING_EMPTY.parent = this.STRING;
   this.stateStack = [{node: this.ast, scope: scope, thisExpression: scope}];
 };
 
@@ -131,7 +143,7 @@ Interpreter.prototype.initGlobalScope = function(scope) {
 
   var func = this.createObject(this.FUNCTION);
   func.eval = true;
-  this.setProperty(func, 'length', this.createPrimitive(1), true);
+  this.setProperty(func, 'length', this.NUMBER_ONE, true);
   this.setProperty(scope, 'eval', func);
 
   var strFunctions = ['escape', 'unescape',
@@ -1165,41 +1177,102 @@ Interpreter.prototype.arrayIndex = function(n) {
 };
 
 /**
+ * Class for a number, string, boolean, null, or undefined.
+ * @param {number|string|boolean|null|undefined} data Primitive value.
+ * @param {!Interpreter} interpreter The JS Interpreter to bind to.
+ * @constructor
+ */
+Interpreter.Primitive = function(data, interpreter) {
+  var type = typeof data;
+  this.data = data;
+  this.type = type;
+  if (type == 'number') {
+    this.parent = interpreter.NUMBER;
+  } else if (type == 'string') {
+    this.parent = interpreter.STRING;
+  } else if (type == 'boolean') {
+    this.parent = interpreter.BOOLEAN;
+  }
+};
+
+/**
+ * @type {number|string|boolean|null|undefined}
+ */
+Interpreter.Primitive.prototype.data = undefined;
+
+/**
+ * @type {string=}
+ */
+Interpreter.Primitive.prototype.type = undefined;
+
+/**
+ * @type {Function}
+ */
+Interpreter.Primitive.prototype.parent = null;
+
+/**
+ * @type {boolean}
+ */
+Interpreter.Primitive.prototype.isPrimitive = true;
+
+/**
+ * Convert this primitive into a boolean.
+ * @return {boolean} Boolean value.
+ */
+Interpreter.Primitive.prototype.toBoolean = function() {
+  return Boolean(this.data);
+};
+
+/**
+ * Convert this primitive into a number.
+ * @return {number} Number value.
+ */
+Interpreter.Primitive.prototype.toNumber = function() {
+  return Number(this.data);
+};
+
+/**
+ * Convert this primitive into a string.
+ * @return {string} String value.
+ */
+Interpreter.Primitive.prototype.toString = function() {
+  return String(this.data);
+};
+
+/**
+ * Return the primitive value.
+ * @return {number|string|boolean|null|undefined} Primitive value.
+ */
+Interpreter.Primitive.prototype.valueOf = function() {
+  return this.data;
+};
+
+/**
  * Create a new data object for a primitive.
- * @param {undefined|null|boolean|number|string|RegExp} data Data to
+ * @param {number|string|boolean|null|undefined|RegExp} data Data to
  *     encapsulate.
  * @return {!Object} New data object.
  */
 Interpreter.prototype.createPrimitive = function(data) {
-  if (data === undefined && this.UNDEFINED) {
-    return this.UNDEFINED;  // Reuse the same object.
-  } else if (data === null && this.NULL) {
-    return this.NULL;  // Reuse the same object.
-  } else if (data === true && this.TRUE) {
-    return this.TRUE;  // Reuse the same object.
-  } else if (data === false && this.FALSE) {
-    return this.FALSE;  // Reuse the same object.
+  // Reuse a predefined primitive constant if possible.
+  if (data === undefined) {
+    return this.UNDEFINED;
+  } else if (data === null) {
+    return this.NULL;
+  } else if (data === true) {
+    return this.TRUE;
+  } else if (data === false) {
+    return this.FALSE;
+  } else if (data === 0) {
+    return this.NUMBER_ZERO;
+  } else if (data === 1) {
+    return this.NUMBER_ONE;
+  } else if (data === '') {
+    return this.STRING_EMPTY;
   } else if (data instanceof RegExp) {
     return this.createRegExp(this.createObject(this.REGEXP), data);
   }
-  var type = typeof data;
-  var obj = {
-    data: data,
-    isPrimitive: true,
-    type: type,
-    toBoolean: function() {return Boolean(this.data);},
-    toNumber: function() {return Number(this.data);},
-    toString: function() {return String(this.data);},
-    valueOf: function() {return this.data;}
-  };
-  if (type == 'number') {
-    obj.parent = this.NUMBER;
-  } else if (type == 'string') {
-    obj.parent = this.STRING;
-  } else if (type == 'boolean') {
-    obj.parent = this.BOOLEAN;
-  }
-  return obj;
+  return new Interpreter.Primitive(data, this);
 };
 
 /**
