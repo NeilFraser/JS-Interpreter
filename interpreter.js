@@ -602,7 +602,7 @@ Interpreter.prototype.initNumber = function(scope) {
     var n = this.toNumber();
     return thisInterpreter.createPrimitive(n.toString(radix));
   };
-  this.setProperty(this.OBJECT.properties.prototype, 'toString',
+  this.setProperty(this.NUMBER.properties.prototype, 'toString',
                    this.createNativeFunction(wrapper), false, true);
 };
 
