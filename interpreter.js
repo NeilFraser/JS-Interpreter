@@ -284,9 +284,11 @@ Interpreter.prototype.initObject = function(scope) {
   this.setProperty(this.OBJECT.properties.prototype, 'valueOf',
                    this.createNativeFunction(wrapper), false, true);
   wrapper = function(property) {
-    for (var key in this.properties)
-      if (key == property)
+    for (var key in this.properties) {
+      if (key == property) {
         return thisInterpreter.TRUE;
+      }
+    }
     return thisInterpreter.FALSE;
   };
   this.setProperty(this.OBJECT.properties.prototype, 'hasOwnProperty',
@@ -399,7 +401,7 @@ Interpreter.prototype.initArray = function(scope) {
 
   wrapper = function() {
     for (var i = 0; i < this.length / 2; i++) {
-      var tmp = this.properties[this.length - i - 1]
+      var tmp = this.properties[this.length - i - 1];
       this.properties[this.length - i - 1] = this.properties[i];
       this.properties[i] = tmp;
     }
@@ -724,8 +726,8 @@ Interpreter.prototype.initString = function(scope) {
   wrapper = function(separator, limit) {
     var str = this.toString();
     if (separator) {
-      separator = thisInterpreter.isa(separator, thisInterpreter.REGEXP)
-                  ? separator.data : separator.toString();
+      separator = thisInterpreter.isa(separator, thisInterpreter.REGEXP) ?
+          separator.data : separator.toString();
     } else { // is this really necessary?
       separator = undefined;
     }
@@ -1297,11 +1299,11 @@ Interpreter.prototype.createObject = function(parent) {
   if (this.isa(obj, this.FUNCTION)) {
     obj.type = 'function';
     this.setProperty(obj, 'prototype', this.createObject(this.OBJECT || null));
-  };
+  }
   // Arrays have length.
   if (this.isa(obj, this.ARRAY)) {
     obj.length = 0;
-    obj.toNumber = function () {return 0;};
+    obj.toNumber = function() {return 0;};
     obj.toString = function() {
       var strs = [];
       for (var i = 0; i < this.length; i++) {
@@ -1309,7 +1311,7 @@ Interpreter.prototype.createObject = function(parent) {
       }
       return strs.join(',');
     };
-  };
+  }
 
   return obj;
 };
@@ -1829,6 +1831,18 @@ Interpreter.prototype['stepBinaryExpression'] = function() {
   }
 };
 
+Interpreter.prototype['stepBlockStatement'] = function() {
+  var state = this.stateStack[0];
+  var node = state.node;
+  var n = state.n_ || 0;
+  if (node.body[n]) {
+    state.n_ = n + 1;
+    this.stateStack.unshift({node: node.body[n]});
+  } else {
+    this.stateStack.shift();
+  }
+};
+
 Interpreter.prototype['stepBreakStatement'] = function() {
   var state = this.stateStack.shift();
   var node = state.node;
@@ -1844,18 +1858,6 @@ Interpreter.prototype['stepBreakStatement'] = function() {
     state = this.stateStack.shift();
   }
   throw new SyntaxError('Illegal break statement');
-};
-
-Interpreter.prototype['stepBlockStatement'] = function() {
-  var state = this.stateStack[0];
-  var node = state.node;
-  var n = state.n_ || 0;
-  if (node.body[n]) {
-    state.n_ = n + 1;
-    this.stateStack.unshift({node: node.body[n]});
-  } else {
-    this.stateStack.shift();
-  }
 };
 
 Interpreter.prototype['stepCallExpression'] = function() {
@@ -2159,14 +2161,12 @@ Interpreter.prototype['stepFunctionDeclaration'] = function() {
 };
 
 Interpreter.prototype['stepFunctionExpression'] = function() {
-  var state = this.stateStack[0];
-  this.stateStack.shift();
+  var state = this.stateStack.shift();
   this.stateStack[0].value = this.createFunction(state.node);
 };
 
 Interpreter.prototype['stepIdentifier'] = function() {
-  var state = this.stateStack[0];
-  this.stateStack.shift();
+  var state = this.stateStack.shift();
   var name = this.createPrimitive(state.node.name);
   this.stateStack[0].value =
       state.components ? name : this.getValueFromScope(name);
@@ -2183,8 +2183,7 @@ Interpreter.prototype['stepLabeledStatement'] = function() {
 };
 
 Interpreter.prototype['stepLiteral'] = function() {
-  var state = this.stateStack[0];
-  this.stateStack.shift();
+  var state = this.stateStack.shift();
   this.stateStack[0].value = this.createPrimitive(state.node.value);
 };
 
