@@ -22,7 +22,7 @@
         req.open('GET', href, true);
         req.onreadystatechange = function() {
           if (req.readyState == 4 && req.status == 200) {
-            callback(req.responseText);
+            callback(interpreter.createPrimitive(req.responseText));
           }
         };
         req.send(null);

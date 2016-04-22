@@ -1307,7 +1307,9 @@ Interpreter.prototype.createObject = function(parent) {
     obj.toString = function() {
       var strs = [];
       for (var i = 0; i < this.length; i++) {
-        strs[i] = this.properties[i] == undefined || this.properties[i] == null ? "" : this.properties[i].toString();
+        strs[i] = (this.properties[i] == undefined ||
+                   this.properties[i] == null) ?
+                   '' : this.properties[i].toString();
       }
       return strs.join(',');
     };
@@ -1325,11 +1327,16 @@ Interpreter.prototype.createObject = function(parent) {
 Interpreter.prototype.createRegExp = function(obj, data) {
   obj.data = data
   // lastIndex is settable, all others are read-only attributes
-  this.setProperty(obj, 'lastIndex', this.createPrimitive(obj.data.lastIndex), false, true);
-  this.setProperty(obj, 'source', this.createPrimitive(obj.data.source), true, true);
-  this.setProperty(obj, 'global', this.createPrimitive(obj.data.global), true, true);
-  this.setProperty(obj, 'ignoreCase', this.createPrimitive(obj.data.ignoreCase), true, true);
-  this.setProperty(obj, 'multiline', this.createPrimitive(obj.data.multiline), true, true);
+  this.setProperty(obj, 'lastIndex', this.createPrimitive(obj.data.lastIndex),
+                   false, true);
+  this.setProperty(obj, 'source', this.createPrimitive(obj.data.source),
+                   true, true);
+  this.setProperty(obj, 'global', this.createPrimitive(obj.data.global),
+                   true, true);
+  this.setProperty(obj, 'ignoreCase', this.createPrimitive(obj.data.ignoreCase),
+                   true, true);
+  this.setProperty(obj, 'multiline', this.createPrimitive(obj.data.multiline),
+                   true, true);
   return obj;
 }
 
@@ -2424,7 +2431,8 @@ Interpreter.prototype['stepUpdateExpression'] = function() {
       throw 'Unknown update expression: ' + node.operator;
     }
     this.setValue(leftSide, changeValue);
-    this.stateStack[0].value = node.prefix ? changeValue : this.createPrimitive(leftValue);
+    this.stateStack[0].value = node.prefix ?
+        changeValue : this.createPrimitive(leftValue);
   }
 };
 
