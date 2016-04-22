@@ -34,6 +34,9 @@
 var Interpreter = function(code, opt_initFunc) {
   this.initFunc_ = opt_initFunc;
   this.UNDEFINED = this.createPrimitive(undefined);
+  this.NULL = this.createPrimitive(null);
+  this.TRUE = this.createPrimitive(true);
+  this.FALSE = this.createPrimitive(false);
   this.ast = acorn.parse(code);
   this.paused_ = false;
   var scope = this.createScope(this.ast, null);
@@ -271,8 +274,8 @@ Interpreter.prototype.initObject = function(scope) {
   wrapper = function(property) {
     for (var key in this.properties)
       if (key == property)
-        return thisInterpreter.createPrimitive(true);
-    return thisInterpreter.createPrimitive(false);
+        return thisInterpreter.TRUE;
+    return thisInterpreter.FALSE;
   };
   this.setProperty(this.OBJECT.properties.prototype, 'hasOwnProperty',
                    this.createNativeFunction(wrapper), false, true);
@@ -768,7 +771,7 @@ Interpreter.prototype.initString = function(scope) {
     regexp = regexp ? regexp.data : undefined;
     var match = str.match(regexp);
     if (match === null) {
-      return thisInterpreter.createPrimitive(null);
+      return thisInterpreter.NULL;
     }
     var pseudoList = thisInterpreter.createObject(thisInterpreter.ARRAY);
     for (var i = 0; i < match.length; i++) {
@@ -1014,7 +1017,7 @@ Interpreter.prototype.initRegExp = function(scope) {
           thisInterpreter.createPrimitive(match.input));
       return result;
     }
-    return thisInterpreter.createPrimitive(null);
+    return thisInterpreter.NULL;
   };
   this.setProperty(this.REGEXP.properties.prototype, 'exec',
                    this.createNativeFunction(wrapper), false, true);
@@ -1170,6 +1173,12 @@ Interpreter.prototype.arrayIndex = function(n) {
 Interpreter.prototype.createPrimitive = function(data) {
   if (data === undefined && this.UNDEFINED) {
     return this.UNDEFINED;  // Reuse the same object.
+  } else if (data === null && this.NULL) {
+    return this.NULL;  // Reuse the same object.
+  } else if (data === true && this.TRUE) {
+    return this.TRUE;  // Reuse the same object.
+  } else if (data === false && this.FALSE) {
+    return this.FALSE;  // Reuse the same object.
   } else if (data instanceof RegExp) {
     return this.createRegExp(this.createObject(this.REGEXP), data);
   }
@@ -1949,7 +1958,7 @@ Interpreter.prototype['stepDoWhileStatement'] = function() {
   state.isLoop = true;
   if (state.node.type == 'DoWhileStatement' && state.test === undefined) {
     // First iteration of do/while executes without checking test.
-    state.value = this.createPrimitive(true);
+    state.value = this.TRUE;
     state.test = true;
   }
   if (!state.test) {
