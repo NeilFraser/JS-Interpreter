@@ -2142,7 +2142,7 @@ Interpreter.prototype['stepForStatement'] = function() {
     }
   } else if (mode == 2) {
     state.mode = 3;
-    if (state.value && !state.value.toBoolean()) {
+    if (node.test && state.value && !state.value.toBoolean()) {
       // Loop complete.  Bail out.
       this.stateStack.shift();
     } else if (node.body) {
