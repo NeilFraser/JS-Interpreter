@@ -52,7 +52,32 @@ var Interpreter = function(code, opt_initFunc) {
   this.NUMBER_ZERO.parent = this.NUMBER;
   this.NUMBER_ONE.parent = this.NUMBER;
   this.STRING_EMPTY.parent = this.STRING;
-  this.stateStack = [{node: this.ast, scope: scope, thisExpression: scope}];
+  this.stateStack = [{
+    node: this.ast,
+    scope: scope,
+    thisExpression: scope,
+    done: false
+  }];
+};
+
+/**
+ * Add more code to the interpreter.
+ * @param {string} code Raw JavaScript text.
+ */
+Interpreter.prototype.appendCode = function(code) {
+  var state = this.stateStack[0];
+  if (!state || state.node.type != 'Program') {
+    throw 'Expecting original AST to start with a Program node.'
+  }
+  var newAst = acorn.parse(code);
+  if (!newAst || newAst.type != 'Program') {
+    throw 'Expecting new AST to start with a Program node.'
+  }
+  // Append the new program to the old one.
+  for (var i = 0, node; node = newAst.body[i]; i++) {
+    state.node.body.push(node);
+  }
+  state.done = false;
 };
 
 /**
@@ -60,12 +85,12 @@ var Interpreter = function(code, opt_initFunc) {
  * @return {boolean} True if a step was executed, false if no more instructions.
  */
 Interpreter.prototype.step = function() {
-  if (!this.stateStack.length) {
+  var state = this.stateStack[0];
+  if (!state || state.node.type == 'Program' && state.done) {
     return false;
   } else if (this.paused_) {
     return true;
   }
-  var state = this.stateStack[0];
   this['step' + state.node.type]();
   return true;
 };
@@ -1882,10 +1907,15 @@ Interpreter.prototype['stepBlockStatement'] = function() {
   var node = state.node;
   var n = state.n_ || 0;
   if (node.body[n]) {
+    state.done = false;
     state.n_ = n + 1;
     this.stateStack.unshift({node: node.body[n]});
   } else {
-    this.stateStack.shift();
+    state.done = true;
+    if (state.node.type != 'Program') {
+      // Leave the root scope on the tree in case the program is appended to.
+      this.stateStack.shift();
+    }
   }
 };
 

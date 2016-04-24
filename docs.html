@@ -41,6 +41,13 @@
     var myInterpreter = new Interpreter(myCode);
   </pre>
 
+  <p>Additional JavaScript code may be added at any time (frequently used to
+  interactively call previously defined functions):</p>
+
+  <pre>
+    myInterpreter.appendCode('foo();');
+  </pre>
+
   <p>To run the code step by step, call the <code>step</code> function
   repeatedly until it returns false:</p>
 
