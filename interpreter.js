@@ -850,7 +850,7 @@ Interpreter.prototype.initBoolean = function(scope) {
   // Boolean constructor.
   wrapper = function(value) {
     value = value ? value.toBoolean() : false;
-    if (this.parent == thisInterpreter.STRING) {
+    if (this.parent == thisInterpreter.BOOLEAN) {
       this.toBoolean = function() {return value;};
       this.toNumber = function() {return Number(value);};
       this.toString = function() {return String(value);};
