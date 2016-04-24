@@ -829,6 +829,15 @@ Interpreter.prototype.initString = function(scope) {
   };
   this.setProperty(this.STRING.properties.prototype, 'search',
                    this.createNativeFunction(wrapper), false, true);
+
+  wrapper = function(substr, newSubStr) {
+    var str = this.toString();
+    substr = (substr || thisInterpreter.UNDEFINED).valueOf();
+    newSubStr = (newSubStr || thisInterpreter.UNDEFINED).toString();
+    return thisInterpreter.createPrimitive(str.replace(substr, newSubStr));
+  };
+  this.setProperty(this.STRING.properties.prototype, 'replace',
+                   this.createNativeFunction(wrapper), false, true);
 };
 
 /**
@@ -1362,6 +1371,9 @@ Interpreter.prototype.createRegExp = function(obj, data) {
                    true, true);
   this.setProperty(obj, 'multiline', this.createPrimitive(obj.data.multiline),
                    true, true);
+  // Override a couple of Object's conversion functions.
+  obj.toString = function() {return String(this.data);};
+  obj.valueOf = function() {return this.data;};
   return obj;
 }
 
