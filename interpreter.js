@@ -550,7 +550,7 @@ Interpreter.prototype.initArray = function(scope) {
     for (var i = 0; i < this.length; i++) {
       jsList[i] = this.properties[i];
     }
-    // TODO: Add custom sort comparison function (opt_compFunc).
+    // TODO: Add custom sort comparison function(opt_compFunc).
     jsList.sort();
     for (var i = 0; i < jsList.length; i++) {
       thisInterpreter.setProperty(this, i, jsList[i]);
@@ -1557,15 +1557,33 @@ Interpreter.prototype.createScope = function(node, parentScope) {
     scope.strict = true;
   } else {
     var firstNode = node.body && node.body[0];
-    if (firstNode && firstNode.expression) {
-      if (firstNode.expression.type == 'Literal' &&
-          firstNode.expression.value == 'use strict') {
-        scope.strict = true;
-      }
+    if (firstNode && firstNode.expression &&
+        firstNode.expression.type == 'Literal' &&
+        firstNode.expression.value == 'use strict') {
+      scope.strict = true;
     }
   }
   return scope;
 };
+
+/**
+ * Create a new special scope dictionary. Similar to createScope(), but
+ * doesn't assume that the scope is for a function body. This is used for
+ * the catch clause and with statement.
+ * @param {!Object} parentScope Scope to link to.
+ * @param {Object} opt_scope Optional object to transform into scope.
+ * @return {!Object} New scope.
+ */
+Interpreter.prototype.createSpecialScope = function(parentScope, opt_scope) {
+  if (!parentScope) {
+    throw 'parentScope required';
+  }
+  var scope = opt_scope || this.createObject(null);
+  scope.parentScope = parentScope;
+  scope.strict = parentScope.strict;
+  return scope;
+};
+
 
 /**
  * Retrieves a value from the scope chain.
@@ -1668,6 +1686,27 @@ Interpreter.prototype.setValue = function(left, value) {
     this.setProperty(obj, prop, value);
   } else {
     this.setValueToScope(left, value);
+  }
+};
+
+/**
+ * Throw an exception in the interpreter that can be handled by a
+ * interpreter try/catch statement.  If unhandled, a real exception will
+ * be thrown.
+ * @param {!Object} throwValue Value being thrown.
+ */
+Interpreter.prototype.throwException = function(throwValue) {
+  do {
+    this.stateStack.shift();
+    var state = this.stateStack[0];
+  } while (state && state.node.type !== 'TryStatement');
+  if (state) {
+    this.stateStack.unshift({
+      node: state.node.handler,
+      throwValue: throwValue
+    });
+  } else {
+    throw 'Unhandled exception: ' + throwValue.toString();
   }
 };
 
@@ -1859,8 +1898,8 @@ Interpreter.prototype['stepBreakStatement'] = function() {
   }
   state = this.stateStack.shift();
   while (state &&
-          state.node.type != 'CallExpression' &&
-          state.node.type != 'NewExpression') {
+         state.node.type != 'CallExpression' &&
+         state.node.type != 'NewExpression') {
     if (label ? label == state.label : (state.isLoop || state.isSwitch)) {
       return;
     }
@@ -1998,6 +2037,24 @@ Interpreter.prototype['stepCallExpression'] = function() {
   }
 };
 
+Interpreter.prototype['stepCatchClause'] = function() {
+  var state = this.stateStack[0];
+  var node = state.node;
+  if (!state.doneBody) {
+    state.doneBody = true;
+    var scope;
+    if (node.param) {
+      scope = this.createSpecialScope(this.getScope());
+      // Add the argument.
+      var paramName = this.createPrimitive(node.param.name);
+      this.setProperty(scope, paramName, state.throwValue);
+    }
+    this.stateStack.unshift({node: node.body, scope: scope});
+  } else {
+    this.stateStack.shift();
+  }
+};
+
 Interpreter.prototype['stepConditionalExpression'] = function() {
   var state = this.stateStack[0];
   if (!state.done) {
@@ -2028,8 +2085,8 @@ Interpreter.prototype['stepContinueStatement'] = function() {
   }
   var state = this.stateStack[0];
   while (state &&
-          state.node.type != 'CallExpression' &&
-          state.node.type != 'NewExpression') {
+         state.node.type != 'CallExpression' &&
+         state.node.type != 'NewExpression') {
     if (state.isLoop) {
       if (!label || (label == state.label)) {
         return;
@@ -2297,7 +2354,7 @@ Interpreter.prototype['stepReturnStatement'] = function() {
       }
       state = this.stateStack[0];
     } while (state.node.type != 'CallExpression' &&
-              state.node.type != 'NewExpression');
+             state.node.type != 'NewExpression');
     state.value = value;
   }
 };
@@ -2367,7 +2424,7 @@ Interpreter.prototype['stepThisExpression'] = function() {
   throw 'No this expression found.';
 };
 
-Interpreter.prototype['stepThrowStatement'] = function () {
+Interpreter.prototype['stepThrowStatement'] = function() {
   var state = this.stateStack[0];
   var node = state.node;
   if (!state.argument) {
@@ -2375,6 +2432,20 @@ Interpreter.prototype['stepThrowStatement'] = function () {
     this.stateStack.unshift({node: node.argument});
   } else {
     this.throwException(state.value);
+  }
+};
+
+Interpreter.prototype['stepTryStatement'] = function() {
+  var state = this.stateStack[0];
+  var node = state.node;
+  if (!state.doneBlock) {
+    state.doneBlock = true;
+    this.stateStack.unshift({node: node.block});
+  } else if (!state.doneFinalizer && node.finalizer) {
+    state.doneFinalizer = true;
+    this.stateStack.unshift({node: node.finalizer});
+  } else {
+    this.stateStack.shift();
   }
 };
 
@@ -2470,82 +2541,7 @@ Interpreter.prototype['stepVariableDeclarator'] = function() {
   }
 };
 
-Interpreter.prototype['stepWhileStatement'] =
-    Interpreter.prototype['stepDoWhileStatement'];
-
-Interpreter.prototype['stepTryStatement'] = function () {
-  var state = this.stateStack[0];
-  var node = state.node;
-  if (!state.doneBlock) {
-    state.doneBlock = true;
-    this.stateStack.unshift({node: node.block});
-  } else if (!state.doneFinalizer && node.finalizer) {
-    state.doneFinalizer = true;
-    this.stateStack.unshift({node: node.finalizer});
-  } else {
-    this.stateStack.shift();
-  }
-};
-
-/**
- * Create a new special scope dictionary. Similar to createScope(), but
- * doesn't assume that the scope is for a function body. This is used for
- * the catch clause and with statement.
- * @param {Object} parentScope Scope to link to.
- * @param {Object} [startingObj] Object to transform into scope.
- * @return {!Object} New scope.
- */
-Interpreter.prototype.createSpecialScope = function (parentScope, startingObj) {
-  if (!parentScope) {
-    throw "parentScope required";
-  }
-  var scope = startingObj || this.createObject(null);
-  scope.parentScope = parentScope;
-  scope.strict = parentScope.strict;
-  return scope;
-};
-
-/**
- * Throw an exception in the interpreter that can be handled by a
- * interpreter try/catch statement. If unhandled, a real exception will
- * be thrown.
- * @param {Object} throwValue Value being thrown.
- */
-Interpreter.prototype.throwException = function (throwValue) {
-  var state = this.stateStack[0];
-  do {
-    this.stateStack.shift();
-    state = this.stateStack[0];
-  } while (state && state.node.type !== 'TryStatement');
-  if (state) {
-    this.stateStack.unshift({
-      node: state.node.handler,
-      throwValue: throwValue
-    });
-  } else {
-    throw 'Unhandled exception: ' + throwValue.toString();
-  }
-};
-
-Interpreter.prototype['stepCatchClause'] = function () {
-  var state = this.stateStack[0];
-  var node = state.node;
-  if (!state.doneBody) {
-    state.doneBody = true;
-    var scope;
-    if (node.param) {
-      scope = this.createSpecialScope(this.getScope());
-      // Add the argument:
-      var paramName = this.createPrimitive(node.param.name);
-      this.setProperty(scope, paramName, state.throwValue);
-    }
-    this.stateStack.unshift({node: node.body, scope: scope});
-  } else {
-    this.stateStack.shift();
-  }
-};
-
-Interpreter.prototype['stepWithStatement'] = function () {
+Interpreter.prototype['stepWithStatement'] = function() {
   var state = this.stateStack[0];
   var node = state.node;
   if (!state.doneObject) {
@@ -2559,6 +2555,9 @@ Interpreter.prototype['stepWithStatement'] = function () {
     this.stateStack.shift();
   }
 };
+
+Interpreter.prototype['stepWhileStatement'] =
+    Interpreter.prototype['stepDoWhileStatement'];
 
 // Preserve top-level API functions from being pruned by JS compilers.
 // Add others as needed.

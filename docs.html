@@ -112,7 +112,7 @@
       req.open('GET', href, true);
       req.onreadystatechange = function() {
         if (req.readyState == 4 && req.status == 200) {
-          callback(req.responseText);
+          callback(interpreter.createPrimitive(req.responseText));
         }
       };
       req.send(null);
@@ -142,9 +142,9 @@
     <dt>API</dt>
     <dd>None of the DOM APIs are exposed.  That's kind of the point of a
     sandbox.  If you need these, write your own interfaces.</dd>
-    <dt>Try</dt>
-    <dd>The <code>try/catch</code> and <code>try/finally</code> constructs are
-    not currently supported.  Feel free to add them if you need them.</dd>
+    <dt>ES6</dt>
+    <dd>More recent additions to JavaScript such as <code>let</code> or
+    <code>Set</code> aren't implemented.  Feel free to add them if you need them.</dd>
     <dt>Wat</dt>
     <dd>Some of the more obscure type conversions (e.g. <code>[] + {}</code>)
     may return different results from JavaScript.  Patches are welcome.</dd>
@@ -152,7 +152,7 @@
     <dd><code>Array.sort</code> does not support custom compare functions.
     A workaround can be found in the <a href="demos/sort.html">sort demo</a>.
     Likewise, <code>String.replace</code> does not support custom replacement
-    functions.</dd>
+    functions.  <code>Array.every/filter/map</code> does not exist.</dd>
     <dt>Performance</dt>
     <dd>No attempt has been made to make the interpreter particularly
     efficient.</dd>
