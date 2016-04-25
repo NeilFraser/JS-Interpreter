@@ -65,7 +65,7 @@ var Interpreter = function(code, opt_initFunc) {
  * @param {string} code Raw JavaScript text.
  */
 Interpreter.prototype.appendCode = function(code) {
-  var state = this.stateStack[0];
+  var state = this.stateStack[this.stateStack.length - 1];
   if (!state || state.node.type != 'Program') {
     throw 'Expecting original AST to start with a Program node.'
   }
@@ -111,16 +111,11 @@ Interpreter.prototype.run = function() {
  */
 Interpreter.prototype.initGlobalScope = function(scope) {
   // Initialize uneditable global properties.
-  this.setProperty(scope, 'Infinity',
-                   this.createPrimitive(Infinity), true);
-  this.setProperty(scope, 'NaN',
-                   this.createPrimitive(NaN), true);
-  this.setProperty(scope, 'undefined',
-                   this.UNDEFINED, true);
-  this.setProperty(scope, 'window',
-                   scope, true);
-  this.setProperty(scope, 'self',
-                   scope, false); // Editable.
+  this.setProperty(scope, 'Infinity', this.createPrimitive(Infinity), true);
+  this.setProperty(scope, 'NaN', this.createPrimitive(NaN), true);
+  this.setProperty(scope, 'undefined', this.UNDEFINED, true);
+  this.setProperty(scope, 'window', scope, true);
+  this.setProperty(scope, 'self', scope, false); // Editable.
 
   // Initialize global objects.
   this.initFunction(scope);
@@ -1149,8 +1144,7 @@ Interpreter.prototype.initJSON = function(scope) {
       return thisInterpreter.createPrimitive(nativeFunc.call(JSON, arg));
     };
   })(JSON.stringify);
-  this.setProperty(myJSON, 'stringify',
-                   this.createNativeFunction(wrapper));
+  this.setProperty(myJSON, 'stringify', this.createNativeFunction(wrapper));
 };
 
 /**
@@ -1669,8 +1663,7 @@ Interpreter.prototype.populateScope_ = function(node, scope) {
       this.setProperty(scope, node.declarations[i].id.name, this.UNDEFINED);
     }
   } else if (node.type == 'FunctionDeclaration') {
-    this.setProperty(scope, node.id.name,
-        this.createFunction(node, scope));
+    this.setProperty(scope, node.id.name, this.createFunction(node, scope));
     return;  // Do not recurse into function.
   } else if (node.type == 'FunctionExpression') {
     return;  // Do not recurse into function.
@@ -2057,8 +2050,7 @@ Interpreter.prototype['stepCallExpression'] = function() {
           state.value = code;
         } else {
           var evalInterpreter = new Interpreter(code.toString());
-          evalInterpreter.stateStack[0].scope.parentScope =
-              this.getScope();
+          evalInterpreter.stateStack[0].scope.parentScope = this.getScope();
           state = {
             node: {type: 'Eval_'},
             interpreter: evalInterpreter
@@ -2604,5 +2596,6 @@ Interpreter.prototype['stepWhileStatement'] =
 // Preserve top-level API functions from being pruned by JS compilers.
 // Add others as needed.
 window['Interpreter'] = Interpreter;
+Interpreter.prototype['appendCode'] = Interpreter.prototype.appendCode;
 Interpreter.prototype['step'] = Interpreter.prototype.step;
 Interpreter.prototype['run'] = Interpreter.prototype.run;
