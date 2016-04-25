@@ -100,8 +100,11 @@ Interpreter.prototype.step = function() {
  * @return {boolean} True if a execution is asynchonously blocked,
  *     false if no more instructions.
  */
-Interpreter.prototype.run = function() {
+Interpreter.prototype.run = function(callback) {
+  if (!this.callback) this.callback = callback;
   while(!this.paused_ && this.step()) {};
+  if (typeof this.callback == "function" && !this.paused_)
+    this.callback();
   return this.paused_;
 };
 
