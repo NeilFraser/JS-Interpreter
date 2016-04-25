@@ -67,11 +67,11 @@ var Interpreter = function(code, opt_initFunc) {
 Interpreter.prototype.appendCode = function(code) {
   var state = this.stateStack[this.stateStack.length - 1];
   if (!state || state.node.type != 'Program') {
-    throw 'Expecting original AST to start with a Program node.'
+    throw 'Expecting original AST to start with a Program node.';
   }
   var newAst = acorn.parse(code);
   if (!newAst || newAst.type != 'Program') {
-    throw 'Expecting new AST to start with a Program node.'
+    throw 'Expecting new AST to start with a Program node.';
   }
   // Append the new program to the old one.
   for (var i = 0, node; node = newAst.body[i]; i++) {
@@ -101,7 +101,7 @@ Interpreter.prototype.step = function() {
  *     false if no more instructions.
  */
 Interpreter.prototype.run = function() {
-  while(!this.paused_ && this.step()) {};
+  while (!this.paused_ && this.step()) {}
   return this.paused_;
 };
 
@@ -353,7 +353,7 @@ Interpreter.prototype.initArray = function(scope) {
     var first = arguments[0];
     if (first && first.type == 'number') {
       if (isNaN(thisInterpreter.arrayIndex(first))) {
-        throw new RangeError('Invalid array length');
+        thisInterpreter.throwException('Invalid array length');
       }
       newArray.length = first.data;
     } else {
@@ -882,7 +882,7 @@ Interpreter.prototype.initDate = function(scope) {
     } else {
       var args = [];
       for (var i = 0; i < arguments.length; i++) {
-        args[i] = arguments[i] ? arguments[i].toNumber() : undefined
+        args[i] = arguments[i] ? arguments[i].toNumber() : undefined;
       }
       newDate.date = new (Function.prototype.bind.apply(Date, args));
     }
@@ -1076,30 +1076,28 @@ Interpreter.prototype.initJSON = function(scope) {
   this.setProperty(scope, 'JSON', myJSON);
 
   /**
-   * Converts from native JS object to this.OBJECT.
-   * @param {!Object} nativeObj The native JS object to be converted.
-   * @return {Object} The equivalent this.OBJECT.
+   * Converts from native JS value to a JS interpreter object.
+   * @param {*} nativeObj The native JS object to be converted.
+   * @return {!Object} The equivalent this.OBJECT.
    */
   function toPseudoObject(nativeObj) {
     if (typeof nativeObj !== 'object') {
       return thisInterpreter.createPrimitive(nativeObj);
     }
-
     var pseudoObject;
-    if (nativeObj instanceof Array) { // is array
+    if (nativeObj instanceof Array) { // Array.
       pseudoObject = thisInterpreter.createObject(thisInterpreter.ARRAY);
       for (var i = 0; i < nativeObj.length; i++) {
         thisInterpreter.setProperty(pseudoObject, i,
                                     toPseudoObject(nativeObj[i]));
       }
-    } else { // is object
+    } else { // Object.
       pseudoObject = thisInterpreter.createObject(thisInterpreter.OBJECT);
       for (var key in nativeObj) {
         thisInterpreter.setProperty(pseudoObject, key,
                                     toPseudoObject(nativeObj[key]));
       }
     }
-
     return pseudoObject;
   }
 
@@ -1115,7 +1113,7 @@ Interpreter.prototype.initJSON = function(scope) {
   /**
    * Converts from this.OBJECT object to native JS object.
    * @param {!Object} obj The this.OBJECT object to be converted.
-   * @return {Object} The equivalent native JS object.
+   * @return {*} The equivalent native JS object or value.
    */
   function toNativeObject(obj) {
     if (obj.isPrimitive) {
@@ -1123,12 +1121,12 @@ Interpreter.prototype.initJSON = function(scope) {
     }
 
     var nativeObj;
-    if (obj.length) { // is array
+    if (obj.length) { // Array.
       nativeObj = [];
       for (var i = 0; i < obj.length; i++) {
         nativeObj[i] = toNativeObject(obj.properties[i]);
       }
-    } else { // is object
+    } else { // Object.
       nativeObj = {};
       for (var key in obj.properties) {
         nativeObj[key] = toNativeObject(obj.properties[key]);
@@ -1231,7 +1229,7 @@ Interpreter.Primitive = function(data, interpreter) {
 Interpreter.Primitive.prototype.data = undefined;
 
 /**
- * @type {string=}
+ * @type {string}
  */
 Interpreter.Primitive.prototype.type = undefined;
 
@@ -1353,7 +1351,7 @@ Interpreter.prototype.createObject = function(parent) {
  * @return {!Object} New regular expression object.
  */
 Interpreter.prototype.createRegExp = function(obj, data) {
-  obj.data = data
+  obj.data = data;
   // lastIndex is settable, all others are read-only attributes
   this.setProperty(obj, 'lastIndex', this.createPrimitive(obj.data.lastIndex),
                    false, true);
@@ -1369,7 +1367,7 @@ Interpreter.prototype.createRegExp = function(obj, data) {
   obj.toString = function() {return String(this.data);};
   obj.valueOf = function() {return this.data;};
   return obj;
-}
+};
 
 /**
  * Create a new function.
@@ -1511,7 +1509,7 @@ Interpreter.prototype.setProperty = function(obj, name, value,
       // Delete elements if length is smaller.
       var newLength = this.arrayIndex(value.toNumber());
       if (isNaN(newLength)) {
-        throw new RangeError('Invalid array length');
+        this.throwException('Invalid array length');
       }
       if (newLength < obj.length) {
         for (i in obj.properties) {
@@ -1542,6 +1540,7 @@ Interpreter.prototype.setProperty = function(obj, name, value,
  * Delete a property value on a data object.
  * @param {!Object} obj Data object.
  * @param {*} name Name of property.
+ * @return {boolean} True if deleted, false if undeletable.
  */
 Interpreter.prototype.deleteProperty = function(obj, name) {
   name = name.toString();
@@ -1602,7 +1601,7 @@ Interpreter.prototype.createScope = function(node, parentScope) {
  * doesn't assume that the scope is for a function body. This is used for
  * the catch clause and with statement.
  * @param {!Object} parentScope Scope to link to.
- * @param {Object} opt_scope Optional object to transform into scope.
+ * @param {Object=} opt_scope Optional object to transform into scope.
  * @return {!Object} New scope.
  */
 Interpreter.prototype.createSpecialScope = function(parentScope, opt_scope) {
@@ -1619,7 +1618,7 @@ Interpreter.prototype.createSpecialScope = function(parentScope, opt_scope) {
 /**
  * Retrieves a value from the scope chain.
  * @param {!Object} name Name of variable.
- * @throws {string} Error if identifier does not exist.
+ * @return {!Object} The value.
  */
 Interpreter.prototype.getValueFromScope = function(name) {
   var scope = this.getScope();
@@ -1631,12 +1630,13 @@ Interpreter.prototype.getValueFromScope = function(name) {
     scope = scope.parentScope;
   }
   this.throwException('Unknown identifier: ' + nameStr);
+  return this.UNDEFINED;
 };
 
 /**
  * Sets a value to the current scope.
  * @param {!Object} name Name of variable.
- * @param {*} value Value.
+ * @param {!Object} value Value.
  */
 Interpreter.prototype.setValueToScope = function(name, value) {
   var scope = this.getScope();
@@ -1644,7 +1644,8 @@ Interpreter.prototype.setValueToScope = function(name, value) {
   var nameStr = name.toString();
   while (scope) {
     if (this.hasProperty(scope, nameStr) || (!strict && !scope.parentScope)) {
-      return this.setProperty(scope, nameStr, value);
+      this.setProperty(scope, nameStr, value);
+      return;
     }
     scope = scope.parentScope;
   }
@@ -1940,6 +1941,7 @@ Interpreter.prototype['stepBreakStatement'] = function() {
     }
     state = this.stateStack.shift();
   }
+  // Syntax error, do not allow this error to be trapped.
   throw new SyntaxError('Illegal break statement');
 };
 
@@ -1958,8 +1960,9 @@ Interpreter.prototype['stepCallExpression'] = function() {
         state.member_ = state.value[0];
         state.func_ = this.getValue(state.value);
         if (!state.func_ || state.func_.type != 'function') {
-          throw new TypeError((state.func_ && state.func_.type) +
+          this.throwException((state.func_ && state.func_.type) +
                               ' is not a function');
+          return;
         }
       }
       // Determine value of 'this' in function.
@@ -2129,6 +2132,7 @@ Interpreter.prototype['stepContinueStatement'] = function() {
     this.stateStack.shift();
     state = this.stateStack[0];
   }
+  // Syntax error, do not allow this error to be trapped.
   throw new SyntaxError('Illegal continue statement');
 };
 
@@ -2384,6 +2388,7 @@ Interpreter.prototype['stepReturnStatement'] = function() {
     do {
       this.stateStack.shift();
       if (this.stateStack.length == 0) {
+        // Syntax error, do not allow this error to be trapped.
         throw new SyntaxError('Illegal return statement');
       }
       state = this.stateStack[0];
