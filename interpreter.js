@@ -596,9 +596,7 @@ Interpreter.prototype.initNumber = function(scope) {
       return thisInterpreter.createPrimitive(value);
     }
     // Called as new Number().
-    this.toBoolean = function() {return !!value;};
-    this.toNumber = function() {return value;};
-    this.toString = function() {return String(value);};
+    this.data = value;
     return this;
   };
   this.NUMBER = this.createNativeFunction(wrapper);
@@ -659,10 +657,6 @@ Interpreter.prototype.initString = function(scope) {
       return thisInterpreter.createPrimitive(value);
     }
     // Called as new String().
-    this.toBoolean = function() {return !!value;};
-    this.toNumber = function() {return Number(value);};
-    this.toString = function() {return value;};
-    this.valueOf = function() {return value;};
     this.data = value;
     return this;
   };
@@ -852,10 +846,7 @@ Interpreter.prototype.initBoolean = function(scope) {
       return thisInterpreter.createPrimitive(value);
     }
     // Called as new Boolean().
-    this.toBoolean = function() {return value;};
-    this.toNumber = function() {return Number(value);};
-    this.toString = function() {return String(value);};
-    this.valueOf = function() {return value;};
+    this.data = value;
     return this;
   };
   this.BOOLEAN = this.createNativeFunction(wrapper);
@@ -1027,12 +1018,6 @@ Interpreter.prototype.initRegExp = function(scope) {
   };
   this.REGEXP = this.createNativeFunction(wrapper);
   this.setProperty(scope, 'RegExp', this.REGEXP);
-
-  wrapper = function() {
-    return thisInterpreter.createPrimitive(this.data.toString());
-  };
-  this.setProperty(this.REGEXP.properties.prototype, 'toString',
-                   this.createNativeFunction(wrapper), false, true);
 
   wrapper = function(str) {
     str = str.toString();
@@ -1307,23 +1292,76 @@ Interpreter.prototype.createPrimitive = function(data) {
 };
 
 /**
+ * Class for an object.
+ * @param {Object} parent Parent constructor function.
+ * @constructor
+ */
+Interpreter.Object = function(parent) {
+  this.fixed = Object.create(null);
+  this.nonenumerable = Object.create(null);
+  this.properties = Object.create(null);
+  this.parent = parent;
+};
+
+/**
+ * @type {string}
+ */
+Interpreter.Object.prototype.type = 'object';
+
+/**
+ * @type {Function}
+ */
+Interpreter.Object.prototype.parent = null;
+
+/**
+ * @type {boolean}
+ */
+Interpreter.Object.prototype.isPrimitive = false;
+
+/**
+ * @type {number|string|boolean|undefined}
+ */
+Interpreter.Object.prototype.data = undefined;
+
+/**
+ * Convert this object into a boolean.
+ * @return {boolean} Boolean value.
+ */
+Interpreter.Object.prototype.toBoolean = function() {
+  return true;
+};
+
+/**
+ * Convert this object into a number.
+ * @return {number} Number value.
+ */
+Interpreter.Object.prototype.toNumber = function() {
+  return Number(this.data === undefined ? this.toString() : this.data);
+};
+
+/**
+ * Convert this object into a string.
+ * @return {string} String value.
+ */
+Interpreter.Object.prototype.toString = function() {
+  return this.data === undefined ? ('[' + this.type + ']') : String(this.data);
+};
+
+/**
+ * Return the object value.
+ * @return {!Object} Value.
+ */
+Interpreter.Object.prototype.valueOf = function() {
+  return this.data === undefined ? this : this.data;
+};
+
+/**
  * Create a new data object.
  * @param {Object} parent Parent constructor function.
  * @return {!Object} New data object.
  */
 Interpreter.prototype.createObject = function(parent) {
-  var obj = {
-    isPrimitive: false,
-    type: 'object',
-    parent: parent,
-    fixed: Object.create(null),
-    nonenumerable: Object.create(null),
-    properties: Object.create(null),
-    toBoolean: function() {return true;},
-    toNumber: function() {return NaN;},
-    toString: function() {return '[' + this.type + ']';},
-    valueOf: function() {return this;}
-  };
+  var obj = new Interpreter.Object(parent);
   // Functions have prototype objects.
   if (this.isa(obj, this.FUNCTION)) {
     obj.type = 'function';
@@ -1332,7 +1370,6 @@ Interpreter.prototype.createObject = function(parent) {
   // Arrays have length.
   if (this.isa(obj, this.ARRAY)) {
     obj.length = 0;
-    obj.toNumber = function() {return 0;};
     obj.toString = function() {
       var strs = [];
       for (var i = 0; i < this.length; i++) {
@@ -1343,7 +1380,6 @@ Interpreter.prototype.createObject = function(parent) {
       return strs.join(',');
     };
   }
-
   return obj;
 };
 
