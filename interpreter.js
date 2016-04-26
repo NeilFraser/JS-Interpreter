@@ -591,14 +591,15 @@ Interpreter.prototype.initNumber = function(scope) {
   // Number constructor.
   wrapper = function(value) {
     value = value ? value.toNumber() : 0;
-    if (this.parent == thisInterpreter.NUMBER) {
-      this.toBoolean = function() {return !!value;};
-      this.toNumber = function() {return value;};
-      this.toString = function() {return String(value);};
-      return thisInterpreter.UNDEFINED;
-    } else {
+    if (this.parent != thisInterpreter.NUMBER) {
+      // Called as Number().
       return thisInterpreter.createPrimitive(value);
     }
+    // Called as new Number().
+    this.toBoolean = function() {return !!value;};
+    this.toNumber = function() {return value;};
+    this.toString = function() {return String(value);};
+    return this;
   };
   this.NUMBER = this.createNativeFunction(wrapper);
   this.setProperty(scope, 'Number', this.NUMBER);
@@ -652,17 +653,18 @@ Interpreter.prototype.initString = function(scope) {
   var wrapper;
   // String constructor.
   wrapper = function(value) {
-    value = (value || thisInterpreter.UNDEFINED).toString();
-    if (this.parent == thisInterpreter.STRING) {
-      this.toBoolean = function() {return !!value;};
-      this.toNumber = function() {return Number(value);};
-      this.toString = function() {return value;};
-      this.valueOf = function() {return value;};
-      this.data = value;
-      return thisInterpreter.UNDEFINED;
-    } else {
+    value = value ? value.toString() : '';
+    if (this.parent != thisInterpreter.STRING) {
+      // Called as String().
       return thisInterpreter.createPrimitive(value);
     }
+    // Called as new String().
+    this.toBoolean = function() {return !!value;};
+    this.toNumber = function() {return Number(value);};
+    this.toString = function() {return value;};
+    this.valueOf = function() {return value;};
+    this.data = value;
+    return this;
   };
   this.STRING = this.createNativeFunction(wrapper);
   this.setProperty(scope, 'String', this.STRING);
@@ -845,15 +847,16 @@ Interpreter.prototype.initBoolean = function(scope) {
   // Boolean constructor.
   wrapper = function(value) {
     value = value ? value.toBoolean() : false;
-    if (this.parent == thisInterpreter.BOOLEAN) {
-      this.toBoolean = function() {return value;};
-      this.toNumber = function() {return Number(value);};
-      this.toString = function() {return String(value);};
-      this.valueOf = function() {return value;};
-      return thisInterpreter.UNDEFINED;
-    } else {
+    if (this.parent != thisInterpreter.BOOLEAN) {
+      // Called as Boolean().
       return thisInterpreter.createPrimitive(value);
     }
+    // Called as new Boolean().
+    this.toBoolean = function() {return value;};
+    this.toNumber = function() {return Number(value);};
+    this.toString = function() {return String(value);};
+    this.valueOf = function() {return value;};
+    return this;
   };
   this.BOOLEAN = this.createNativeFunction(wrapper);
   this.setProperty(scope, 'Boolean', this.BOOLEAN);
@@ -869,6 +872,7 @@ Interpreter.prototype.initDate = function(scope) {
   // Date constructor.
   wrapper = function(a, b, c, d, e, f, h) {
     if (this.parent == thisInterpreter.DATE) {
+      // Called with new.
       var newDate = this;
     } else {
       var newDate = thisInterpreter.createObject(thisInterpreter.DATE);
@@ -1010,16 +1014,15 @@ Interpreter.prototype.initRegExp = function(scope) {
   var wrapper;
   // Regex constructor.
   wrapper = function(pattern, flags) {
-    var rgx;
     if (this.parent == thisInterpreter.REGEXP) {
-      rgx = this;
+      // Called with new.
+      var rgx = this;
     } else {
-      rgx = thisInterpreter.createObject(thisInterpreter.REGEXP);
+      var rgx = thisInterpreter.createObject(thisInterpreter.REGEXP);
     }
-
-    pattern = pattern.toString();
-    flags = flags && flags.toString();
-    thisInterpreter.createRegExp(rgx, new RegExp(pattern, flags || ''));
+    pattern = pattern ? pattern.toString() : '';
+    flags = flags ? flags.toString() : '';
+    thisInterpreter.createRegExp(rgx, new RegExp(pattern, flags));
     return rgx;
   };
   this.REGEXP = this.createNativeFunction(wrapper);
