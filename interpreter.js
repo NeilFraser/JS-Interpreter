@@ -868,22 +868,18 @@ Interpreter.prototype.initDate = function(scope) {
     } else {
       var newDate = thisInterpreter.createObject(thisInterpreter.DATE);
     }
-    var dateString = a;
     if (!arguments.length) {
-      newDate.date = new Date();
-    } else if (arguments.length == 1 && (dateString.type == 'string' ||
-        thisInterpreter.isa(dateString, thisInterpreter.STRING))) {
-      newDate.date = new Date(dateString.toString());
+      newDate.data = new Date();
+    } else if (arguments.length == 1 && (a.type == 'string' ||
+        thisInterpreter.isa(a, thisInterpreter.STRING))) {
+      newDate.data = new Date(a.toString());
     } else {
-      var args = [];
+      var args = [null];
       for (var i = 0; i < arguments.length; i++) {
-        args[i] = arguments[i] ? arguments[i].toNumber() : undefined;
+        args[i + 1] = arguments[i] ? arguments[i].toNumber() : undefined;
       }
-      newDate.date = new (Function.prototype.bind.apply(Date, args));
+      newDate.data = new (Function.prototype.bind.apply(Date, args));
     }
-    newDate.toString = function() {return String(this.date);};
-    newDate.toNumber = function() {return Number(this.date);};
-    newDate.valueOf = function() {return this.date.valueOf();};
     return newDate;
   };
   this.DATE = this.createNativeFunction(wrapper);
@@ -922,7 +918,7 @@ Interpreter.prototype.initDate = function(scope) {
   for (var i = 0; i < getFunctions.length; i++) {
     wrapper = (function(nativeFunc) {
       return function() {
-        return thisInterpreter.createPrimitive(this.date[nativeFunc]());
+        return thisInterpreter.createPrimitive(this.data[nativeFunc]());
       };
     })(getFunctions[i]);
     this.setProperty(this.DATE.properties.prototype, getFunctions[i],
@@ -942,7 +938,7 @@ Interpreter.prototype.initDate = function(scope) {
           args[i] = arguments[i] ? arguments[i].toNumber() : undefined;
         }
         return thisInterpreter.createPrimitive(
-            this.date[nativeFunc].apply(this.date, args));
+            this.data[nativeFunc].apply(this.data, args));
       };
     })(setFunctions[i]);
     this.setProperty(this.DATE.properties.prototype, setFunctions[i],
@@ -956,7 +952,7 @@ Interpreter.prototype.initDate = function(scope) {
   for (var i = 0; i < getFunctions.length; i++) {
     wrapper = (function(nativeFunc) {
       return function() {
-        return thisInterpreter.createPrimitive(this.date[nativeFunc]());
+        return thisInterpreter.createPrimitive(this.data[nativeFunc]());
       };
     })(getFunctions[i]);
     this.setProperty(this.DATE.properties.prototype, getFunctions[i],
