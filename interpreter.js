@@ -25,14 +25,17 @@
 
 /**
  * Create a new interpreter.
- * @param {string} code Raw JavaScript text.
+ * @param {string|!Object} code Raw JavaScript text or AST.
  * @param {Function} opt_initFunc Optional initialization function.  Used to
  *     define APIs.  When called it is passed the interpreter object and the
  *     global scope object.
  * @constructor
  */
 var Interpreter = function(code, opt_initFunc) {
-  this.ast = acorn.parse(code);
+  if (typeof code == 'string') {
+    code = acorn.parse(code);
+  }
+  this.ast = code;
   this.initFunc_ = opt_initFunc;
   this.paused_ = false;
   // Predefine some common primitives for performance.
@@ -62,19 +65,21 @@ var Interpreter = function(code, opt_initFunc) {
 
 /**
  * Add more code to the interpreter.
- * @param {string} code Raw JavaScript text.
+ * @param {string|!Object} code Raw JavaScript text or AST.
  */
 Interpreter.prototype.appendCode = function(code) {
   var state = this.stateStack[this.stateStack.length - 1];
   if (!state || state.node.type != 'Program') {
     throw 'Expecting original AST to start with a Program node.';
   }
-  var newAst = acorn.parse(code);
-  if (!newAst || newAst.type != 'Program') {
+  if (typeof code == 'string') {
+    code = acorn.parse(code);
+  }
+  if (!code || code.type != 'Program') {
     throw 'Expecting new AST to start with a Program node.';
   }
   // Append the new program to the old one.
-  for (var i = 0, node; node = newAst.body[i]; i++) {
+  for (var i = 0, node; node = code.body[i]; i++) {
     state.node.body.push(node);
   }
   state.done = false;
