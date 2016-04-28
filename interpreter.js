@@ -329,7 +329,24 @@ Interpreter.prototype.initObject = function(scope) {
     }
     return pseudoList;
   };
-  this.setProperty(this.OBJECT, 'keys', this.createNativeFunction(wrapper));
+  this.setProperty(this.OBJECT, 'getOwnPropertyNames',
+                   this.createNativeFunction(wrapper), false, true);
+
+  wrapper = function(obj) {
+    var pseudoList = thisInterpreter.createObject(thisInterpreter.ARRAY);
+    var i = 0;
+    for (var key in obj.properties) {
+      if (key in obj.nonenumerable) {
+        return;
+      }
+      thisInterpreter.setProperty(pseudoList, i,
+          thisInterpreter.createPrimitive(key));
+      i++;
+    }
+    return pseudoList;
+  };
+  this.setProperty(this.OBJECT, 'keys',
+                   this.createNativeFunction(wrapper), false, true);
 };
 
 /**
