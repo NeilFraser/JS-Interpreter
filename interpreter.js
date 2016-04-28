@@ -1664,8 +1664,8 @@ Interpreter.prototype.getValueFromScope = function(name) {
   var scope = this.getScope();
   var nameStr = name.toString();
   while (scope) {
-    if (this.hasProperty(scope, nameStr)) {
-      return this.getProperty(scope, nameStr);
+    if (nameStr in scope.properties) {
+      return scope.properties[nameStr];
     }
     scope = scope.parentScope;
   }
@@ -1683,8 +1683,10 @@ Interpreter.prototype.setValueToScope = function(name, value) {
   var strict = scope.strict;
   var nameStr = name.toString();
   while (scope) {
-    if (this.hasProperty(scope, nameStr) || (!strict && !scope.parentScope)) {
-      this.setProperty(scope, nameStr, value);
+    if ((nameStr in scope.properties) || (!strict && !scope.parentScope)) {
+      if (!scope.fixed[nameStr]) {
+        scope.properties[nameStr] = value;
+      }
       return;
     }
     scope = scope.parentScope;
