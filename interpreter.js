@@ -319,6 +319,13 @@ Interpreter.prototype.initObject = function(scope) {
   this.setProperty(this.OBJECT.properties.prototype, 'hasOwnProperty',
                    this.createNativeFunction(wrapper), false, true);
 
+  wrapper = function(key) {
+    key = (key || thisInterpreter.UNDEFINED).toString();
+    return thisInterpreter.createPrimitive(!(key in this.nonenumerable));
+  };
+  this.setProperty(this.OBJECT.properties.prototype, 'propertyIsEnumerable',
+                   this.createNativeFunction(wrapper), false, true);
+
   wrapper = function(obj) {
     var pseudoList = thisInterpreter.createObject(thisInterpreter.ARRAY);
     var i = 0;
@@ -337,7 +344,7 @@ Interpreter.prototype.initObject = function(scope) {
     var i = 0;
     for (var key in obj.properties) {
       if (key in obj.nonenumerable) {
-        return;
+        continue;
       }
       thisInterpreter.setProperty(pseudoList, i,
           thisInterpreter.createPrimitive(key));
@@ -994,7 +1001,7 @@ Interpreter.prototype.initMath = function(scope) {
                     'SQRT1_2', 'SQRT2'];
   for (var i = 0; i < mathConsts.length; i++) {
     this.setProperty(myMath, mathConsts[i],
-                     this.createPrimitive(Math[mathConsts[i]]));
+        this.createPrimitive(Math[mathConsts[i]]), false, true);
   }
   var numFunctions = ['abs', 'acos', 'asin', 'atan', 'atan2', 'ceil', 'cos',
                       'exp', 'floor', 'log', 'max', 'min', 'pow', 'random',
@@ -1010,7 +1017,7 @@ Interpreter.prototype.initMath = function(scope) {
       };
     })(Math[numFunctions[i]]);
     this.setProperty(myMath, numFunctions[i],
-                     this.createNativeFunction(wrapper));
+        this.createNativeFunction(wrapper), false, true);
   }
 };
 
