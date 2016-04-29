@@ -303,14 +303,17 @@ Interpreter.prototype.initObject = function(scope) {
   };
   this.setProperty(this.OBJECT.properties.prototype, 'toString',
                    this.createNativeFunction(wrapper), false, true);
+
   wrapper = function() {
     return thisInterpreter.createPrimitive(this.valueOf());
   };
   this.setProperty(this.OBJECT.properties.prototype, 'valueOf',
                    this.createNativeFunction(wrapper), false, true);
-  wrapper = function(property) {
+
+  wrapper = function(prop) {
+    prop = (prop || thisInterpreter.UNDEFINED).toString();
     for (var key in this.properties) {
-      if (key == property) {
+      if (key == prop) {
         return thisInterpreter.TRUE;
       }
     }
@@ -1161,19 +1164,21 @@ Interpreter.prototype.initJSON = function(scope) {
 /**
  * Is an object of a certain class?
  * @param {Object} child Object to check.
- * @param {!Object} parent Class of object.
+ * @param {Object} parent Constructor of object.
  * @return {boolean} True if object is the class or inherits from it.
  *     False otherwise.
  */
 Interpreter.prototype.isa = function(child, parent) {
   if (!child || !parent) {
     return false;
-  } else if (child.parent == parent) {
-    return true;
-  } else if (!child.parent || !child.parent.prototype) {
-    return false;
   }
-  return this.isa(child.parent.prototype, parent);
+  while (child.parent != parent) {
+    if (!child.parent || !child.parent.properties.prototype) {
+      return false;
+    }
+    child = child.parent.properties.prototype;
+  }
+  return true;
 };
 
 /**
@@ -1943,6 +1948,11 @@ Interpreter.prototype['stepBinaryExpression'] = function() {
       value = leftValue + rightValue;
     } else if (node.operator == 'in') {
       value = this.hasProperty(rightSide, leftSide);
+    } else if (node.operator == 'instanceof') {
+      if (!this.isa(rightSide, this.FUNCTION)) {
+        this.throwException('Expecting a function in instanceof check');
+      }
+      value = this.isa(leftSide, rightSide);
     } else {
       var leftValue = leftSide.toNumber();
       var rightValue = rightSide.toNumber();
