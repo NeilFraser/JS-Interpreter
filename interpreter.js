@@ -2450,8 +2450,7 @@ Interpreter.prototype['stepObjectExpression'] = function() {
   }
 };
 
-Interpreter.prototype['stepProgram'] =
-    Interpreter.prototype['stepBlockStatement'];
+Interpreter.prototype['stepProgram'] = Interpreter.prototype['stepBlockStatement'];
 
 Interpreter.prototype['stepReturnStatement'] = function() {
   var state = this.stateStack[0];
@@ -2461,15 +2460,21 @@ Interpreter.prototype['stepReturnStatement'] = function() {
     this.stateStack.unshift({node: node.argument});
   } else {
     var value = state.value || this.UNDEFINED;
+    var position = 0;
     do {
-      this.stateStack.shift();
+      if(state.node.type == 'CatchClause') {
+        this.stateStack.splice(position, 1, state.node.thrower);
+        position++;
+      }else{
+        this.stateStack.splice(position, 1);
+      }
       if (this.stateStack.length == 0) {
         // Syntax error, do not allow this error to be trapped.
         throw new SyntaxError('Illegal return statement');
       }
-      state = this.stateStack[0];
+      state = this.stateStack[position];
     } while (state.node.type != 'CallExpression' &&
-             state.node.type != 'NewExpression');
+        state.node.type != 'NewExpression');
     state.value = value;
   }
 };
@@ -2539,30 +2544,90 @@ Interpreter.prototype['stepThisExpression'] = function() {
   throw 'No this expression found.';
 };
 
+Interpreter.prototype['stepTryStatement'] = function() {
+    var state = this.stateStack[0];
+    if(!state.done) {
+        if(!state.tried) {
+            state.tried = true;
+            this.stateStack.unshift({node: state.node.block})
+        }else{
+            if(state.node.finalizer) {
+                this.stateStack.unshift({node: state.node.finalizer});
+            }
+            state.done = true;
+        }
+    }else{
+        this.stateStack.shift();
+        this.stateStack[0].value = state.value;
+    }
+}
+
 Interpreter.prototype['stepThrowStatement'] = function() {
   var state = this.stateStack[0];
   var node = state.node;
-  if (!state.argument) {
+  if (!state.argument) { //calculate error object
     state.argument = true;
     this.stateStack.unshift({node: node.argument});
   } else {
-    this.throwException(state.value);
+      /*
+       * find nearest try statements with only finally clauses
+       * delete their remaining try blocks and started finally blocks
+       * triger their finally blocks
+       * find the nearest try statement with a catch clause
+       * set that try statement to not trigger again
+       * trigger the catch block
+       * */
+    var try_statement = null;
+    var finallys_todo = [];
+    for(var i = 0;i < this.stateStack.length; i++) {
+        if(this.stateStack[i].node.type === 'TryStatement' && this.stateStack[i].node.handler && !this.stateStack[i].triggered) {
+            try_statement = this.stateStack[i].node;
+            this.stateStack[i].triggered = true;
+            finallys_todo.push(this.stateStack[i]);
+            break;
+        } else if(this.stateStack[i].node.type === 'TryStatement'  && !this.stateStack[i].done) {
+            finallys_todo.push(this.stateStack[i]);
+        }
+    }
+    if(try_statement) {
+        var exception_scope = this.createScope({}, this.getScope(), "Exception Scope");
+        var handler = try_statement.handler;
+        handler.parameter = state.value;
+        handler.scope = exception_scope;
+        handler.thrower = state;
+        this.stateStack.shift()
+
+        //cut out nodes between 0 to j and j to j+1 and j+1 upto j+n
+        var position = 0;
+        var count = 0;
+        //console.log("+++ FINALLYS +++", finallys_todo);
+        //console.log("START", this.stateStack);
+        for(var j = 0; j < finallys_todo.length; j++) {
+            while(this.stateStack[position] !== finallys_todo[j] && count < this.stateStack.length) {
+                count++;
+                this.stateStack.splice(position,1);
+            }
+            position++;
+        }
+
+        this.stateStack.splice(finallys_todo.length-1, 0, {node: handler});
+        //console.log("END", this.stateStack);
+    }else{
+        throw new Error("Uncaught exception")
+    }
   }
 };
 
-Interpreter.prototype['stepTryStatement'] = function() {
-  var state = this.stateStack[0];
-  var node = state.node;
-  if (!state.doneBlock) {
-    state.doneBlock = true;
-    this.stateStack.unshift({node: node.block});
-  } else if (!state.doneFinalizer && node.finalizer) {
-    state.doneFinalizer = true;
-    this.stateStack.unshift({node: node.finalizer});
-  } else {
-    this.stateStack.shift();
-  }
-};
+Interpreter.prototype['stepCatchClause'] = function() {
+    var state = this.stateStack[0];
+    if(!state.done) {
+        this.setValueToScope(state.node.param.name, state.node.parameter);
+        state.done = true;
+        this.stateStack.unshift({node:state.node.body});
+    }else{
+        this.stateStack.shift();
+    }
+}
 
 Interpreter.prototype['stepUnaryExpression'] = function() {
   var state = this.stateStack[0];
