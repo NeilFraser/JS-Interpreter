@@ -861,6 +861,17 @@ Interpreter.prototype.initString = function(scope) {
   };
   this.setProperty(this.STRING.properties.prototype, 'replace',
                    this.createNativeFunction(wrapper), false, true);
+
+  wrapper = function(var_args) {
+    for (var i = 0; i < arguments.length; i++) {
+      arguments[i] = arguments[i].toNumber();
+    }
+    return thisInterpreter.createPrimitive(
+        String.fromCharCode.apply(String, arguments));
+  };
+  this.setProperty(this.STRING, 'fromCharCode',
+                   this.createNativeFunction(wrapper), false, true);
+
 };
 
 /**
