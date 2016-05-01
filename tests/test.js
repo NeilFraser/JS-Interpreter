@@ -287,7 +287,7 @@ describe('return', () => {
         expect(results).to.deep.equal([0,'end', 1, 'end'])
     })
 
-    xit("should handle the scopes created by catch", () => {
+    it("should handle the scopes created by catch", () => {
         var test_code = 'function capturedFoo() {return foo};\
         foo = "prior to throw";\
         try {\
@@ -305,7 +305,7 @@ describe('return', () => {
                 state = test.stateStack[0];
             }
         }
-        var results = test.extractScopeValues(state.scope);
-        expect(results.properties.foo).to.equal('prior to throw');
+        var results = test.extract(state.scope.properties.foo);
+        expect(results).to.equal('prior to throw');
     })
 });

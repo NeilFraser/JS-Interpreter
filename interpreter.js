@@ -2152,22 +2152,22 @@ Interpreter.prototype['stepCallExpression'] = function() {
 };
 
 Interpreter.prototype['stepCatchClause'] = function() {
-  var state = this.stateStack[0];
-  var node = state.node;
-  if (!state.doneBody) {
-    state.doneBody = true;
-    var scope;
-    if (node.param) {
-      scope = this.createSpecialScope(this.getScope());
-      // Add the argument.
-      var paramName = this.createPrimitive(node.param.name);
-      this.setProperty(scope, paramName, state.throwValue);
+    var state = this.stateStack[0];
+    if(!state.done) {
+        state.done = true;
+        var scope;
+        if (state.node.param) {
+            scope = this.createSpecialScope(this.getScope());
+            // Add the argument.
+            var paramName = this.createPrimitive(state.node.param.name);
+            this.setProperty(scope, paramName, state.node.parameter);
+        }
+        this.stateStack.unshift({node:state.node.body, scope: scope});
+    }else{
+        this.stateStack.shift();
     }
-    this.stateStack.unshift({node: node.body, scope: scope});
-  } else {
-    this.stateStack.shift();
-  }
-};
+}
+
 
 Interpreter.prototype['stepConditionalExpression'] = function() {
   var state = this.stateStack[0];
@@ -2608,10 +2608,8 @@ Interpreter.prototype['stepThrowStatement'] = function() {
     var position = 0;
     var count = 0;
     if(try_statement) {
-        var exception_scope = this.createScope({}, this.getScope(), "Exception Scope");
         var handler = try_statement.handler;
         handler.parameter = state.value;
-        handler.scope = exception_scope;
         handler.thrower = state;
         this.stateStack.shift()
 
@@ -2641,16 +2639,6 @@ Interpreter.prototype['stepThrowStatement'] = function() {
   }
 };
 
-Interpreter.prototype['stepCatchClause'] = function() {
-    var state = this.stateStack[0];
-    if(!state.done) {
-        this.setValueToScope(state.node.param.name, state.node.parameter);
-        state.done = true;
-        this.stateStack.unshift({node:state.node.body});
-    }else{
-        this.stateStack.shift();
-    }
-}
 
 Interpreter.prototype['stepUnaryExpression'] = function() {
   var state = this.stateStack[0];
