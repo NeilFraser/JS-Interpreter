@@ -1498,6 +1498,9 @@ Interpreter.prototype.createAsyncFunction = function(asyncFunc) {
  */
 Interpreter.prototype.getProperty = function(obj, name) {
   name = name.toString();
+  if (obj == this.UNDEFINED || obj == this.NULL) {
+    this.throwException("Cannot read property '" + name + "' of " + obj);
+  }
   // Special cases for magic length property.
   if (this.isa(obj, this.STRING)) {
     if (name == 'length') {
@@ -1565,13 +1568,19 @@ Interpreter.prototype.hasProperty = function(obj, name) {
  * Set a property value on a data object.
  * @param {!Object} obj Data object.
  * @param {*} name Name of property.
- * @param {*} value New property value.
+ * @param {!Object} value New property value.
  * @param {boolean} opt_fixed Unchangeable property if true.
  * @param {boolean} opt_nonenum Non-enumerable property if true.
  */
 Interpreter.prototype.setProperty = function(obj, name, value,
                                              opt_fixed, opt_nonenum) {
   name = name.toString();
+  if (typeof value != 'object') {
+    throw 'Failure to wrap a value: ' + value;
+  }
+  if (obj == this.UNDEFINED || obj == this.NULL) {
+    this.throwException("Cannot set property '" + name + "' of " + obj);
+  }
   if (obj.isPrimitive || obj.fixed[name]) {
     return;
   }
