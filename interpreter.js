@@ -31,6 +31,7 @@
  *     global scope object.
  * @constructor
  */
+var acorn = acorn || require('./acorn');
 var Interpreter = function(code, opt_initFunc) {
   if (typeof code == 'string') {
     code = acorn.parse(code);
@@ -2197,6 +2198,7 @@ Interpreter.prototype['stepContinueStatement'] = function() {
     label = node.label.name;
   }
   var state = this.stateStack[0];
+  var position = 0;
   while (state &&
          state.node.type != 'CallExpression' &&
          state.node.type != 'NewExpression') {
@@ -2205,8 +2207,18 @@ Interpreter.prototype['stepContinueStatement'] = function() {
         return;
       }
     }
-    this.stateStack.shift();
-    state = this.stateStack[0];
+
+    if(state.node.type == 'CatchClause') {
+        // if an unhandled exception is on the stack when returning, rethrow
+        this.stateStack.splice(position, 1, state.node.thrower);
+        position++;
+    }else if(state.node.type === 'TryStatement' && state.node.finalizer && !state.done) {
+        //before returning finish finally blocks
+        position++;
+    }else{
+        this.stateStack.splice(position, 1);
+    }
+    state = this.stateStack[position];
   }
   // Syntax error, do not allow this error to be trapped.
   throw new SyntaxError('Illegal continue statement');
@@ -2463,10 +2475,14 @@ Interpreter.prototype['stepReturnStatement'] = function() {
     var position = 0;
     do {
       if(state.node.type == 'CatchClause') {
-        this.stateStack.splice(position, 1, state.node.thrower);
-        position++;
+          // if an unhandled exception is on the stack when returning, rethrow
+          this.stateStack.splice(position, 1, state.node.thrower);
+          position++;
+      }else if(state.node.type === 'TryStatement' && state.node.finalizer && !state.done) {
+          //before returning finish finally blocks
+          position++;
       }else{
-        this.stateStack.splice(position, 1);
+          this.stateStack.splice(position, 1);
       }
       if (this.stateStack.length == 0) {
         // Syntax error, do not allow this error to be trapped.
@@ -2589,6 +2605,8 @@ Interpreter.prototype['stepThrowStatement'] = function() {
             finallys_todo.push(this.stateStack[i]);
         }
     }
+    var position = 0;
+    var count = 0;
     if(try_statement) {
         var exception_scope = this.createScope({}, this.getScope(), "Exception Scope");
         var handler = try_statement.handler;
@@ -2597,11 +2615,6 @@ Interpreter.prototype['stepThrowStatement'] = function() {
         handler.thrower = state;
         this.stateStack.shift()
 
-        //cut out nodes between 0 to j and j to j+1 and j+1 upto j+n
-        var position = 0;
-        var count = 0;
-        //console.log("+++ FINALLYS +++", finallys_todo);
-        //console.log("START", this.stateStack);
         for(var j = 0; j < finallys_todo.length; j++) {
             while(this.stateStack[position] !== finallys_todo[j] && count < this.stateStack.length) {
                 count++;
@@ -2611,7 +2624,17 @@ Interpreter.prototype['stepThrowStatement'] = function() {
         }
 
         this.stateStack.splice(finallys_todo.length-1, 0, {node: handler});
-        //console.log("END", this.stateStack);
+    }else if(finallys_todo.length > 0) {
+        this.stateStack.shift()
+
+        for(var j = 0; j < finallys_todo.length; j++) {
+            while(this.stateStack[position] !== finallys_todo[j] && count < this.stateStack.length) {
+                count++;
+                this.stateStack.splice(position,1);
+            }
+            position++;
+        }
+        this.stateStack.splice(finallys_todo.length, 0, state);
     }else{
         throw new Error("Uncaught exception")
     }
@@ -2739,9 +2762,69 @@ Interpreter.prototype['stepWithStatement'] = function() {
 Interpreter.prototype['stepWhileStatement'] =
     Interpreter.prototype['stepDoWhileStatement'];
 
+Interpreter.prototype.extract = function extract(node) {
+  if(node.isPrimitive) {
+    return this.extractPrimitive(node);
+  }else if(node.parent === this.ARRAY) {
+    return this.extractArray(node);
+  }else if(node.parent === this.OBJECT) {
+    return this.extractObject(node);
+  }else if(node.parent === this.REGEXP) {
+    return this.extractPrimitive(node);
+  }else if(node.type === 'function') {
+    return this.extractFunction(node);
+  }else if(node.type === 'object' && node.parent.type === 'function') {
+    return this.extractClassObject(node);
+  }
+}
+
+Interpreter.prototype.extractFunction = function extractFunction(node) {
+  return {
+    type: 'function',
+    funcText: escodegen.generate(node.node),
+    createdIn: node.parentScope.scopeName
+  }
+}
+
+Interpreter.prototype.extractPrimitive = function extractPrimitive(node) {
+  return node.data;
+}
+
+Interpreter.prototype.extractArray = function extractArray(node) {
+  var result = [];
+  for(var index in node.properties) {
+    result[index] = this.extract(node.properties[index]);
+  };
+  return result;
+}
+
+Interpreter.prototype.extractClassObject =  function extractClassObject(node) {
+  var result = {
+      type: 'object',
+      constructor: node.parent.node.id.name, properties: {}};
+  for(var prop in node.properties) {
+    result.properties[prop] = this.extract(node.properties[prop]);
+  }
+  return result;
+}
+
+Interpreter.prototype.extractObject = function extractObject(node) {
+  var result = {
+      type: 'object',
+      constructor: 'object', properties: {}};
+  for(var prop in node.properties) {
+    result.properties[prop] = this.extract(node.properties[prop]);
+  }
+  return result;
+}
+
+
 // Preserve top-level API functions from being pruned by JS compilers.
 // Add others as needed.
+var window = window || {};
 window['Interpreter'] = Interpreter;
 Interpreter.prototype['appendCode'] = Interpreter.prototype.appendCode;
 Interpreter.prototype['step'] = Interpreter.prototype.step;
 Interpreter.prototype['run'] = Interpreter.prototype.run;
+var module = module || {};
+module.exports = Interpreter;
