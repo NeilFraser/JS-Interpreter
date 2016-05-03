@@ -1904,6 +1904,16 @@ Interpreter.prototype.setValue = function(left, value) {
  * @param {string} opt_message Message being thrown.
  */
 Interpreter.prototype.throwException = function(errorClass, opt_message) {
+  if (this.stateStack[0].interpreter) {
+    // This is the wrong interpreter, we are spinning on an eval.
+    try {
+      this.stateStack[0].interpreter.throwException(errorClass, opt_message);
+      return;
+    } catch (e) {
+      // The eval threw an error and did not catch it.
+      // Continue to see if this level can catch it.
+    }
+  }
   if (opt_message === undefined) {
     var error = errorClass;
   } else {
