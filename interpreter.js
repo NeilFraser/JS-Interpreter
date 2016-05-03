@@ -135,6 +135,7 @@ Interpreter.prototype.initGlobalScope = function(scope) {
   this.initMath(scope);
   this.initRegExp(scope);
   this.initJSON(scope);
+  this.initError(scope);
 
   // Initialize global functions.
   var thisInterpreter = this;
@@ -177,8 +178,14 @@ Interpreter.prototype.initGlobalScope = function(scope) {
   for (var i = 0; i < strFunctions.length; i++) {
     wrapper = (function(nativeFunc) {
       return function(str) {
-        str = str || thisInterpreter.UNDEFINED;
-        return thisInterpreter.createPrimitive(nativeFunc(str.toString()));
+        str = (str || thisInterpreter.UNDEFINED).toString();
+        try {
+          str = nativeFunc(str);
+        } catch (e) {
+          // decodeURI('%xy') will throw an error.  Catch and rethrow.
+          thisInterpreter.throwException(thisInterpreter.URI_ERROR, e.message);
+        }
+        return thisInterpreter.createPrimitive(str);
       };
     })(window[strFunctions[i]]);
     this.setProperty(scope, strFunctions[i],
@@ -385,7 +392,8 @@ Interpreter.prototype.initArray = function(scope) {
     var first = arguments[0];
     if (first && first.type == 'number') {
       if (isNaN(thisInterpreter.arrayIndex(first))) {
-        thisInterpreter.throwException('Invalid array length');
+        thisInterpreter.throwException(thisInterpreter.RANGE_ERROR,
+                                       'Invalid array length');
       }
       newArray.length = first.data;
     } else {
@@ -1173,6 +1181,69 @@ Interpreter.prototype.initJSON = function(scope) {
 };
 
 /**
+ * Initialize the Error class.
+ * @param {!Object} scope Global scope.
+ */
+Interpreter.prototype.initError = function(scope) {
+  var thisInterpreter = this;
+  var wrapper;
+  // Error constructor.
+  wrapper = function(opt_message) {
+    if (this.parent == thisInterpreter.ERROR) {
+      // Called with new.
+      var newError = this;
+    } else {
+      var newError = thisInterpreter.createObject(thisInterpreter.ERROR);
+    }
+    if (opt_message) {
+      thisInterpreter.setProperty(newError, 'message',
+          thisInterpreter.createPrimitive(String(opt_message)), false, true);
+    }
+    return newError;
+  };
+  this.ERROR = this.createNativeFunction(wrapper);
+  this.setProperty(scope, 'Error', this.ERROR);
+  this.setProperty(this.ERROR.properties.prototype,
+                   'message', this.STRING_EMPTY, false, true);
+  this.setProperty(this.ERROR.properties.prototype,
+                   'name', this.createPrimitive('Error'), false, true);
+
+  // Create half a dozen error subclasses.
+  var errors = {
+    EVAL_ERROR: 'EvalError',
+    RANGE_ERROR: 'RangeError',
+    REFERENCE_ERROR: 'ReferenceError',
+    SYNTAX_ERROR: 'SyntaxError',
+    TYPE_ERROR: 'TypeError',
+    URI_ERROR: 'URIError'
+  };
+  for (var constName in errors) {
+    var errorName = errors[constName];
+    //EvalError, RangeError, ReferenceError, SyntaxError, TypeError, URIError
+    wrapper = function(name) {
+      return function(opt_message) {
+        if (thisInterpreter.isa(this.parent, thisInterpreter.ERROR)) {
+          // Called with new.
+          var newError = this;
+        } else {
+          var newError = thisInterpreter.createObject(thisInterpreter[name]);
+        }
+        if (opt_message) {
+          thisInterpreter.setProperty(newError, 'message',
+              thisInterpreter.createPrimitive(String(opt_message)), false, true);
+        }
+        return newError;
+      };
+    };
+    this[constName] = this.createNativeFunction(wrapper(constName));
+    this.setProperty(this[constName], 'prototype', this.createObject(this.ERROR));
+    this.setProperty(this[constName].properties.prototype,
+                     'name', this.createPrimitive(errorName), false, true);
+    this.setProperty(scope, errorName, this[constName]);
+  }
+};
+
+/**
  * Is an object of a certain class?
  * @param {Object} child Object to check.
  * @param {Object} parent Constructor of object.
@@ -1499,7 +1570,8 @@ Interpreter.prototype.createAsyncFunction = function(asyncFunc) {
 Interpreter.prototype.getProperty = function(obj, name) {
   name = name.toString();
   if (obj == this.UNDEFINED || obj == this.NULL) {
-    this.throwException("Cannot read property '" + name + "' of " + obj);
+    this.throwException(this.TYPE_ERROR,
+                        "Cannot read property '" + name + "' of " + obj);
   }
   // Special cases for magic length property.
   if (this.isa(obj, this.STRING)) {
@@ -1579,7 +1651,8 @@ Interpreter.prototype.setProperty = function(obj, name, value,
     throw 'Failure to wrap a value: ' + value;
   }
   if (obj == this.UNDEFINED || obj == this.NULL) {
-    this.throwException("Cannot set property '" + name + "' of " + obj);
+    this.throwException(this.TYPE_ERROR,
+                        "Cannot set property '" + name + "' of " + obj);
   }
   if (obj.isPrimitive || obj.fixed[name]) {
     return;
@@ -1598,7 +1671,7 @@ Interpreter.prototype.setProperty = function(obj, name, value,
       // Delete elements if length is smaller.
       var newLength = this.arrayIndex(value.toNumber());
       if (isNaN(newLength)) {
-        this.throwException('Invalid array length');
+        this.throwException(this.RANGE_ERROR, 'Invalid array length');
       }
       if (newLength < obj.length) {
         for (i in obj.properties) {
@@ -1718,7 +1791,7 @@ Interpreter.prototype.getValueFromScope = function(name) {
     }
     scope = scope.parentScope;
   }
-  this.throwException('Unknown identifier: ' + nameStr);
+  this.throwException(this.REFERENCE_ERROR, nameStr + ' is not defined');
   return this.UNDEFINED;
 };
 
@@ -1740,7 +1813,7 @@ Interpreter.prototype.setValueToScope = function(name, value) {
     }
     scope = scope.parentScope;
   }
-  this.throwException('Unknown identifier: ' + nameStr);
+  this.throwException(this.REFERENCE_ERROR, nameStr + ' is not defined');
 };
 
 /**
@@ -1814,21 +1887,48 @@ Interpreter.prototype.setValue = function(left, value) {
 /**
  * Throw an exception in the interpreter that can be handled by a
  * interpreter try/catch statement.  If unhandled, a real exception will
- * be thrown.
- * @param {!Object} throwValue Value being thrown.
+ * be thrown.  Can be called with either an error class and a message, or
+ * with an actual object to be thrown.
+ * @param {!Object} errorClass Type of error (if message is provided) or the
+ *   value to throw (if no message).
+ * @param {string} opt_message Message being thrown.
  */
-Interpreter.prototype.throwException = function(throwValue) {
+Interpreter.prototype.throwException = function(errorClass, opt_message) {
+  if (opt_message === undefined) {
+    var error = errorClass;
+  } else {
+    var error = this.createObject(errorClass);
+    this.setProperty(error, 'message',
+        this.createPrimitive(opt_message), false, true);
+  }
+  // Search for a try statement.
   do {
-    this.stateStack.shift();
-    var state = this.stateStack[0];
+    var state = this.stateStack.shift();
   } while (state && state.node.type !== 'TryStatement');
   if (state) {
+    // Error is being trapped.
     this.stateStack.unshift({
       node: state.node.handler,
-      throwValue: throwValue
+      throwValue: error
     });
   } else {
-    throw 'Unhandled exception: ' + throwValue.toString();
+    // Throw a real error.
+    var realError;
+    if (this.isa(error, this.ERROR)) {
+      var errorTable = {
+        'EvalError': EvalError,
+        'RangeError': RangeError,
+        'ReferenceError': ReferenceError,
+        'SyntaxError': SyntaxError,
+        'TypeError': TypeError,
+        'URIError': URIError
+      };
+      var type = errorTable[this.getProperty(error, 'name')] || Error;
+      realError = type(this.getProperty(error, 'message'));
+    } else {
+      realError = error.toString();
+    }
+    throw realError;
   }
 };
 
@@ -1970,7 +2070,8 @@ Interpreter.prototype['stepBinaryExpression'] = function() {
       value = this.hasProperty(rightSide, leftSide);
     } else if (node.operator == 'instanceof') {
       if (!this.isa(rightSide, this.FUNCTION)) {
-        this.throwException('Expecting a function in instanceof check');
+        this.throwException(this.TYPE_ERROR,
+            'Expecting a function in instanceof check');
       }
       value = this.isa(leftSide, rightSide);
     } else {
@@ -2053,11 +2154,13 @@ Interpreter.prototype['stepCallExpression'] = function() {
       if (state.value.type == 'function') {
         state.func_ = state.value;
       } else {
-        state.member_ = state.value[0];
+        if (state.value.length) {
+          state.member_ = state.value[0];
+        }
         state.func_ = this.getValue(state.value);
         if (!state.func_ || state.func_.type != 'function') {
-          this.throwException((state.func_ && state.func_.type) +
-                              ' is not a function');
+          this.throwException(this.TYPE_ERROR,
+              (state.value && state.value.type) + ' is not a function');
           return;
         }
       }
