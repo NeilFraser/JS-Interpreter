@@ -364,6 +364,16 @@ Interpreter.prototype.initObject = function(scope) {
   };
   this.setProperty(this.OBJECT, 'keys',
                    this.createNativeFunction(wrapper), false, true);
+
+  wrapper = function(obj, prop, descriptor) {
+    prop = (prop || thisInterpreter.UNDEFINED).toString();
+    if (!(descriptor instanceof Interpreter.Object)) {
+      throw 'Property description must be an object.';
+    }
+    return obj;
+  };
+  this.setProperty(this.OBJECT, 'defineProperty',
+                   this.createNativeFunction(wrapper), false, true);
 };
 
 /**
