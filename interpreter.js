@@ -70,13 +70,13 @@ var Interpreter = function(code, opt_initFunc) {
 Interpreter.prototype.appendCode = function(code) {
   var state = this.stateStack[this.stateStack.length - 1];
   if (!state || state.node.type != 'Program') {
-    throw 'Expecting original AST to start with a Program node.';
+    throw Error('Expecting original AST to start with a Program node.');
   }
   if (typeof code == 'string') {
     code = acorn.parse(code);
   }
   if (!code || code.type != 'Program') {
-    throw 'Expecting new AST to start with a Program node.';
+    throw Error('Expecting new AST to start with a Program node.');
   }
   // Append the new program to the old one.
   for (var i = 0, node; node = code.body[i]; i++) {
@@ -224,7 +224,7 @@ Interpreter.prototype.initFunction = function(scope) {
     }
     args = args.join(', ');
     if (args.indexOf(')') != -1) {
-      throw new SyntaxError('Function arg string contains parenthesis');
+      throw SyntaxError('Function arg string contains parenthesis');
     }
     // Interestingly, the scope for constructed functions is the global scope,
     // even if they were constructed in some other scope.
@@ -368,7 +368,7 @@ Interpreter.prototype.initObject = function(scope) {
   wrapper = function(obj, prop, descriptor) {
     prop = (prop || thisInterpreter.UNDEFINED).toString();
     if (!(descriptor instanceof Interpreter.Object)) {
-      throw 'Property description must be an object.';
+      throw Error('Property description must be an object.');
     }
     return obj;
   };
@@ -1626,7 +1626,7 @@ Interpreter.prototype.getProperty = function(obj, name) {
 Interpreter.prototype.hasProperty = function(obj, name) {
   name = name.toString();
   if (obj.isPrimitive) {
-    throw new TypeError('Primitive data type has no properties');
+    throw TypeError('Primitive data type has no properties');
   }
   if (name == 'length' &&
       (this.isa(obj, this.STRING) || this.isa(obj, this.ARRAY))) {
@@ -1665,7 +1665,7 @@ Interpreter.prototype.setProperty = function(obj, name, value,
                                              opt_fixed, opt_nonenum) {
   name = name.toString();
   if (typeof value != 'object') {
-    throw 'Failure to wrap a value: ' + value;
+    throw Error('Failure to wrap a value: ' + value);
   }
   if (obj == this.UNDEFINED || obj == this.NULL) {
     this.throwException(this.TYPE_ERROR,
@@ -1742,7 +1742,7 @@ Interpreter.prototype.getScope = function() {
       return this.stateStack[i].scope;
     }
   }
-  throw 'No scope found.';
+  throw Error('No scope found.');
 };
 
 /**
@@ -1785,7 +1785,7 @@ Interpreter.prototype.createScope = function(node, parentScope) {
  */
 Interpreter.prototype.createSpecialScope = function(parentScope, opt_scope) {
   if (!parentScope) {
-    throw 'parentScope required';
+    throw Error('parentScope required');
   }
   var scope = opt_scope || this.createObject(null);
   scope.parentScope = parentScope;
@@ -2033,7 +2033,7 @@ Interpreter.prototype['stepAssignmentExpression'] = function() {
       } else if (node.operator == '|=') {
         value = leftNumber | rightNumber;
       } else {
-        throw 'Unknown assignment expression: ' + node.operator;
+        throw SyntaxError('Unknown assignment expression: ' + node.operator);
       }
       value = this.createPrimitive(value);
     }
@@ -2125,7 +2125,7 @@ Interpreter.prototype['stepBinaryExpression'] = function() {
       } else if (node.operator == '>>>') {
         value = leftValue >>> rightValue;
       } else {
-        throw 'Unknown binary operator: ' + node.operator;
+        throw SyntaxError('Unknown binary operator: ' + node.operator);
       }
     }
     this.stateStack[0].value = this.createPrimitive(value);
@@ -2166,7 +2166,7 @@ Interpreter.prototype['stepBreakStatement'] = function() {
     state = this.stateStack.shift();
   }
   // Syntax error, do not allow this error to be trapped.
-  throw new SyntaxError('Illegal break statement');
+  throw SyntaxError('Illegal break statement');
 };
 
 Interpreter.prototype['stepCallExpression'] = function() {
@@ -2287,7 +2287,7 @@ Interpreter.prototype['stepCallExpression'] = function() {
           this.stateStack.unshift(state);
         }
       } else {
-        throw new TypeError('function not a function (huh?)');
+        throw TypeError('function not a function (huh?)');
       }
     } else {
       this.stateStack.shift();
@@ -2359,7 +2359,7 @@ Interpreter.prototype['stepContinueStatement'] = function() {
     state = this.stateStack[0];
   }
   // Syntax error, do not allow this error to be trapped.
-  throw new SyntaxError('Illegal continue statement');
+  throw SyntaxError('Illegal continue statement');
 };
 
 Interpreter.prototype['stepDoWhileStatement'] = function() {
@@ -2525,7 +2525,7 @@ Interpreter.prototype['stepLogicalExpression'] = function() {
   var state = this.stateStack[0];
   var node = state.node;
   if (node.operator != '&&' && node.operator != '||') {
-    throw 'Unknown logical operator: ' + node.operator;
+    throw SyntaxError('Unknown logical operator: ' + node.operator);
   }
   if (!state.doneLeft_) {
     state.doneLeft_ = true;
@@ -2615,7 +2615,7 @@ Interpreter.prototype['stepReturnStatement'] = function() {
       this.stateStack.shift();
       if (this.stateStack.length == 0) {
         // Syntax error, do not allow this error to be trapped.
-        throw new SyntaxError('Illegal return statement');
+        throw SyntaxError('Illegal return statement');
       }
       state = this.stateStack[0];
     } while (state.node.type != 'CallExpression' &&
@@ -2686,7 +2686,7 @@ Interpreter.prototype['stepThisExpression'] = function() {
       return;
     }
   }
-  throw 'No this expression found.';
+  throw Error('No this expression found.');
 };
 
 Interpreter.prototype['stepThrowStatement'] = function() {
@@ -2749,7 +2749,7 @@ Interpreter.prototype['stepUnaryExpression'] = function() {
     } else if (node.operator == 'void') {
       value = undefined;
     } else {
-      throw 'Unknown unary operator: ' + node.operator;
+      throw SyntaxError('Unknown unary operator: ' + node.operator);
     }
     this.stateStack[0].value = this.createPrimitive(value);
   }
@@ -2771,7 +2771,7 @@ Interpreter.prototype['stepUpdateExpression'] = function() {
     } else if (node.operator == '--') {
       changeValue = this.createPrimitive(leftValue - 1);
     } else {
-      throw 'Unknown update expression: ' + node.operator;
+      throw SyntaxError('Unknown update expression: ' + node.operator);
     }
     this.setValue(leftSide, changeValue);
     this.stateStack[0].value = node.prefix ?
