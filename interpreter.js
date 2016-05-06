@@ -31,6 +31,7 @@
  *     global scope object.
  * @constructor
  */
+var acorn = acorn || require('./acorn');
 var Interpreter = function(code, opt_initFunc) {
   if (typeof code == 'string') {
     code = acorn.parse(code);
@@ -2824,9 +2825,68 @@ Interpreter.prototype['stepWithStatement'] = function() {
 Interpreter.prototype['stepWhileStatement'] =
     Interpreter.prototype['stepDoWhileStatement'];
 
+Interpreter.prototype.extract = function extract(node) {
+  if(node.isPrimitive) {
+    return this.extractPrimitive(node);
+  }else if(node.parent === this.ARRAY) {
+    return this.extractArray(node);
+  }else if(node.parent === this.OBJECT) {
+    return this.extractObject(node);
+  }else if(node.parent === this.REGEXP) {
+    return this.extractPrimitive(node);
+  }else if(node.type === 'function') {
+    return this.extractFunction(node);
+  }else if(node.type === 'object' && node.parent.type === 'function') {
+    return this.extractClassObject(node);
+  }
+}
+
+Interpreter.prototype.extractFunction = function extractFunction(node) {
+  return {
+    type: 'function',
+    funcText: escodegen.generate(node.node),
+    createdIn: node.parentScope.scopeName
+  }
+}
+
+Interpreter.prototype.extractPrimitive = function extractPrimitive(node) {
+  return node.data;
+}
+
+Interpreter.prototype.extractArray = function extractArray(node) {
+  var result = [];
+  for(var index in node.properties) {
+    result[index] = this.extract(node.properties[index]);
+  };
+  return result;
+}
+
+Interpreter.prototype.extractClassObject =  function extractClassObject(node) {
+  var result = {
+      type: 'object',
+      constructor: node.parent.node.id.name, properties: {}};
+  for(var prop in node.properties) {
+    result.properties[prop] = this.extract(node.properties[prop]);
+  }
+  return result;
+}
+
+Interpreter.prototype.extractObject = function extractObject(node) {
+  var result = {
+      type: 'object',
+      constructor: 'object', properties: {}};
+  for(var prop in node.properties) {
+    result.properties[prop] = this.extract(node.properties[prop]);
+  }
+  return result;
+}
+
 // Preserve top-level API functions from being pruned by JS compilers.
 // Add others as needed.
+var window = window || {};
 window['Interpreter'] = Interpreter;
 Interpreter.prototype['appendCode'] = Interpreter.prototype.appendCode;
 Interpreter.prototype['step'] = Interpreter.prototype.step;
 Interpreter.prototype['run'] = Interpreter.prototype.run;
+var module = module || {};
+module.exports = Interpreter;
