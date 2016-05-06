@@ -31,6 +31,7 @@
  *     global scope object.
  * @constructor
  */
+var acorn = acorn || require('./acorn');
 var Interpreter = function(code, opt_initFunc) {
   if (typeof code == 'string') {
     code = acorn.parse(code);
@@ -2301,22 +2302,22 @@ Interpreter.prototype['stepCallExpression'] = function() {
 };
 
 Interpreter.prototype['stepCatchClause'] = function() {
-  var state = this.stateStack[0];
-  var node = state.node;
-  if (!state.doneBody) {
-    state.doneBody = true;
-    var scope;
-    if (node.param) {
-      scope = this.createSpecialScope(this.getScope());
-      // Add the argument.
-      var paramName = this.createPrimitive(node.param.name);
-      this.setProperty(scope, paramName, state.throwValue);
+    var state = this.stateStack[0];
+    if(!state.done) {
+        state.done = true;
+        var scope;
+        if (state.node.param) {
+            scope = this.createSpecialScope(this.getScope());
+            // Add the argument.
+            var paramName = this.createPrimitive(state.node.param.name);
+            this.setProperty(scope, paramName, state.node.parameter);
+        }
+        this.stateStack.unshift({node:state.node.body, scope: scope});
+    }else{
+        this.stateStack.shift();
     }
-    this.stateStack.unshift({node: node.body, scope: scope});
-  } else {
-    this.stateStack.shift();
-  }
-};
+}
+
 
 Interpreter.prototype['stepConditionalExpression'] = function() {
   var state = this.stateStack[0];
@@ -2347,6 +2348,7 @@ Interpreter.prototype['stepContinueStatement'] = function() {
     label = node.label.name;
   }
   var state = this.stateStack[0];
+  var position = 0;
   while (state &&
          state.node.type != 'CallExpression' &&
          state.node.type != 'NewExpression') {
@@ -2355,8 +2357,18 @@ Interpreter.prototype['stepContinueStatement'] = function() {
         return;
       }
     }
-    this.stateStack.shift();
-    state = this.stateStack[0];
+
+    if(state.node.type == 'CatchClause') {
+        // if an unhandled exception is on the stack when returning, rethrow
+        this.stateStack.splice(position, 1, state.node.thrower);
+        position++;
+    }else if(state.node.type === 'TryStatement' && state.node.finalizer && !state.done) {
+        //before returning finish finally blocks
+        position++;
+    }else{
+        this.stateStack.splice(position, 1);
+    }
+    state = this.stateStack[position];
   }
   // Syntax error, do not allow this error to be trapped.
   throw new SyntaxError('Illegal continue statement');
@@ -2600,8 +2612,7 @@ Interpreter.prototype['stepObjectExpression'] = function() {
   }
 };
 
-Interpreter.prototype['stepProgram'] =
-    Interpreter.prototype['stepBlockStatement'];
+Interpreter.prototype['stepProgram'] = Interpreter.prototype['stepBlockStatement'];
 
 Interpreter.prototype['stepReturnStatement'] = function() {
   var state = this.stateStack[0];
@@ -2611,15 +2622,25 @@ Interpreter.prototype['stepReturnStatement'] = function() {
     this.stateStack.unshift({node: node.argument});
   } else {
     var value = state.value || this.UNDEFINED;
+    var position = 0;
     do {
-      this.stateStack.shift();
+      if(state.node.type == 'CatchClause') {
+          // if an unhandled exception is on the stack when returning, rethrow
+          this.stateStack.splice(position, 1, state.node.thrower);
+          position++;
+      }else if(state.node.type === 'TryStatement' && state.node.finalizer && !state.done) {
+          //before returning finish finally blocks
+          position++;
+      }else{
+          this.stateStack.splice(position, 1);
+      }
       if (this.stateStack.length == 0) {
         // Syntax error, do not allow this error to be trapped.
         throw new SyntaxError('Illegal return statement');
       }
-      state = this.stateStack[0];
+      state = this.stateStack[position];
     } while (state.node.type != 'CallExpression' &&
-             state.node.type != 'NewExpression');
+        state.node.type != 'NewExpression');
     state.value = value;
   }
 };
@@ -2689,30 +2710,85 @@ Interpreter.prototype['stepThisExpression'] = function() {
   throw 'No this expression found.';
 };
 
+Interpreter.prototype['stepTryStatement'] = function() {
+    var state = this.stateStack[0];
+    if(!state.done) {
+        if(!state.tried) {
+            state.tried = true;
+            this.stateStack.unshift({node: state.node.block})
+        }else{
+            if(state.node.finalizer) {
+                this.stateStack.unshift({node: state.node.finalizer});
+            }
+            state.done = true;
+        }
+    }else{
+        this.stateStack.shift();
+        this.stateStack[0].value = state.value;
+    }
+}
+
 Interpreter.prototype['stepThrowStatement'] = function() {
   var state = this.stateStack[0];
   var node = state.node;
-  if (!state.argument) {
+  if (!state.argument) { //calculate error object
     state.argument = true;
     this.stateStack.unshift({node: node.argument});
   } else {
-    this.throwException(state.value);
+      /*
+       * find nearest try statements with only finally clauses
+       * delete their remaining try blocks and started finally blocks
+       * triger their finally blocks
+       * find the nearest try statement with a catch clause
+       * set that try statement to not trigger again
+       * trigger the catch block
+       * */
+    var try_statement = null;
+    var finallys_todo = [];
+    for(var i = 0;i < this.stateStack.length; i++) {
+        if(this.stateStack[i].node.type === 'TryStatement' && this.stateStack[i].node.handler && !this.stateStack[i].triggered) {
+            try_statement = this.stateStack[i].node;
+            this.stateStack[i].triggered = true;
+            finallys_todo.push(this.stateStack[i]);
+            break;
+        } else if(this.stateStack[i].node.type === 'TryStatement'  && !this.stateStack[i].done) {
+            finallys_todo.push(this.stateStack[i]);
+        }
+    }
+    var position = 0;
+    var count = 0;
+    if(try_statement) {
+        var handler = try_statement.handler;
+        handler.parameter = state.value;
+        handler.thrower = state;
+        this.stateStack.shift()
+
+        for(var j = 0; j < finallys_todo.length; j++) {
+            while(this.stateStack[position] !== finallys_todo[j] && count < this.stateStack.length) {
+                count++;
+                this.stateStack.splice(position,1);
+            }
+            position++;
+        }
+
+        this.stateStack.splice(finallys_todo.length-1, 0, {node: handler});
+    }else if(finallys_todo.length > 0) {
+        this.stateStack.shift()
+
+        for(var j = 0; j < finallys_todo.length; j++) {
+            while(this.stateStack[position] !== finallys_todo[j] && count < this.stateStack.length) {
+                count++;
+                this.stateStack.splice(position,1);
+            }
+            position++;
+        }
+        this.stateStack.splice(finallys_todo.length, 0, state);
+    }else{
+        throw new Error("Uncaught exception")
+    }
   }
 };
 
-Interpreter.prototype['stepTryStatement'] = function() {
-  var state = this.stateStack[0];
-  var node = state.node;
-  if (!state.doneBlock) {
-    state.doneBlock = true;
-    this.stateStack.unshift({node: node.block});
-  } else if (!state.doneFinalizer && node.finalizer) {
-    state.doneFinalizer = true;
-    this.stateStack.unshift({node: node.finalizer});
-  } else {
-    this.stateStack.shift();
-  }
-};
 
 Interpreter.prototype['stepUnaryExpression'] = function() {
   var state = this.stateStack[0];
@@ -2824,9 +2900,69 @@ Interpreter.prototype['stepWithStatement'] = function() {
 Interpreter.prototype['stepWhileStatement'] =
     Interpreter.prototype['stepDoWhileStatement'];
 
+Interpreter.prototype.extract = function extract(node) {
+  if(node.isPrimitive) {
+    return this.extractPrimitive(node);
+  }else if(node.parent === this.ARRAY) {
+    return this.extractArray(node);
+  }else if(node.parent === this.OBJECT) {
+    return this.extractObject(node);
+  }else if(node.parent === this.REGEXP) {
+    return this.extractPrimitive(node);
+  }else if(node.type === 'function') {
+    return this.extractFunction(node);
+  }else if(node.type === 'object' && node.parent.type === 'function') {
+    return this.extractClassObject(node);
+  }
+}
+
+Interpreter.prototype.extractFunction = function extractFunction(node) {
+  return {
+    type: 'function',
+    funcText: escodegen.generate(node.node),
+    createdIn: node.parentScope.scopeName
+  }
+}
+
+Interpreter.prototype.extractPrimitive = function extractPrimitive(node) {
+  return node.data;
+}
+
+Interpreter.prototype.extractArray = function extractArray(node) {
+  var result = [];
+  for(var index in node.properties) {
+    result[index] = this.extract(node.properties[index]);
+  };
+  return result;
+}
+
+Interpreter.prototype.extractClassObject =  function extractClassObject(node) {
+  var result = {
+      type: 'object',
+      constructor: node.parent.node.id.name, properties: {}};
+  for(var prop in node.properties) {
+    result.properties[prop] = this.extract(node.properties[prop]);
+  }
+  return result;
+}
+
+Interpreter.prototype.extractObject = function extractObject(node) {
+  var result = {
+      type: 'object',
+      constructor: 'object', properties: {}};
+  for(var prop in node.properties) {
+    result.properties[prop] = this.extract(node.properties[prop]);
+  }
+  return result;
+}
+
+
 // Preserve top-level API functions from being pruned by JS compilers.
 // Add others as needed.
+var window = window || {};
 window['Interpreter'] = Interpreter;
 Interpreter.prototype['appendCode'] = Interpreter.prototype.appendCode;
 Interpreter.prototype['step'] = Interpreter.prototype.step;
 Interpreter.prototype['run'] = Interpreter.prototype.run;
+var module = module || {};
+module.exports = Interpreter;
