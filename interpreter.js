@@ -2807,8 +2807,10 @@ Interpreter.prototype['stepVariableDeclarator'] = function() {
     this.stateStack.unshift({node: node.init});
   } else {
     if (!this.hasProperty(this, node.id.name) || node.init) {
-      var value = node.init ? state.value : this.UNDEFINED;
-      this.setValue(this.createPrimitive(node.id.name), value);
+      if (node.init) {
+        var value = state.value;
+        this.setValue(this.createPrimitive(node.id.name), value);
+      }
     }
     this.stateStack.shift();
   }
