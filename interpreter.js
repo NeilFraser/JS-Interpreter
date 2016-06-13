@@ -41,6 +41,7 @@ var Interpreter = function(code, opt_initFunc) {
   // Predefine some common primitives for performance.
   this.UNDEFINED = new Interpreter.Primitive(undefined, this);
   this.NULL = new Interpreter.Primitive(null, this);
+  this.NAN = new Interpreter.Primitive(NaN, this);
   this.TRUE = new Interpreter.Primitive(true, this);
   this.FALSE = new Interpreter.Primitive(false, this);
   this.NUMBER_ZERO = new Interpreter.Primitive(0, this);
@@ -117,7 +118,7 @@ Interpreter.prototype.run = function() {
 Interpreter.prototype.initGlobalScope = function(scope) {
   // Initialize uneditable global properties.
   this.setProperty(scope, 'Infinity', this.createPrimitive(Infinity), true);
-  this.setProperty(scope, 'NaN', this.createPrimitive(NaN), true);
+  this.setProperty(scope, 'NaN', this.NAN, true);
   this.setProperty(scope, 'undefined', this.UNDEFINED, true);
   this.setProperty(scope, 'window', scope, true);
   this.setProperty(scope, 'self', scope, false); // Editable.
@@ -1293,7 +1294,11 @@ Interpreter.prototype.isa = function(child, parent) {
 Interpreter.prototype.comp = function(a, b) {
   if (a.isPrimitive && typeof a == 'number' && isNaN(a.data) ||
       b.isPrimitive && typeof b == 'number' && isNaN(b.data)) {
+    // NaN is not comparable to anything, including itself.
     return NaN;
+  }
+  if (a === b) {
+    return 0;
   }
   if (a.isPrimitive && b.isPrimitive) {
     a = a.data;
