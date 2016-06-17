@@ -270,6 +270,22 @@ Interpreter.prototype.initFunction = function(scope) {
   this.setProperty(this.FUNCTION.properties.prototype, 'call',
                    this.createFunction(node, {}), false, true);
 
+  wrapper = function(thisArg, var_args) {
+    // Clone function
+    var clone = thisInterpreter.createFunction(this.node, this.parentScope);
+    // Assign the 'this' object.
+    if (thisArg) {
+      clone.boundThis_ = thisArg;
+    }
+    // Bind any provided arguments.
+    clone.boundArgs_ = [];
+    for (var i = 1; i < arguments.length; i++) {
+      clone.boundArgs_.push(arguments[i]);
+    }
+    return clone;
+  };
+  this.setProperty(this.FUNCTION.properties.prototype, 'bind',
+                   this.createNativeFunction(wrapper), false, true);
   // Function has no parent to inherit from, so it needs its own mandatory
   // toString and valueOf functions.
   wrapper = function() {
@@ -2208,27 +2224,31 @@ Interpreter.prototype['stepCallExpression'] = function() {
     if (state.node.type == 'NewExpression') {
       state.funcThis_ = this.createObject(state.func_);
       state.isConstructor_ = true;
+    } else if (state.func_.boundThis_) {
+      state.funcThis_ = state.func_.boundThis_;
     } else if (state.value.length) {
       state.funcThis_ = state.value[0];
     } else {
       state.funcThis_ =
           this.stateStack[this.stateStack.length - 1].thisExpression;
     }
-    state.arguments = [];
-    var n = 0;
-  } else {
-    var n = state.n_;
-    if (state.arguments.length != node.arguments.length) {
-      state.arguments[n - 1] = state.value;
+    if (state.func_.boundArgs_) {
+      state.arguments = state.func_.boundArgs_.concat();
+    } else {
+      state.arguments = [];
     }
+    state.n_ = 0;
   }
-  if (node.arguments[n]) {
-    state.n_ = n + 1;
-    this.stateStack.unshift({node: node.arguments[n]});
+  if (state.n_ != 0 && !state.doneExec_) {
+    state.arguments.push(state.value);
+  }
+  if (node.arguments[state.n_]) {
+    this.stateStack.unshift({node: node.arguments[state.n_]});
+    state.n_++;
     return;
   }
-  if (!state.doneExec) {
-    state.doneExec = true;
+  if (!state.doneExec_) {
+    state.doneExec_ = true;
     if (state.func_.node &&
         (state.func_.node.type == 'FunctionApply_' ||
          state.func_.node.type == 'FunctionCall_')) {
