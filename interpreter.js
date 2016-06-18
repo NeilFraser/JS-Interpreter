@@ -147,26 +147,19 @@ Interpreter.prototype.initGlobalScope = function(scope) {
   };
   this.setProperty(scope, 'isNaN',
                    this.createNativeFunction(wrapper));
+
   wrapper = function(num) {
     num = num || thisInterpreter.UNDEFINED;
     return thisInterpreter.createPrimitive(isFinite(num.toNumber()));
   };
   this.setProperty(scope, 'isFinite',
                    this.createNativeFunction(wrapper));
-  wrapper = function(str) {
-    str = str || thisInterpreter.UNDEFINED;
-    return thisInterpreter.createPrimitive(parseFloat(str.toNumber()));
-  };
+
   this.setProperty(scope, 'parseFloat',
-                   this.createNativeFunction(wrapper));
-  wrapper = function(str, radix) {
-    str = str || thisInterpreter.UNDEFINED;
-    radix = radix || thisInterpreter.UNDEFINED;
-    return thisInterpreter.createPrimitive(
-        parseInt(str.toString(), radix.toNumber()));
-  };
+                   this.getProperty(this.NUMBER, 'parseFloat'));
+
   this.setProperty(scope, 'parseInt',
-                   this.createNativeFunction(wrapper));
+                   this.getProperty(this.NUMBER, 'parseInt'));
 
   var func = this.createObject(this.FUNCTION);
   func.eval = true;
@@ -702,6 +695,22 @@ Interpreter.prototype.initNumber = function(scope) {
     this.setProperty(this.NUMBER, numConsts[i],
                      this.createPrimitive(Number[numConsts[i]]));
   }
+
+  wrapper = function(str) {
+    str = str || thisInterpreter.UNDEFINED;
+    return thisInterpreter.createPrimitive(parseFloat(str.toString()));
+  };
+  this.setProperty(this.NUMBER, 'parseFloat',
+                   this.createNativeFunction(wrapper));
+
+  wrapper = function(str, radix) {
+    str = str || thisInterpreter.UNDEFINED;
+    radix = radix || thisInterpreter.UNDEFINED;
+    return thisInterpreter.createPrimitive(
+        parseInt(str.toString(), radix.toNumber()));
+  };
+  this.setProperty(this.NUMBER, 'parseInt',
+                   this.createNativeFunction(wrapper));
 
   wrapper = function(fractionDigits) {
     fractionDigits = fractionDigits ? fractionDigits.toNumber() : undefined;
