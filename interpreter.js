@@ -1070,7 +1070,7 @@ Interpreter.prototype.initDate = function(scope) {
   }
 
   // Conversion getter methods.
-  getFunctions = ['toDateString', 'toISOString', 'toGMTString',
+  getFunctions = ['toDateString', 'toISOString', 'toJSON', 'toGMTString',
       'toLocaleDateString', 'toLocaleString', 'toLocaleTimeString',
       'toTimeString', 'toUTCString'];
   for (var i = 0; i < getFunctions.length; i++) {
