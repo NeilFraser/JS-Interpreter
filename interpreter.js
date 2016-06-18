@@ -454,6 +454,15 @@ Interpreter.prototype.initArray = function(scope) {
   this.ARRAY = this.createNativeFunction(wrapper);
   this.setProperty(scope, 'Array', this.ARRAY);
 
+  // Static methods on Array.
+  wrapper = function(obj) {
+    return thisInterpreter.createPrimitive(
+        thisInterpreter.isa(obj, thisInterpreter.ARRAY));
+  };
+  this.setProperty(this.ARRAY, 'isArray',
+                   this.createNativeFunction(wrapper), false, true);
+
+  // Instance methods on Array.
   wrapper = function() {
     if (this.length) {
       var value = this.properties[this.length - 1];
