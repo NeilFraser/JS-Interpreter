@@ -247,28 +247,46 @@ Interpreter.prototype.initFunction = function(scope) {
   this.setProperty(this.FUNCTION, 'prototype', this.createObject(null));
   this.FUNCTION.nativeFunc = wrapper;
 
-  // Create stub functions for apply and call.
-  // These are processed as special cases in stepCallExpression.
-  var node = {
-    type: 'FunctionApply_',
-    params: [],
-    id: null,
-    body: null,
-    start: 0,
-    end: 0
+  wrapper = function(thisArg, args) {
+    var state = thisInterpreter.stateStack[0];
+    // Rewrite the current 'CallExpression' to apply a different function.
+    state.func_ = this;
+    // Assign the 'this' object.
+    state.funcThis_ = thisArg;
+    // Bind any provided arguments.
+    state.arguments = [];
+    if (args) {
+      if (thisInterpreter.isa(args, thisInterpreter.ARRAY)) {
+        for (var i = 0; i < args.length; i++) {
+          state.arguments[i] = thisInterpreter.getProperty(args, i);
+        }
+      } else {
+        thisInterpreter.throwException(thisInterpreter.TYPE_ERROR,
+            'CreateListFromArrayLike called on non-object');
+      }
+    }
+    state.doneArgs_ = true;
+    state.doneExec_ = false;
   };
   this.setProperty(this.FUNCTION.properties.prototype, 'apply',
-                   this.createFunction(node, {}), false, true);
-  node = {
-    type: 'FunctionCall_',
-    params: [],
-    id: null,
-    body: null,
-    start: 0,
-    end: 0
+                   this.createNativeFunction(wrapper), false, true);
+
+  wrapper = function(thisArg, var_args) {
+    var state = thisInterpreter.stateStack[0];
+    // Rewrite the current 'CallExpression' to call a different function.
+    state.func_ = this;
+    // Assign the 'this' object.
+    state.funcThis_ = thisArg;
+    // Bind any provided arguments.
+    state.arguments = [];
+    for (var i = 1; i < arguments.length; i++) {
+      state.arguments.push(arguments[i]);
+    }
+    state.doneArgs_ = true;
+    state.doneExec_ = false;
   };
   this.setProperty(this.FUNCTION.properties.prototype, 'call',
-                   this.createFunction(node, {}), false, true);
+                   this.createNativeFunction(wrapper), false, true);
 
   wrapper = function(thisArg, var_args) {
     // Clone function
@@ -2239,34 +2257,19 @@ Interpreter.prototype['stepCallExpression'] = function() {
     }
     state.n_ = 0;
   }
-  if (state.n_ != 0 && !state.doneExec_) {
-    state.arguments.push(state.value);
-  }
-  if (node.arguments[state.n_]) {
-    this.stateStack.unshift({node: node.arguments[state.n_]});
-    state.n_++;
-    return;
+  if (!state.doneArgs_) {
+    if (state.n_ != 0) {
+      state.arguments.push(state.value);
+    }
+    if (node.arguments[state.n_]) {
+      this.stateStack.unshift({node: node.arguments[state.n_]});
+      state.n_++;
+      return;
+    }
+    state.doneArgs_ = true;
   }
   if (!state.doneExec_) {
     state.doneExec_ = true;
-    if (state.func_.node &&
-        (state.func_.node.type == 'FunctionApply_' ||
-         state.func_.node.type == 'FunctionCall_')) {
-      state.funcThis_ = state.arguments.shift();
-      if (state.func_.node.type == 'FunctionApply_') {
-        // Unpack all the arguments from the provided array.
-        var argsList = state.arguments.shift();
-        if (argsList && this.isa(argsList, this.ARRAY)) {
-          state.arguments = [];
-          for (var i = 0; i < argsList.length; i++) {
-            state.arguments[i] = this.getProperty(argsList, i);
-          }
-        } else {
-          state.arguments = [];
-        }
-      }
-      state.func_ = state.member_;
-    }
     if (state.func_.node) {
       var scope =
           this.createScope(state.func_.node.body, state.func_.parentScope);
@@ -2325,6 +2328,7 @@ Interpreter.prototype['stepCallExpression'] = function() {
       throw TypeError('function not a function (huh?)');
     }
   } else {
+    // Execution complete.  Put the return value on the stack.
     this.stateStack.shift();
     if (state.isConstructor_ && state.value.type !== 'object') {
       this.stateStack[0].value = state.funcThis_;
