@@ -1020,7 +1020,7 @@ Interpreter.prototype.initDate = function(scope) {
   this.DATE = this.createNativeFunction(wrapper);
   this.setProperty(scope, 'Date', this.DATE);
 
-  // Static methods on Date.
+  // Static methods.
   wrapper = function() {
     return thisInterpreter.createPrimitive(new Date().getTime());
   };
@@ -1044,53 +1044,31 @@ Interpreter.prototype.initDate = function(scope) {
   this.setProperty(this.DATE, 'UTC',
                    this.createNativeFunction(wrapper), false, true);
 
-  // Getter methods.
-  var getFunctions = ['getDate', 'getDay', 'getFullYear', 'getHours',
+  // Instance methods.
+  var functions = ['getDate', 'getDay', 'getFullYear', 'getHours',
       'getMilliseconds', 'getMinutes', 'getMonth', 'getSeconds', 'getTime',
       'getTimezoneOffset', 'getUTCDate', 'getUTCDay', 'getUTCFullYear',
       'getUTCHours', 'getUTCMilliseconds', 'getUTCMinutes', 'getUTCMonth',
-      'getUTCSeconds', 'getYear'];
-  for (var i = 0; i < getFunctions.length; i++) {
-    wrapper = (function(nativeFunc) {
-      return function() {
-        return thisInterpreter.createPrimitive(this.data[nativeFunc]());
-      };
-    })(getFunctions[i]);
-    this.setProperty(this.DATE.properties.prototype, getFunctions[i],
-                     this.createNativeFunction(wrapper), false, true);
-  }
-
-  // Setter methods.
-  var setFunctions = ['setDate', 'setFullYear', 'setHours', 'setMilliseconds',
+      'getUTCSeconds', 'getYear',
+      'setDate', 'setFullYear', 'setHours', 'setMilliseconds',
       'setMinutes', 'setMonth', 'setSeconds', 'setTime', 'setUTCDate',
       'setUTCFullYear', 'setUTCHours', 'setUTCMilliseconds', 'setUTCMinutes',
-      'setUTCMonth', 'setUTCSeconds', 'setYear'];
-  for (var i = 0; i < setFunctions.length; i++) {
+      'setUTCMonth', 'setUTCSeconds', 'setYear',
+      'toDateString', 'toISOString', 'toJSON', 'toGMTString',
+      'toLocaleDateString', 'toLocaleString', 'toLocaleTimeString',
+      'toTimeString', 'toUTCString'];
+  for (var i = 0; i < functions.length; i++) {
     wrapper = (function(nativeFunc) {
       return function(var_args) {
         var args = [];
         for (var i = 0; i < arguments.length; i++) {
-          args[i] = arguments[i] ? arguments[i].toNumber() : undefined;
+          args[i] = thisInterpreter.pseudoToNative(arguments[i]);
         }
         return thisInterpreter.createPrimitive(
             this.data[nativeFunc].apply(this.data, args));
       };
-    })(setFunctions[i]);
-    this.setProperty(this.DATE.properties.prototype, setFunctions[i],
-                     this.createNativeFunction(wrapper), false, true);
-  }
-
-  // Conversion getter methods.
-  getFunctions = ['toDateString', 'toISOString', 'toJSON', 'toGMTString',
-      'toLocaleDateString', 'toLocaleString', 'toLocaleTimeString',
-      'toTimeString', 'toUTCString'];
-  for (var i = 0; i < getFunctions.length; i++) {
-    wrapper = (function(nativeFunc) {
-      return function() {
-        return thisInterpreter.createPrimitive(this.data[nativeFunc]());
-      };
-    })(getFunctions[i]);
-    this.setProperty(this.DATE.properties.prototype, getFunctions[i],
+    })(functions[i]);
+    this.setProperty(this.DATE.properties.prototype, functions[i],
                      this.createNativeFunction(wrapper), false, true);
   }
 };
