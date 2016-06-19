@@ -1183,73 +1183,16 @@ Interpreter.prototype.initJSON = function(scope) {
   var myJSON = thisInterpreter.createObject(this.OBJECT);
   this.setProperty(scope, 'JSON', myJSON);
 
-  /**
-   * Converts from native JS value to a JS interpreter object.
-   * @param {*} nativeObj The native JS object to be converted.
-   * @return {!Object} The equivalent this.OBJECT.
-   */
-  function toPseudoObject(nativeObj) {
-    if (typeof nativeObj !== 'object') {
-      return thisInterpreter.createPrimitive(nativeObj);
-    }
-    var pseudoObject;
-    if (nativeObj instanceof Array) { // Array.
-      pseudoObject = thisInterpreter.createObject(thisInterpreter.ARRAY);
-      for (var i = 0; i < nativeObj.length; i++) {
-        thisInterpreter.setProperty(pseudoObject, i,
-                                    toPseudoObject(nativeObj[i]));
-      }
-    } else { // Object.
-      pseudoObject = thisInterpreter.createObject(thisInterpreter.OBJECT);
-      for (var key in nativeObj) {
-        thisInterpreter.setProperty(pseudoObject, key,
-                                    toPseudoObject(nativeObj[key]));
-      }
-    }
-    return pseudoObject;
-  }
-
-  var wrapper = (function(nativeFunc) {
-    return function() {
-      var arg = arguments[0].data;
-      var nativeObj = nativeFunc.call(JSON, arg);
-      return toPseudoObject(nativeObj);
-    };
-  })(JSON.parse);
+  var wrapper = function(text) {
+    var nativeObj = JSON.parse(text.toString());
+    return thisInterpreter.nativeToPseudo(nativeObj);
+  };
   this.setProperty(myJSON, 'parse', this.createNativeFunction(wrapper));
 
-  /**
-   * Converts from this.OBJECT object to native JS object.
-   * @param {!Object} obj The this.OBJECT object to be converted.
-   * @return {*} The equivalent native JS object or value.
-   */
-  function toNativeObject(obj) {
-    if (obj.isPrimitive) {
-      return obj.data;
-    }
-
-    var nativeObj;
-    if (obj.length) { // Array.
-      nativeObj = [];
-      for (var i = 0; i < obj.length; i++) {
-        nativeObj[i] = toNativeObject(obj.properties[i]);
-      }
-    } else { // Object.
-      nativeObj = {};
-      for (var key in obj.properties) {
-        nativeObj[key] = toNativeObject(obj.properties[key]);
-      }
-    }
-
-    return nativeObj;
-  }
-
-  wrapper = (function(nativeFunc) {
-    return function() {
-      var arg = toNativeObject(arguments[0]);
-      return thisInterpreter.createPrimitive(nativeFunc.call(JSON, arg));
-    };
-  })(JSON.stringify);
+  wrapper = function(value) {
+    var nativeObj = thisInterpreter.pseudoToNative(value);
+    return thisInterpreter.createPrimitive(JSON.stringify(nativeObj));
+  };
   this.setProperty(myJSON, 'stringify', this.createNativeFunction(wrapper));
 };
 
@@ -1636,6 +1579,54 @@ Interpreter.prototype.createAsyncFunction = function(asyncFunc) {
   this.setProperty(func, 'length',
                    this.createPrimitive(asyncFunc.length), true);
   return func;
+};
+
+/**
+ * Converts from a native JS object or value to a JS interpreter object.
+ * @param {*} nativeObj The native JS object to be converted.
+ * @return {!Object} The equivalent JS interpreter object.
+ */
+Interpreter.prototype.nativeToPseudo = function(nativeObj) {
+  if (typeof nativeObj !== 'object') {
+    return this.createPrimitive(nativeObj);
+  }
+  var pseudoObj;
+  if (nativeObj instanceof Array) {  // Array.
+    pseudoObj = this.createObject(this.ARRAY);
+    for (var i = 0; i < nativeObj.length; i++) {
+      this.setProperty(pseudoObj, i, this.nativeToPseudo(nativeObj[i]));
+    }
+  } else {  // Object.
+    pseudoObj = this.createObject(this.OBJECT);
+    for (var key in nativeObj) {
+      this.setProperty(pseudoObj, key, this.nativeToPseudo(nativeObj[key]));
+    }
+  }
+  return pseudoObj;
+};
+
+/**
+ * Converts from a JS interpreter object to native JS object.
+ * @param {!Object} pseudoObj The JS interpreter object to be converted.
+ * @return {*} The equivalent native JS object or value.
+ */
+Interpreter.prototype.pseudoToNative = function(pseudoObj) {
+  if (pseudoObj.isPrimitive) {
+    return pseudoObj.data;
+  }
+  var nativeObj;
+  if (pseudoObj.length) {  // Array.
+    nativeObj = [];
+    for (var i = 0; i < pseudoObj.length; i++) {
+      nativeObj[i] = this.pseudoToNative(pseudoObj.properties[i]);
+    }
+  } else {  // Object.
+    nativeObj = {};
+    for (var key in pseudoObj.properties) {
+      nativeObj[key] = this.pseudoToNative(pseudoObj.properties[key]);
+    }
+  }
+  return nativeObj;
 };
 
 /**
