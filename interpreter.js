@@ -752,6 +752,17 @@ Interpreter.prototype.initNumber = function(scope) {
   };
   this.setProperty(this.NUMBER.properties.prototype, 'toString',
                    this.createNativeFunction(wrapper), false, true);
+
+  wrapper = function(locales, options) {
+    locales = locales ? thisInterpreter.pseudoToNative(locales) :
+        thisInterpreter.UNDEFINED;
+    options = options ? thisInterpreter.pseudoToNative(options) :
+        thisInterpreter.UNDEFINED;
+    return thisInterpreter.createPrimitive(
+        this.toNumber().toLocaleString(locales, options));
+  };
+  this.setProperty(this.NUMBER.properties.prototype, 'toLocaleString',
+                   this.createNativeFunction(wrapper), false, true);
 };
 
 /**
@@ -1583,6 +1594,7 @@ Interpreter.prototype.createAsyncFunction = function(asyncFunc) {
 
 /**
  * Converts from a native JS object or value to a JS interpreter object.
+ * Can handle JSON-style values.
  * @param {*} nativeObj The native JS object to be converted.
  * @return {!Object} The equivalent JS interpreter object.
  */
@@ -1607,6 +1619,7 @@ Interpreter.prototype.nativeToPseudo = function(nativeObj) {
 
 /**
  * Converts from a JS interpreter object to native JS object.
+ * Can handle JSON-style values.
  * @param {!Object} pseudoObj The JS interpreter object to be converted.
  * @return {*} The equivalent native JS object or value.
  */
