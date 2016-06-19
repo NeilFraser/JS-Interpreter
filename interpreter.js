@@ -786,6 +786,19 @@ Interpreter.prototype.initString = function(scope) {
   this.STRING = this.createNativeFunction(wrapper);
   this.setProperty(scope, 'String', this.STRING);
 
+  // Static methods.
+  wrapper = function(var_args) {
+    for (var i = 0; i < arguments.length; i++) {
+      arguments[i] = arguments[i].toNumber();
+    }
+    return thisInterpreter.createPrimitive(
+        String.fromCharCode.apply(String, arguments));
+  };
+  this.setProperty(this.STRING, 'fromCharCode',
+                   this.createNativeFunction(wrapper), false, true);
+
+  // Instance methods.
+  // Methods with no arguments.
   var functions = ['toLowerCase', 'toUpperCase',
                    'toLocaleLowerCase', 'toLocaleUpperCase'];
   for (var i = 0; i < functions.length; i++) {
@@ -818,21 +831,21 @@ Interpreter.prototype.initString = function(scope) {
   this.setProperty(this.STRING.properties.prototype, 'trimRight',
                    this.createNativeFunction(wrapper), false, true);
 
-  wrapper = function(num) {
-    var str = this.toString();
-    num = (num || thisInterpreter.UNDEFINED).toNumber();
-    return thisInterpreter.createPrimitive(str.charAt(num));
-  };
-  this.setProperty(this.STRING.properties.prototype, 'charAt',
-                   this.createNativeFunction(wrapper), false, true);
-
-  wrapper = function(num) {
-    var str = this.toString();
-    num = (num || thisInterpreter.UNDEFINED).toNumber();
-    return thisInterpreter.createPrimitive(str.charCodeAt(num));
-  };
-  this.setProperty(this.STRING.properties.prototype, 'charCodeAt',
-                   this.createNativeFunction(wrapper), false, true);
+  // Methods with only numeric arguments.
+  var functions = ['charAt', 'charCodeAt', 'substring', 'slice', 'substr'];
+  for (var i = 0; i < functions.length; i++) {
+    wrapper = (function(nativeFunc) {
+      return function() {
+        for (var j = 0; j < arguments.length; j++) {
+          arguments[j] = arguments[j].toNumber();
+        }
+        return thisInterpreter.createPrimitive(
+            nativeFunc.apply(this, arguments));
+      };
+    })(String.prototype[functions[i]]);
+    this.setProperty(this.STRING.properties.prototype, functions[i],
+                     this.createNativeFunction(wrapper), false, true);
+  }
 
   wrapper = function(searchValue, fromIndex) {
     var str = this.toString();
@@ -882,24 +895,6 @@ Interpreter.prototype.initString = function(scope) {
   this.setProperty(this.STRING.properties.prototype, 'split',
                    this.createNativeFunction(wrapper), false, true);
 
-  wrapper = function(indexA, indexB) {
-    var str = this.toString();
-    indexA = indexA ? indexA.toNumber() : undefined;
-    indexB = indexB ? indexB.toNumber() : undefined;
-    return thisInterpreter.createPrimitive(str.substring(indexA, indexB));
-  };
-  this.setProperty(this.STRING.properties.prototype, 'substring',
-                   this.createNativeFunction(wrapper), false, true);
-
-  wrapper = function(start, length) {
-    var str = this.toString();
-    start = start ? start.toNumber() : undefined;
-    length = length ? length.toNumber() : undefined;
-    return thisInterpreter.createPrimitive(str.substr(start, length));
-  };
-  this.setProperty(this.STRING.properties.prototype, 'substr',
-                   this.createNativeFunction(wrapper), false, true);
-
   wrapper = function(var_args) {
     var str = this.toString();
     for (var i = 0; i < arguments.length; i++) {
@@ -908,15 +903,6 @@ Interpreter.prototype.initString = function(scope) {
     return thisInterpreter.createPrimitive(str);
   };
   this.setProperty(this.STRING.properties.prototype, 'concat',
-                   this.createNativeFunction(wrapper), false, true);
-
-  wrapper = function(beginSlice, endSlice) {
-    var str = this.toString();
-    beginSlice = beginSlice ? beginSlice.toNumber() : undefined;
-    endSlice = endSlice ? endSlice.toNumber() : undefined;
-    return thisInterpreter.createPrimitive(str.slice(beginSlice, endSlice));
-  };
-  this.setProperty(this.STRING.properties.prototype, 'slice',
                    this.createNativeFunction(wrapper), false, true);
 
   wrapper = function(regexp) {
@@ -952,17 +938,6 @@ Interpreter.prototype.initString = function(scope) {
   };
   this.setProperty(this.STRING.properties.prototype, 'replace',
                    this.createNativeFunction(wrapper), false, true);
-
-  wrapper = function(var_args) {
-    for (var i = 0; i < arguments.length; i++) {
-      arguments[i] = arguments[i].toNumber();
-    }
-    return thisInterpreter.createPrimitive(
-        String.fromCharCode.apply(String, arguments));
-  };
-  this.setProperty(this.STRING, 'fromCharCode',
-                   this.createNativeFunction(wrapper), false, true);
-
 };
 
 /**
@@ -1606,7 +1581,7 @@ Interpreter.prototype.pseudoToNative = function(pseudoObj) {
     return pseudoObj.data;
   }
   var nativeObj;
-  if (pseudoObj.length) {  // Array.
+  if (this.isa(pseudoObj, this.ARRAY)) {  // Array.
     nativeObj = [];
     for (var i = 0; i < pseudoObj.length; i++) {
       nativeObj[i] = this.pseudoToNative(pseudoObj.properties[i]);
