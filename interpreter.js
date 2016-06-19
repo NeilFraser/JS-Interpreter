@@ -754,10 +754,8 @@ Interpreter.prototype.initNumber = function(scope) {
                    this.createNativeFunction(wrapper), false, true);
 
   wrapper = function(locales, options) {
-    locales = locales ? thisInterpreter.pseudoToNative(locales) :
-        thisInterpreter.UNDEFINED;
-    options = options ? thisInterpreter.pseudoToNative(options) :
-        thisInterpreter.UNDEFINED;
+    locales = locales ? thisInterpreter.pseudoToNative(locales) : undefined;
+    options = options ? thisInterpreter.pseudoToNative(options) : undefined;
     return thisInterpreter.createPrimitive(
         this.toNumber().toLocaleString(locales, options));
   };
@@ -867,10 +865,12 @@ Interpreter.prototype.initString = function(scope) {
   this.setProperty(this.STRING.properties.prototype, 'lastIndexOf',
                    this.createNativeFunction(wrapper), false, true);
 
-  wrapper = function(compareString) {
-    var str = this.toString();
+  wrapper = function(compareString, locales, options) {
     compareString = (compareString || thisInterpreter.UNDEFINED).toString();
-    return thisInterpreter.createPrimitive(str.localeCompare(compareString));
+    locales = locales ? thisInterpreter.pseudoToNative(locales) : undefined;
+    options = options ? thisInterpreter.pseudoToNative(options) : undefined;
+    return thisInterpreter.createPrimitive(
+        this.toString().localeCompare(compareString, locales, options));
   };
   this.setProperty(this.STRING.properties.prototype, 'localeCompare',
                    this.createNativeFunction(wrapper), false, true);
