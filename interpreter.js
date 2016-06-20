@@ -1097,11 +1097,20 @@ Interpreter.prototype.initRegExp = function(scope) {
     }
     pattern = pattern ? pattern.toString() : '';
     flags = flags ? flags.toString() : '';
-    thisInterpreter.createRegExp(rgx, new RegExp(pattern, flags));
+    thisInterpreter.populateRegExp_(rgx, new RegExp(pattern, flags));
     return rgx;
   };
   this.REGEXP = this.createNativeFunction(wrapper);
   this.setProperty(scope, 'RegExp', this.REGEXP);
+
+  this.setProperty(this.REGEXP.properties.prototype, 'global',
+      this.UNDEFINED, true, true);
+  this.setProperty(this.REGEXP.properties.prototype, 'ignoreCase',
+      this.UNDEFINED, true, true);
+  this.setProperty(this.REGEXP.properties.prototype, 'multiline',
+      this.UNDEFINED, true, true);
+  this.setProperty(this.REGEXP.properties.prototype, 'source',
+      this.createPrimitive('(?:)'), true, true);
 
   wrapper = function(str) {
     str = str.toString();
@@ -1382,7 +1391,7 @@ Interpreter.prototype.createPrimitive = function(data) {
   } else if (data === '') {
     return this.STRING_EMPTY;
   } else if (data instanceof RegExp) {
-    return this.createRegExp(this.createObject(this.REGEXP), data);
+    return this.populateRegExp_(this.createObject(this.REGEXP), data);
   }
   return new Interpreter.Primitive(data, this);
 };
@@ -1480,28 +1489,35 @@ Interpreter.prototype.createObject = function(parent) {
 };
 
 /**
- * Creates a new regular expression object.
- * @param {Object} obj The existing object to set.
- * @param {Object} data The native regular expression.
- * @return {!Object} New regular expression object.
+ * Initialize a pseudo regular expression object based on a native regular
+ * expression object.
+ * @param {!Object} pseudoRegexp The existing object to set.
+ * @param {!Regexp} nativeRegexp The native regular expression.
+ * @return {!Object} Newly populated regular expression object.
+ * @private
  */
-Interpreter.prototype.createRegExp = function(obj, data) {
-  obj.data = data;
+Interpreter.prototype.populateRegExp_ = function(pseudoRegexp, nativeRegexp) {
+  pseudoRegexp.data = nativeRegexp;
   // lastIndex is settable, all others are read-only attributes
-  this.setProperty(obj, 'lastIndex', this.createPrimitive(obj.data.lastIndex),
+  this.setProperty(pseudoRegexp, 'lastIndex',
+                   this.createPrimitive(nativeRegexp.lastIndex),
                    false, true);
-  this.setProperty(obj, 'source', this.createPrimitive(obj.data.source),
+  this.setProperty(pseudoRegexp, 'source',
+                   this.createPrimitive(nativeRegexp.source),
                    true, true);
-  this.setProperty(obj, 'global', this.createPrimitive(obj.data.global),
+  this.setProperty(pseudoRegexp, 'global',
+                   this.createPrimitive(nativeRegexp.global),
                    true, true);
-  this.setProperty(obj, 'ignoreCase', this.createPrimitive(obj.data.ignoreCase),
+  this.setProperty(pseudoRegexp, 'ignoreCase',
+                   this.createPrimitive(nativeRegexp.ignoreCase),
                    true, true);
-  this.setProperty(obj, 'multiline', this.createPrimitive(obj.data.multiline),
+  this.setProperty(pseudoRegexp, 'multiline',
+                   this.createPrimitive(nativeRegexp.multiline),
                    true, true);
   // Override a couple of Object's conversion functions.
-  obj.toString = function() {return String(this.data);};
-  obj.valueOf = function() {return this.data;};
-  return obj;
+  pseudoRegexp.toString = function() {return String(this.data);};
+  pseudoRegexp.valueOf = function() {return this.data;};
+  return pseudoRegexp;
 };
 
 /**
@@ -1577,7 +1593,10 @@ Interpreter.prototype.nativeToPseudo = function(nativeObj) {
  * @return {*} The equivalent native JS object or value.
  */
 Interpreter.prototype.pseudoToNative = function(pseudoObj) {
-  if (pseudoObj.isPrimitive) {
+  if (pseudoObj.isPrimitive ||
+      this.isa(pseudoObj, this.NUMBER) ||
+      this.isa(pseudoObj, this.STRING) ||
+      this.isa(pseudoObj, this.BOOLEAN)) {
     return pseudoObj.data;
   }
   var nativeObj;
