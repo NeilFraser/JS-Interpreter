@@ -38,6 +38,7 @@ var Interpreter = function(code, opt_initFunc) {
   this.ast = code;
   this.initFunc_ = opt_initFunc;
   this.paused_ = false;
+  this.polyfills_ = [];
   // Predefine some common primitives for performance.
   this.UNDEFINED = new Interpreter.Primitive(undefined, this);
   this.NULL = new Interpreter.Primitive(null, this);
@@ -47,15 +48,29 @@ var Interpreter = function(code, opt_initFunc) {
   this.NUMBER_ZERO = new Interpreter.Primitive(0, this);
   this.NUMBER_ONE = new Interpreter.Primitive(1, this);
   this.STRING_EMPTY = new Interpreter.Primitive('', this);
+  // Create and initialize the global scope.
   var scope = this.createScope(this.ast, null);
   // Fix the parent properties now that the global scope exists.
   //this.UNDEFINED.parent = undefined;
   //this.NULL.parent = undefined;
+  this.NAN.parent = this.NUMBER;
   this.TRUE.parent = this.BOOLEAN;
   this.FALSE.parent = this.BOOLEAN;
   this.NUMBER_ZERO.parent = this.NUMBER;
   this.NUMBER_ONE.parent = this.NUMBER;
   this.STRING_EMPTY.parent = this.STRING;
+  // Run the polyfills.
+  this.ast = acorn.parse(this.polyfills_.join('\n'));
+  this.stripLocations_(this.ast);
+  this.stateStack = [{
+    node: this.ast,
+    scope: scope,
+    thisExpression: scope,
+    done: false
+  }];
+  this.run();
+  // Point at the main program.
+  this.ast = code;
   this.stateStack = [{
     node: this.ast,
     scope: scope,
@@ -98,6 +113,10 @@ Interpreter.prototype.step = function() {
     return true;
   }
   this['step' + state.node.type]();
+  if (!state.node.end) {
+    // This is polyfill code.  Keep executing until we arrive at user code.
+    return this.step();
+  }
   return true;
 };
 
@@ -661,20 +680,23 @@ Interpreter.prototype.initArray = function(scope) {
   this.setProperty(this.ARRAY.properties.prototype, 'lastIndexOf',
                    this.createNativeFunction(wrapper), false, true);
 
-  wrapper = function(opt_compFunc) {
-    var jsList = [];
-    for (var i = 0; i < this.length; i++) {
-      jsList[i] = this.properties[i];
-    }
-    // TODO: Add custom sort comparison function(opt_compFunc).
-    jsList.sort();
-    for (var i = 0; i < jsList.length; i++) {
-      thisInterpreter.setProperty(this, i, jsList[i]);
-    }
-    return this;
-  };
-  this.setProperty(this.ARRAY.properties.prototype, 'sort',
-                   this.createNativeFunction(wrapper), false, true);
+  this.polyfills_.push(
+'Array.prototype.sort = function(opt_comp) {',
+  'for (var i = 0; i < this.length; i++) {',
+    'var changes = 0;',
+    'for (var j = 0; j < this.length - i - 1; j++) {',
+      'if (opt_comp ? opt_comp(this[j], this[j + 1]) > 0 : this[j] > this[j + 1]) {',
+        'var swap = this[j];',
+        'this[j] = this[j + 1];',
+        'this[j + 1] = swap;',
+        'changes++;',
+      '}',
+    '}',
+    'if (changes <= 1) break;',
+  '}',
+  'return this;',
+'};',
+'');
 };
 
 /**
@@ -1886,22 +1908,48 @@ Interpreter.prototype.populateScope_ = function(node, scope) {
   } else if (node.type == 'FunctionExpression') {
     return;  // Do not recurse into function.
   }
-  var thisIterpreter = this;
-  function recurse(child) {
-    if (child.constructor == thisIterpreter.ast.constructor) {
-      thisIterpreter.populateScope_(child, scope);
-    }
-  }
+  var parent = node.constructor;
   for (var name in node) {
     var prop = node[name];
     if (prop && typeof prop == 'object') {
-      if (typeof prop.length == 'number' && prop.splice) {
-        // Prop is an array.
+      if (prop instanceof Array) {
         for (var i = 0; i < prop.length; i++) {
-          recurse(prop[i]);
+          if (prop[i].constructor == parent) {
+            this.populateScope_(prop[i], scope);
+          }
         }
       } else {
-        recurse(prop);
+        if (prop.constructor == parent) {
+          this.populateScope_(prop, scope);
+        }
+      }
+    }
+  }
+};
+
+/**
+ * Remove start and end values from AST.
+ * Used to remove highlighting from polyfills.
+ * @param {!Object} node AST node.
+ * @private
+ */
+Interpreter.prototype.stripLocations_ = function(node) {
+  delete node.start;
+  delete node.end;
+  var parent = node.constructor;
+  for (var name in node) {
+    var prop = node[name];
+    if (prop && typeof prop == 'object') {
+      if (prop instanceof Array) {
+        for (var i = 0; i < prop.length; i++) {
+          if (prop[i].constructor == parent) {
+            this.stripLocations_(prop[i]);
+          }
+        }
+      } else {
+        if (prop.constructor == parent) {
+          this.stripLocations_(prop);
+        }
       }
     }
   }
