@@ -342,14 +342,24 @@ Interpreter.prototype.initObject = function(scope) {
   var thisInterpreter = this;
   var wrapper;
   // Object constructor.
-  wrapper = function(var_args) {
-    if (this.parent == thisInterpreter.OBJECT) {
-      // Called with new.
-      var newObj = this;
-    } else {
-      var newObj = thisInterpreter.createObject(thisInterpreter.OBJECT);
+  wrapper = function(value) {
+    if (value == thisInterpreter.UNDEFINED || value == thisInterpreter.NULL) {
+      // Create a new object.
+      if (this.parent == thisInterpreter.OBJECT) {
+        // Called with new.
+        return this;
+      } else {
+        return thisInterpreter.createObject(thisInterpreter.OBJECT);
+      }
     }
-    return newObj;
+    if (value.isPrimitive) {
+      // Wrap the value as an object.
+      var obj = thisInterpreter.createObject(value.parent);
+      obj.value = value.value;
+      return obj;
+    }
+    // Return the provided object.
+    return value;
   };
   this.OBJECT = this.createNativeFunction(wrapper);
   this.setProperty(scope, 'Object', this.OBJECT);
