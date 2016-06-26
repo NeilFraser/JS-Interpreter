@@ -806,16 +806,16 @@ Interpreter.prototype.initArray = function(scope) {
 // Polyfill copied from:
 // developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Array/some
 "Array.prototype.some = function(fun/*, thisArg*/) {",
-"  if (this == null || typeof fun !== 'function') throw new TypeError;",
-"  var t = Object(this);",
-"  var len = t.length >>> 0;",
-"  var thisArg = arguments.length >= 2 ? arguments[1] : void 0;",
-"  for (var i = 0; i < len; i++) {",
-"    if (i in t && fun.call(thisArg, t[i], i, t)) {",
-"      return true;",
-"    }",
-"  }",
-"  return false;",
+  "if (this == null || typeof fun !== 'function') throw new TypeError;",
+  "var t = Object(this);",
+  "var len = t.length >>> 0;",
+  "var thisArg = arguments.length >= 2 ? arguments[1] : void 0;",
+  "for (var i = 0; i < len; i++) {",
+    "if (i in t && fun.call(thisArg, t[i], i, t)) {",
+      "return true;",
+    "}",
+  "}",
+  "return false;",
 "};",
 
 "Array.prototype.sort = function(opt_comp) {",
@@ -833,6 +833,14 @@ Interpreter.prototype.initArray = function(scope) {
     "if (changes <= 1) break;",
   "}",
   "return this;",
+"};",
+
+"Array.prototype.toLocaleString = function() {",
+  "var out = [];",
+  "for (var i = 0; i < this.length; i++) {",
+    "out[i] = (this[i] === null || this[i] === undefined) ? '' : this[i].toLocaleString();",
+  "}",
+  "return out.join(',');",
 "};",
 "");
 };
@@ -1638,9 +1646,9 @@ Interpreter.prototype.createObject = function(parent) {
     obj.toString = function() {
       var strs = [];
       for (var i = 0; i < this.length; i++) {
-        strs[i] = (this.properties[i] == undefined ||
-                   this.properties[i] == null) ?
-                   '' : this.properties[i].toString();
+        var value = this.properties[i];
+        strs[i] = (!value || (value.isPrimitive && (value.data === null ||
+            value.data === undefined))) ? '' : value.toString();
       }
       return strs.join(',');
     };
