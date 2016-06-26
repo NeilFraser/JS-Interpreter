@@ -1924,7 +1924,7 @@ Interpreter.prototype.populateScope_ = function(node, scope) {
     if (prop && typeof prop == 'object') {
       if (prop instanceof Array) {
         for (var i = 0; i < prop.length; i++) {
-          if (prop[i].constructor == parent) {
+          if (prop[i] && prop[i].constructor == parent) {
             this.populateScope_(prop[i], scope);
           }
         }
@@ -1952,7 +1952,7 @@ Interpreter.prototype.stripLocations_ = function(node) {
     if (prop && typeof prop == 'object') {
       if (prop instanceof Array) {
         for (var i = 0; i < prop.length; i++) {
-          if (prop[i].constructor == parent) {
+          if (prop[i] && prop[i].constructor == parent) {
             this.stripLocations_(prop[i]);
           }
         }
@@ -2061,12 +2061,18 @@ Interpreter.prototype['stepArrayExpression'] = function() {
   var n = state.n || 0;
   if (!state.array) {
     state.array = this.createObject(this.ARRAY);
-  } else {
+  } else if (state.value) {
     this.setProperty(state.array, n - 1, state.value);
   }
-  if (node.elements[n]) {
+  if (n < node.elements.length) {
     state.n = n + 1;
-    this.stateStack.unshift({node: node.elements[n]});
+    if (node.elements[n]) {
+      this.stateStack.unshift({node: node.elements[n]});
+    } else {
+      // [0, 1, , 3][2] -> undefined
+      // Missing elements are not defined, they aren't undefined.
+      state.value = undefined;
+    }
   } else {
     state.array.length = state.n || 0;
     this.stateStack.shift();
