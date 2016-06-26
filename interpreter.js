@@ -355,7 +355,7 @@ Interpreter.prototype.initObject = function(scope) {
     if (value.isPrimitive) {
       // Wrap the value as an object.
       var obj = thisInterpreter.createObject(value.parent);
-      obj.value = value.value;
+      obj.data = value.data;
       return obj;
     }
     // Return the provided object.
@@ -550,7 +550,7 @@ Interpreter.prototype.initArray = function(scope) {
       this.properties[this.length - i - 1] = this.properties[i];
       this.properties[i] = tmp;
     }
-    return thisInterpreter.UNDEFINED;
+    return this;
   };
   this.setProperty(this.ARRAY.properties.prototype, 'reverse',
                    this.createNativeFunction(wrapper), false, true);
@@ -691,6 +691,8 @@ Interpreter.prototype.initArray = function(scope) {
                    this.createNativeFunction(wrapper), false, true);
 
   this.polyfills_.push(
+// Polyfill copied from:
+// developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Array/every
 "Array.prototype.every = function(callbackfn, thisArg) {",
   "var T, k;",
   "if (this == null) throw new TypeError('this is null or not defined');",
@@ -711,6 +713,8 @@ Interpreter.prototype.initArray = function(scope) {
   "return true;",
 "};",
 
+// Polyfill copied from:
+// developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Array/filter
 "Array.prototype.filter = function(fun/*, thisArg*/) {",
   "if (this === void 0 || this === null) throw new TypeError();",
   "var t = Object(this);",
@@ -727,6 +731,8 @@ Interpreter.prototype.initArray = function(scope) {
   "return res;",
 "};",
 
+// Polyfill copied from:
+// developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Array/forEach
 "Array.prototype.forEach = function(callback, thisArg) {",
   "var T, k;",
   "if (this == null) throw new TypeError('this is null or not defined');",
@@ -743,6 +749,29 @@ Interpreter.prototype.initArray = function(scope) {
     "}",
     "k++;",
   "}",
+"};",
+
+// Polyfill copied from:
+// developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Array/map
+"Array.prototype.map = function(callback, thisArg) {",
+  "var T, A, k;",
+  "if (this == null) throw new TypeError(' this is null or not defined');",
+  "var O = Object(this);",
+  "var len = O.length >>> 0;",
+  "if (typeof callback !== 'function') new TypeError();",
+  "if (arguments.length > 1) T = thisArg;",
+  "A = new Array(len);",
+  "k = 0;",
+  "while (k < len) {",
+    "var kValue, mappedValue;",
+    "if (k in O) {",
+      "kValue = O[k];",
+      "mappedValue = callback.call(T, kValue, k, O);",
+      "A[k] = mappedValue;",
+    "}",
+    "k++;",
+  "}",
+  "return A;",
 "};",
 
 "Array.prototype.sort = function(opt_comp) {",
