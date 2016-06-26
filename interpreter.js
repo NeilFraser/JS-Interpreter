@@ -343,7 +343,8 @@ Interpreter.prototype.initObject = function(scope) {
   var wrapper;
   // Object constructor.
   wrapper = function(value) {
-    if (value == thisInterpreter.UNDEFINED || value == thisInterpreter.NULL) {
+    if (!value || value == thisInterpreter.UNDEFINED ||
+        value == thisInterpreter.NULL) {
       // Create a new object.
       if (this.parent == thisInterpreter.OBJECT) {
         // Called with new.
@@ -368,6 +369,12 @@ Interpreter.prototype.initObject = function(scope) {
     return thisInterpreter.createPrimitive(this.toString());
   };
   this.setProperty(this.OBJECT.properties.prototype, 'toString',
+                   this.createNativeFunction(wrapper), false, true);
+
+  wrapper = function() {
+    return thisInterpreter.createPrimitive(this.toString());
+  };
+  this.setProperty(this.OBJECT.properties.prototype, 'toLocaleString',
                    this.createNativeFunction(wrapper), false, true);
 
   wrapper = function() {
@@ -701,12 +708,7 @@ Interpreter.prototype.initArray = function(scope) {
   "if (arguments.length > 1) T = thisArg;",
   "k = 0;",
   "while (k < len) {",
-    "var kValue;",
-    "if (k in O) {",
-      "kValue = O[k];",
-      "var testResult = callbackfn.call(T, kValue, k, O);",
-      "if (!testResult) return false;",
-    "}",
+    "if (k in O && !callbackfn.call(T, O[k], k, O)) return false;",
     "k++;",
   "}",
   "return true;",
@@ -739,11 +741,7 @@ Interpreter.prototype.initArray = function(scope) {
   "if (arguments.length > 1) T = thisArg;",
   "k = 0;",
   "while (k < len) {",
-    "var kValue;",
-    "if (k in O) {",
-      "kValue = O[k];",
-      "callback.call(T, kValue, k, O);",
-    "}",
+    "if (k in O) callback.call(T, O[k], k, O);",
     "k++;",
   "}",
 "};",
@@ -759,12 +757,7 @@ Interpreter.prototype.initArray = function(scope) {
   "A = new Array(len);",
   "k = 0;",
   "while (k < len) {",
-    "var kValue, mappedValue;",
-    "if (k in O) {",
-      "kValue = O[k];",
-      "mappedValue = callback.call(T, kValue, k, O);",
-      "A[k] = mappedValue;",
-    "}",
+    "if (k in O) A[k] = callback.call(T, O[k], k, O);",
     "k++;",
   "}",
   "return A;",
