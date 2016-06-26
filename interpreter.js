@@ -694,11 +694,10 @@ Interpreter.prototype.initArray = function(scope) {
 // Polyfill copied from:
 // developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Array/every
 "Array.prototype.every = function(callbackfn, thisArg) {",
+  "if (this == null || typeof callbackfn !== 'function') throw new TypeError;",
   "var T, k;",
-  "if (this == null) throw new TypeError('this is null or not defined');",
   "var O = Object(this);",
   "var len = O.length >>> 0;",
-  "if (typeof callbackfn !== 'function') throw new TypeError();",
   "if (arguments.length > 1) T = thisArg;",
   "k = 0;",
   "while (k < len) {",
@@ -716,10 +715,9 @@ Interpreter.prototype.initArray = function(scope) {
 // Polyfill copied from:
 // developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Array/filter
 "Array.prototype.filter = function(fun/*, thisArg*/) {",
-  "if (this === void 0 || this === null) throw new TypeError();",
+  "if (this === void 0 || this === null || typeof fun !== 'function') throw new TypeError;",
   "var t = Object(this);",
   "var len = t.length >>> 0;",
-  "if (typeof fun !== 'function') throw new TypeError();",
   "var res = [];",
   "var thisArg = arguments.length >= 2 ? arguments[1] : void 0;",
   "for (var i = 0; i < len; i++) {",
@@ -734,11 +732,10 @@ Interpreter.prototype.initArray = function(scope) {
 // Polyfill copied from:
 // developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Array/forEach
 "Array.prototype.forEach = function(callback, thisArg) {",
+  "if (this == null || typeof callback !== 'function') throw new TypeError;",
   "var T, k;",
-  "if (this == null) throw new TypeError('this is null or not defined');",
   "var O = Object(this);",
   "var len = O.length >>> 0;",
-  "if (typeof callback !== 'function') throw new TypeError();",
   "if (arguments.length > 1) T = thisArg;",
   "k = 0;",
   "while (k < len) {",
@@ -754,11 +751,10 @@ Interpreter.prototype.initArray = function(scope) {
 // Polyfill copied from:
 // developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Array/map
 "Array.prototype.map = function(callback, thisArg) {",
+  "if (this == null || typeof callback !== 'function') new TypeError;",
   "var T, A, k;",
-  "if (this == null) throw new TypeError(' this is null or not defined');",
   "var O = Object(this);",
   "var len = O.length >>> 0;",
-  "if (typeof callback !== 'function') new TypeError();",
   "if (arguments.length > 1) T = thisArg;",
   "A = new Array(len);",
   "k = 0;",
@@ -772,6 +768,61 @@ Interpreter.prototype.initArray = function(scope) {
     "k++;",
   "}",
   "return A;",
+"};",
+
+// Polyfill copied from:
+// developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Array/Reduce
+"Array.prototype.reduce = function(callback /*, initialValue*/) {",
+  "if (this == null || typeof callback !== 'function') throw new TypeError;",
+  "var t = Object(this), len = t.length >>> 0, k = 0, value;",
+  "if (arguments.length == 2) {",
+    "value = arguments[1];",
+  "} else {",
+    "while (k < len && !(k in t)) k++;",
+    "if (k >= len) {",
+      "throw new TypeError('Reduce of empty array with no initial value');",
+    "}",
+    "value = t[k++];",
+  "}",
+  "for (; k < len; k++) {",
+    "if (k in t) value = callback(value, t[k], k, t);",
+  "}",
+  "return value;",
+"};",
+
+// Polyfill copied from:
+// developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Array/ReduceRight
+"Array.prototype.reduceRight = function(callback /*, initialValue*/) {",
+  "if (null === this || 'undefined' === typeof this || 'function' !== typeof callback) throw new TypeError;",
+  "var t = Object(this), len = t.length >>> 0, k = len - 1, value;",
+  "if (arguments.length >= 2) {",
+    "value = arguments[1];",
+  "} else {",
+    "while (k >= 0 && !(k in t)) k--;",
+    "if (k < 0) {",
+      "throw new TypeError('Reduce of empty array with no initial value');",
+    "}",
+    "value = t[k--];",
+  "}",
+  "for (; k >= 0; k--) {",
+    "if (k in t) value = callback(value, t[k], k, t);",
+  "}",
+  "return value;",
+"};",
+
+// Polyfill copied from:
+// developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Array/some
+"Array.prototype.some = function(fun/*, thisArg*/) {",
+"  if (this == null || typeof fun !== 'function') throw new TypeError;",
+"  var t = Object(this);",
+"  var len = t.length >>> 0;",
+"  var thisArg = arguments.length >= 2 ? arguments[1] : void 0;",
+"  for (var i = 0; i < len; i++) {",
+"    if (i in t && fun.call(thisArg, t[i], i, t)) {",
+"      return true;",
+"    }",
+"  }",
+"  return false;",
 "};",
 
 "Array.prototype.sort = function(opt_comp) {",
