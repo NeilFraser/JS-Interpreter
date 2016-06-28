@@ -27,7 +27,7 @@
     &lt;script src="interpreter.js"&gt;&lt;/script&gt;
   </pre>
 
-  <p>Alternatively, use the compressed bundle (70kb):</p>
+  <p>Alternatively, use the compressed bundle (80kb):</p>
 
   <pre>
     &lt;script src="acorn_interpreter.js"&gt;&lt;/script&gt;
@@ -155,9 +155,8 @@
     <dt>Wat</dt>
     <dd>Some of the more obscure type conversions (e.g. <code>[] + {}</code>)
     may return different results from JavaScript.  Patches are welcome.</dd>
-    <dt>Passed functions</dt>
-    <dd><code>String.replace</code> does not support custom replacement
-    functions.  <code>Array.every/filter/map</code> does not exist.</dd>
+    <dt>toString &amp; toValue</dt>
+    <dd>User-created functions are not called when casting objects to primitives.</dd>
     <dt>Performance</dt>
     <dd>No attempt has been made to make the interpreter particularly
     efficient.</dd>

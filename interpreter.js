@@ -132,7 +132,7 @@ Interpreter.prototype.run = function() {
 
 /**
  * Initialize the global scope with buitin properties and functions.
- * @param {!Object} scope Global scope.
+ * @param {!Interpreter.Object} scope Global scope.
  */
 Interpreter.prototype.initGlobalScope = function(scope) {
   // Initialize uneditable global properties.
@@ -215,7 +215,7 @@ Interpreter.prototype.initGlobalScope = function(scope) {
 
 /**
  * Initialize the Function class.
- * @param {!Object} scope Global scope.
+ * @param {!Interpreter.Object} scope Global scope.
  */
 Interpreter.prototype.initFunction = function(scope) {
   var thisInterpreter = this;
@@ -336,7 +336,7 @@ Interpreter.prototype.initFunction = function(scope) {
 
 /**
  * Initialize the Object class.
- * @param {!Object} scope Global scope.
+ * @param {!Interpreter.Object} scope Global scope.
  */
 Interpreter.prototype.initObject = function(scope) {
   var thisInterpreter = this;
@@ -444,7 +444,7 @@ Interpreter.prototype.initObject = function(scope) {
 
 /**
  * Initialize the Array class.
- * @param {!Object} scope Global scope.
+ * @param {!Interpreter.Object} scope Global scope.
  */
 Interpreter.prototype.initArray = function(scope) {
   var thisInterpreter = this;
@@ -847,7 +847,7 @@ Interpreter.prototype.initArray = function(scope) {
 
 /**
  * Initialize the Number class.
- * @param {!Object} scope Global scope.
+ * @param {!Interpreter.Object} scope Global scope.
  */
 Interpreter.prototype.initNumber = function(scope) {
   var thisInterpreter = this;
@@ -933,7 +933,7 @@ Interpreter.prototype.initNumber = function(scope) {
 
 /**
  * Initialize the String class.
- * @param {!Object} scope Global scope.
+ * @param {!Interpreter.Object} scope Global scope.
  */
 Interpreter.prototype.initString = function(scope) {
   var thisInterpreter = this;
@@ -998,7 +998,7 @@ Interpreter.prototype.initString = function(scope) {
                    this.createNativeFunction(wrapper), false, true);
 
   // Methods with only numeric arguments.
-  var functions = ['charAt', 'charCodeAt', 'substring', 'slice', 'substr'];
+  functions = ['charAt', 'charCodeAt', 'substring', 'slice', 'substr'];
   for (var i = 0; i < functions.length; i++) {
     wrapper = (function(nativeFunc) {
       return function() {
@@ -1110,7 +1110,7 @@ Interpreter.prototype.initString = function(scope) {
 
 /**
  * Initialize the Boolean class.
- * @param {!Object} scope Global scope.
+ * @param {!Interpreter.Object} scope Global scope.
  */
 Interpreter.prototype.initBoolean = function(scope) {
   var thisInterpreter = this;
@@ -1132,7 +1132,7 @@ Interpreter.prototype.initBoolean = function(scope) {
 
 /**
  * Initialize the Date class.
- * @param {!Object} scope Global scope.
+ * @param {!Interpreter.Object} scope Global scope.
  */
 Interpreter.prototype.initDate = function(scope) {
   var thisInterpreter = this;
@@ -1218,7 +1218,7 @@ Interpreter.prototype.initDate = function(scope) {
 
 /**
  * Initialize Math object.
- * @param {!Object} scope Global scope.
+ * @param {!Interpreter.Object} scope Global scope.
  */
 Interpreter.prototype.initMath = function(scope) {
   var thisInterpreter = this;
@@ -1250,7 +1250,7 @@ Interpreter.prototype.initMath = function(scope) {
 
 /**
  * Initialize Regular Expression object.
- * @param {!Object} scope Global scope.
+ * @param {!Interpreter.Object} scope Global scope.
  */
 Interpreter.prototype.initRegExp = function(scope) {
   var thisInterpreter = this;
@@ -1265,8 +1265,7 @@ Interpreter.prototype.initRegExp = function(scope) {
     }
     pattern = pattern ? pattern.toString() : '';
     flags = flags ? flags.toString() : '';
-    thisInterpreter.populateRegExp_(rgx, new RegExp(pattern, flags));
-    return rgx;
+    return thisInterpreter.populateRegExp_(rgx, new RegExp(pattern, flags));
   };
   this.REGEXP = this.createNativeFunction(wrapper);
   this.setProperty(scope, 'RegExp', this.REGEXP);
@@ -1317,7 +1316,7 @@ Interpreter.prototype.initRegExp = function(scope) {
 
 /**
  * Initialize JSON object.
- * @param {!Object} scope Global scope.
+ * @param {!Interpreter.Object} scope Global scope.
  */
 Interpreter.prototype.initJSON = function(scope) {
   var thisInterpreter = this;
@@ -1339,7 +1338,7 @@ Interpreter.prototype.initJSON = function(scope) {
 
 /**
  * Initialize the Error class.
- * @param {!Object} scope Global scope.
+ * @param {!Interpreter.Object} scope Global scope.
  */
 Interpreter.prototype.initError = function(scope) {
   var thisInterpreter = this;
@@ -1492,7 +1491,7 @@ Interpreter.Primitive.prototype.data = undefined;
 /**
  * @type {string}
  */
-Interpreter.Primitive.prototype.type = undefined;
+Interpreter.Primitive.prototype.type = 'undefined';
 
 /**
  * @type {Function}
@@ -1540,7 +1539,7 @@ Interpreter.Primitive.prototype.valueOf = function() {
  * Create a new data object for a primitive.
  * @param {number|string|boolean|null|undefined|RegExp} data Data to
  *     encapsulate.
- * @return {!Object} New data object.
+ * @return {!Interpreter.Primitive|!Interpreter.Object} New data object.
  */
 Interpreter.prototype.createPrimitive = function(data) {
   // Reuse a predefined primitive constant if possible.
@@ -1566,7 +1565,7 @@ Interpreter.prototype.createPrimitive = function(data) {
 
 /**
  * Class for an object.
- * @param {Object} parent Parent constructor function.
+ * @param {Interpreter.Object} parent Parent constructor function.
  * @constructor
  */
 Interpreter.Object = function(parent) {
@@ -1582,7 +1581,7 @@ Interpreter.Object = function(parent) {
 Interpreter.Object.prototype.type = 'object';
 
 /**
- * @type {Function}
+ * @type {Interpreter.Object}
  */
 Interpreter.Object.prototype.parent = null;
 
@@ -1592,7 +1591,7 @@ Interpreter.Object.prototype.parent = null;
 Interpreter.Object.prototype.isPrimitive = false;
 
 /**
- * @type {number|string|boolean|undefined}
+ * @type {number|string|boolean|undefined|!RegExp}
  */
 Interpreter.Object.prototype.data = undefined;
 
@@ -1622,7 +1621,7 @@ Interpreter.Object.prototype.toString = function() {
 
 /**
  * Return the object value.
- * @return {!Object} Value.
+ * @return {*} Value.
  */
 Interpreter.Object.prototype.valueOf = function() {
   return this.data === undefined ? this : this.data;
@@ -1630,8 +1629,8 @@ Interpreter.Object.prototype.valueOf = function() {
 
 /**
  * Create a new data object.
- * @param {Object} parent Parent constructor function.
- * @return {!Object} New data object.
+ * @param {Interpreter.Object} parent Parent constructor function.
+ * @return {!Interpreter.Object} New data object.
  */
 Interpreter.prototype.createObject = function(parent) {
   var obj = new Interpreter.Object(parent);
@@ -1659,9 +1658,9 @@ Interpreter.prototype.createObject = function(parent) {
 /**
  * Initialize a pseudo regular expression object based on a native regular
  * expression object.
- * @param {!Object} pseudoRegexp The existing object to set.
- * @param {!Regexp} nativeRegexp The native regular expression.
- * @return {!Object} Newly populated regular expression object.
+ * @param {!Interpreter.Object} pseudoRegexp The existing object to set.
+ * @param {!RegExp} nativeRegexp The native regular expression.
+ * @return {!Interpreter.Object} Newly populated regular expression object.
  * @private
  */
 Interpreter.prototype.populateRegExp_ = function(pseudoRegexp, nativeRegexp) {
@@ -1692,7 +1691,7 @@ Interpreter.prototype.populateRegExp_ = function(pseudoRegexp, nativeRegexp) {
  * Create a new function.
  * @param {Object} node AST node defining the function.
  * @param {Object} opt_scope Optional parent scope.
- * @return {!Object} New function.
+ * @return {!Interpreter.Object} New function.
  */
 Interpreter.prototype.createFunction = function(node, opt_scope) {
   var func = this.createObject(this.FUNCTION);
@@ -1706,7 +1705,7 @@ Interpreter.prototype.createFunction = function(node, opt_scope) {
 /**
  * Create a new native function.
  * @param {!Function} nativeFunc JavaScript function.
- * @return {!Object} New function.
+ * @return {!Interpreter.Object} New function.
  */
 Interpreter.prototype.createNativeFunction = function(nativeFunc) {
   var func = this.createObject(this.FUNCTION);
@@ -1719,7 +1718,7 @@ Interpreter.prototype.createNativeFunction = function(nativeFunc) {
 /**
  * Create a new native asynchronous function.
  * @param {!Function} asyncFunc JavaScript function.
- * @return {!Object} New function.
+ * @return {!Interpreter.Object} New function.
  */
 Interpreter.prototype.createAsyncFunction = function(asyncFunc) {
   var func = this.createObject(this.FUNCTION);
@@ -1733,10 +1732,14 @@ Interpreter.prototype.createAsyncFunction = function(asyncFunc) {
  * Converts from a native JS object or value to a JS interpreter object.
  * Can handle JSON-style values.
  * @param {*} nativeObj The native JS object to be converted.
- * @return {!Object} The equivalent JS interpreter object.
+ * @return {!Interpreter.Object|!Interpreter.Primitive} The equivalent
+ *     JS interpreter object.
  */
 Interpreter.prototype.nativeToPseudo = function(nativeObj) {
-  if (typeof nativeObj !== 'object') {
+  if (typeof nativeObj == 'boolean' ||
+      typeof nativeObj == 'number' ||
+      typeof nativeObj == 'string' ||
+      nativeObj === null || nativeObj === undefined) {
     return this.createPrimitive(nativeObj);
   }
   var pseudoObj;
@@ -1757,7 +1760,8 @@ Interpreter.prototype.nativeToPseudo = function(nativeObj) {
 /**
  * Converts from a JS interpreter object to native JS object.
  * Can handle JSON-style values.
- * @param {!Object} pseudoObj The JS interpreter object to be converted.
+ * @param {!Interpreter.Object} pseudoObj The JS interpreter object to be
+ *     converted.
  * @return {*} The equivalent native JS object or value.
  */
 Interpreter.prototype.pseudoToNative = function(pseudoObj) {
@@ -1784,9 +1788,10 @@ Interpreter.prototype.pseudoToNative = function(pseudoObj) {
 
 /**
  * Fetch a property value from a data object.
- * @param {!Object} obj Data object.
+ * @param {!Interpreter.Object|!Interpreter.Primitive} obj Data object.
  * @param {*} name Name of property.
- * @return {!Object} Property value (may be UNDEFINED).
+ * @return {!Interpreter.Object|!Interpreter.Primitive} Property value
+ *     (may be UNDEFINED).
  */
 Interpreter.prototype.getProperty = function(obj, name) {
   name = name.toString();
@@ -1823,7 +1828,7 @@ Interpreter.prototype.getProperty = function(obj, name) {
 
 /**
  * Does the named property exist on a data object.
- * @param {!Object} obj Data object.
+ * @param {!Interpreter.Object|!Interpreter.Primitive} obj Data object.
  * @param {*} name Name of property.
  * @return {boolean} True if property exists.
  */
@@ -1859,9 +1864,10 @@ Interpreter.prototype.hasProperty = function(obj, name) {
 
 /**
  * Set a property value on a data object.
- * @param {!Object} obj Data object.
+ * @param {!Interpreter.Object} obj Data object.
  * @param {*} name Name of property.
- * @param {!Object} value New property value.
+ * @param {!Interpreter.Object|!Interpreter.Primitive} value
+ *     New property value.
  * @param {boolean} opt_fixed Unchangeable property if true.
  * @param {boolean} opt_nonenum Non-enumerable property if true.
  */
@@ -1921,7 +1927,7 @@ Interpreter.prototype.setProperty = function(obj, name, value,
 
 /**
  * Delete a property value on a data object.
- * @param {!Object} obj Data object.
+ * @param {!Interpreter.Object} obj Data object.
  * @param {*} name Name of property.
  * @return {boolean} True if deleted, false if undeletable.
  */
@@ -1938,7 +1944,7 @@ Interpreter.prototype.deleteProperty = function(obj, name) {
 
 /**
  * Returns the current scope from the stateStack.
- * @return {!Object} Current scope dictionary.
+ * @return {!Interpreter.Object} Current scope dictionary.
  */
 Interpreter.prototype.getScope = function() {
   for (var i = 0; i < this.stateStack.length; i++) {
@@ -1953,8 +1959,8 @@ Interpreter.prototype.getScope = function() {
  * Create a new scope dictionary.
  * @param {!Object} node AST node defining the scope container
  *     (e.g. a function).
- * @param {Object} parentScope Scope to link to.
- * @return {!Object} New scope.
+ * @param {Interpreter.Object} parentScope Scope to link to.
+ * @return {!Interpreter.Object} New scope.
  */
 Interpreter.prototype.createScope = function(node, parentScope) {
   var scope = this.createObject(null);
@@ -1983,9 +1989,10 @@ Interpreter.prototype.createScope = function(node, parentScope) {
  * Create a new special scope dictionary. Similar to createScope(), but
  * doesn't assume that the scope is for a function body. This is used for
  * the catch clause and with statement.
- * @param {!Object} parentScope Scope to link to.
- * @param {Object=} opt_scope Optional object to transform into scope.
- * @return {!Object} New scope.
+ * @param {!Interpreter.Object} parentScope Scope to link to.
+ * @param {Interpreter.Object=} opt_scope Optional object to transform into
+ *     scope.
+ * @return {!Interpreter.Object} New scope.
  */
 Interpreter.prototype.createSpecialScope = function(parentScope, opt_scope) {
   if (!parentScope) {
@@ -2000,8 +2007,8 @@ Interpreter.prototype.createSpecialScope = function(parentScope, opt_scope) {
 
 /**
  * Retrieves a value from the scope chain.
- * @param {!Object} name Name of variable.
- * @return {!Object} The value.
+ * @param {!Interpreter.Object|!Interpreter.Primitive} name Name of variable.
+ * @return {!Interpreter.Object|!Interpreter.Primitive} The value.
  */
 Interpreter.prototype.getValueFromScope = function(name) {
   var scope = this.getScope();
@@ -2018,8 +2025,8 @@ Interpreter.prototype.getValueFromScope = function(name) {
 
 /**
  * Sets a value to the current scope.
- * @param {!Object} name Name of variable.
- * @param {!Object} value Value.
+ * @param {!Interpreter.Object|!Interpreter.Primitive} name Name of variable.
+ * @param {!Interpreter.Object|!Interpreter.Primitive} value Value.
  */
 Interpreter.prototype.setValueToScope = function(name, value) {
   var scope = this.getScope();
@@ -2040,7 +2047,7 @@ Interpreter.prototype.setValueToScope = function(name, value) {
 /**
  * Create a new scope for the given node.
  * @param {!Object} node AST node (program or function).
- * @param {!Object} scope Scope dictionary to populate.
+ * @param {!Interpreter.Object} scope Scope dictionary to populate.
  * @private
  */
 Interpreter.prototype.populateScope_ = function(node, scope) {
@@ -2103,11 +2110,12 @@ Interpreter.prototype.stripLocations_ = function(node) {
 
 /**
  * Gets a value from the scope chain or from an object property.
- * @param {!Object|!Array} left Name of variable or object/propname tuple.
- * @return {!Object} Value.
+ * @param {!Interpreter.Object|!Interpreter.Primitive|!Array} left
+ *     Name of variable or object/propname tuple.
+ * @return {!Interpreter.Object|!Interpreter.Primitive} Value.
  */
 Interpreter.prototype.getValue = function(left) {
-  if (left.length) {
+  if (left instanceof Array) {
     var obj = left[0];
     var prop = left[1];
     return this.getProperty(obj, prop);
@@ -2118,11 +2126,12 @@ Interpreter.prototype.getValue = function(left) {
 
 /**
  * Sets a value to the scope chain or to an object property.
- * @param {!Object|!Array} left Name of variable or object/propname tuple.
- * @param {!Object} value Value.
+ * @param {!Interpreter.Object|!Interpreter.Primitive|!Array} left
+ *     Name of variable or object/propname tuple.
+ * @param {!Interpreter.Object|!Interpreter.Primitive} value Value.
  */
 Interpreter.prototype.setValue = function(left, value) {
-  if (left.length) {
+  if (left instanceof Array) {
     var obj = left[0];
     var prop = left[1];
     this.setProperty(obj, prop, value);
@@ -2136,8 +2145,8 @@ Interpreter.prototype.setValue = function(left, value) {
  * interpreter try/catch statement.  If unhandled, a real exception will
  * be thrown.  Can be called with either an error class and a message, or
  * with an actual object to be thrown.
- * @param {!Object} errorClass Type of error (if message is provided) or the
- *   value to throw (if no message).
+ * @param {!Interpreter.Object} errorClass Type of error (if message is
+ *   provided) or the value to throw (if no message).
  * @param {string} opt_message Message being thrown.
  */
 Interpreter.prototype.throwException = function(errorClass, opt_message) {
@@ -3033,11 +3042,8 @@ Interpreter.prototype['stepVariableDeclarator'] = function() {
     this.stateStack.unshift({node: node.init});
     return;
   }
-  if (!this.hasProperty(this, node.id.name) || node.init) {
-    if (node.init) {
-      var value = state.value;
-      this.setValue(this.createPrimitive(node.id.name), value);
-    }
+  if (node.init) {
+    this.setValue(this.createPrimitive(node.id.name), state.value);
   }
   this.stateStack.shift();
 };
