@@ -113,7 +113,7 @@
   <code>initFunc</code> like this:</p>
 
   <pre>
-    var wrapper = function getXhr(href, callback) {
+    var wrapper = function(href, callback) {
       href = href ? href.toString() : '';
       var req = new XMLHttpRequest();
       req.open('GET', href, true);
