@@ -1739,7 +1739,8 @@ Interpreter.prototype.nativeToPseudo = function(nativeObj) {
   if (typeof nativeObj == 'boolean' ||
       typeof nativeObj == 'number' ||
       typeof nativeObj == 'string' ||
-      nativeObj === null || nativeObj === undefined) {
+      nativeObj === null || nativeObj === undefined ||
+      nativeObj instanceof RegExp) {
     return this.createPrimitive(nativeObj);
   }
   var pseudoObj;
@@ -2675,22 +2676,18 @@ Interpreter.prototype['stepForInStatement'] = function() {
     state.iterator = 0;
   }
   var name = null;
-  done: do {
-    var i = state.iterator;
-    for (var prop in state.object.properties) {
-      if (prop in state.object.nonenumerable) {
-        continue;
-      }
-      if (i == 0) {
-        name = prop;
-        break done;
-      }
-      i--;
+  var i = state.iterator;
+  for (var prop in state.object.properties) {
+    if (prop in state.object.nonenumerable) {
+      continue;
     }
-    state.object = state.object.parent &&
-        state.object.parent.properties.prototype;
-    state.iterator = 0;
-  } while (state.object);
+    if (i == 0) {
+      // Found the next property.
+      name = prop;
+      break;
+    }
+    i--;
+  }
   state.iterator++;
   if (name === null) {
     this.stateStack.shift();
