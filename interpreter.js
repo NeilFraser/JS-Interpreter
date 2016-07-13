@@ -2676,18 +2676,22 @@ Interpreter.prototype['stepForInStatement'] = function() {
     state.iterator = 0;
   }
   var name = null;
-  var i = state.iterator;
-  for (var prop in state.object.properties) {
-    if (prop in state.object.nonenumerable) {
-      continue;
+  done: do {
+    var i = state.iterator;
+    for (var prop in state.object.properties) {
+      if (prop in state.object.nonenumerable) {
+        continue;
+      }
+      if (i == 0) {
+        name = prop;
+        break done;
+      }
+      i--;
     }
-    if (i == 0) {
-      // Found the next property.
-      name = prop;
-      break;
-    }
-    i--;
-  }
+    state.object = state.object.parent &&
+        state.object.parent.properties.prototype;
+    state.iterator = 0;
+  } while (state.object);
   state.iterator++;
   if (name === null) {
     this.stateStack.shift();
