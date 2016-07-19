@@ -31,9 +31,10 @@
  *     global scope object.
  * @constructor
  */
-var Interpreter = function(code, opt_initFunc) {
+var Interpreter = function(code, opt_initFunc, fileName) {
+  var config = fileName ? {locations: true, sourceFile: fileName} : null;
   if (typeof code == 'string') {
-    code = acorn.parse(code);
+    code = acorn.parse(code, config);
   }
   this.ast = code;
   this.initFunc_ = opt_initFunc;
@@ -83,13 +84,14 @@ var Interpreter = function(code, opt_initFunc) {
  * Add more code to the interpreter.
  * @param {string|!Object} code Raw JavaScript text or AST.
  */
-Interpreter.prototype.appendCode = function(code) {
+Interpreter.prototype.appendCode = function(code, fileName) {
+  var config = fileName ? {locations: true, sourceFile: fileName} : null;
   var state = this.stateStack[this.stateStack.length - 1];
   if (!state || state.node.type != 'Program') {
     throw Error('Expecting original AST to start with a Program node.');
   }
   if (typeof code == 'string') {
-    code = acorn.parse(code);
+    code = acorn.parse(code, config);
   }
   if (!code || code.type != 'Program') {
     throw Error('Expecting new AST to start with a Program node.');
@@ -2151,6 +2153,7 @@ Interpreter.prototype.setValue = function(left, value) {
  * @param {string} opt_message Message being thrown.
  */
 Interpreter.prototype.throwException = function(errorClass, opt_message) {
+  var errNode = this.stateStack[0].node;
   if (this.stateStack[0].interpreter) {
     // This is the wrong interpreter, we are spinning on an eval.
     try {
@@ -2192,6 +2195,7 @@ Interpreter.prototype.throwException = function(errorClass, opt_message) {
       };
       var type = errorTable[this.getProperty(error, 'name')] || Error;
       realError = type(this.getProperty(error, 'message'));
+      if (errNode && errNode.loc) realError.loc = errNode.loc;
     } else {
       realError = error.toString();
     }
