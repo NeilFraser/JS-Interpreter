@@ -397,7 +397,8 @@ Interpreter.prototype.initObject = function(scope) {
 
   wrapper = function(key) {
     key = (key || thisInterpreter.UNDEFINED).toString();
-    return thisInterpreter.createPrimitive(!(key in this.nonenumerable));
+    var enumerable = key in this.properties && !(key in this.notEnumerable);
+    return thisInterpreter.createPrimitive(enumerable);
   };
   this.setProperty(this.OBJECT.properties.prototype, 'propertyIsEnumerable',
                    this.createNativeFunction(wrapper), false, true);
@@ -419,7 +420,7 @@ Interpreter.prototype.initObject = function(scope) {
     var pseudoList = thisInterpreter.createObject(thisInterpreter.ARRAY);
     var i = 0;
     for (var key in obj.properties) {
-      if (key in obj.nonenumerable) {
+      if (key in obj.notEnumerable) {
         continue;
       }
       thisInterpreter.setProperty(pseudoList, i,
@@ -1569,8 +1570,8 @@ Interpreter.prototype.createPrimitive = function(data) {
  * @constructor
  */
 Interpreter.Object = function(parent) {
-  this.fixed = Object.create(null);
-  this.nonenumerable = Object.create(null);
+  this.notEnumerable = Object.create(null);
+  this.notWritable = Object.create(null);
   this.properties = Object.create(null);
   this.parent = parent;
 };
@@ -1869,11 +1870,11 @@ Interpreter.prototype.hasProperty = function(obj, name) {
  * @param {*} name Name of property.
  * @param {!Interpreter.Object|!Interpreter.Primitive} value
  *     New property value.
- * @param {boolean} opt_fixed Unchangeable property if true.
- * @param {boolean} opt_nonenum Non-enumerable property if true.
+ * @param {boolean} opt_notWritable Unwritable property if true.
+ * @param {boolean} opt_notEnumerable Non-enumerable property if true.
  */
 Interpreter.prototype.setProperty = function(obj, name, value,
-                                             opt_fixed, opt_nonenum) {
+    opt_notWritable, opt_notEnumerable) {
   name = name.toString();
   if (typeof value != 'object') {
     throw Error('Failure to wrap a value: ' + value);
@@ -1882,7 +1883,7 @@ Interpreter.prototype.setProperty = function(obj, name, value,
     this.throwException(this.TYPE_ERROR,
                         "Cannot set property '" + name + "' of " + obj);
   }
-  if (obj.isPrimitive || obj.fixed[name]) {
+  if (obj.isPrimitive || obj.notWritable[name]) {
     return;
   }
   if (this.isa(obj, this.STRING)) {
@@ -1918,11 +1919,11 @@ Interpreter.prototype.setProperty = function(obj, name, value,
   }
   // Set the property.
   obj.properties[name] = value;
-  if (opt_fixed) {
-    obj.fixed[name] = true;
+  if (opt_notWritable) {
+    obj.notWritable[name] = true;
   }
-  if (opt_nonenum) {
-    obj.nonenumerable[name] = true;
+  if (opt_notEnumerable) {
+    obj.notEnumerable[name] = true;
   }
 };
 
@@ -1934,7 +1935,7 @@ Interpreter.prototype.setProperty = function(obj, name, value,
  */
 Interpreter.prototype.deleteProperty = function(obj, name) {
   name = name.toString();
-  if (obj.isPrimitive || obj.fixed[name]) {
+  if (obj.isPrimitive || obj.notWritable[name]) {
     return false;
   }
   if (name == 'length' && this.isa(obj, this.ARRAY)) {
@@ -2035,7 +2036,7 @@ Interpreter.prototype.setValueToScope = function(name, value) {
   var nameStr = name.toString();
   while (scope) {
     if ((nameStr in scope.properties) || (!strict && !scope.parentScope)) {
-      if (!scope.fixed[nameStr]) {
+      if (!scope.notWritable[nameStr]) {
         scope.properties[nameStr] = value;
       }
       return;
@@ -2679,7 +2680,7 @@ Interpreter.prototype['stepForInStatement'] = function() {
   done: do {
     var i = state.iterator;
     for (var prop in state.object.properties) {
-      if (prop in state.object.nonenumerable) {
+      if (prop in state.object.notEnumerable) {
         continue;
       }
       if (i == 0) {
