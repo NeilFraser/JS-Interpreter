@@ -80,6 +80,28 @@ var Interpreter = function(code, opt_initFunc) {
 };
 
 /**
+ * Property descriptor of readonly properties.
+ */
+Interpreter.READONLY_DESCRIPTOR = {
+  writable: false
+};
+
+/**
+ * Property descriptor of non-enumerable properties.
+ */
+Interpreter.NONENUMERABLE_DESCRIPTOR = {
+  enumerable: false
+};
+
+/**
+ * Property descriptor of readonly, non-enumerable properties.
+ */
+Interpreter.READONLY_NONENUMERABLE_DESCRIPTOR = {
+  enumerable: false,
+  writable: false
+};
+
+/**
  * Add more code to the interpreter.
  * @param {string|!Object} code Raw JavaScript text or AST.
  */
@@ -136,11 +158,15 @@ Interpreter.prototype.run = function() {
  */
 Interpreter.prototype.initGlobalScope = function(scope) {
   // Initialize uneditable global properties.
-  this.setProperty(scope, 'Infinity', this.createPrimitive(Infinity), true);
-  this.setProperty(scope, 'NaN', this.NAN, true);
-  this.setProperty(scope, 'undefined', this.UNDEFINED, true);
-  this.setProperty(scope, 'window', scope, true);
-  this.setProperty(scope, 'self', scope, false); // Editable.
+  this.setProperty(scope, 'Infinity', this.createPrimitive(Infinity),
+                   Interpreter.READONLY_DESCRIPTOR);
+  this.setProperty(scope, 'NaN', this.NAN,
+                   Interpreter.READONLY_DESCRIPTOR);
+  this.setProperty(scope, 'undefined', this.UNDEFINED,
+                   Interpreter.READONLY_DESCRIPTOR);
+  this.setProperty(scope, 'window', scope,
+                   Interpreter.READONLY_DESCRIPTOR);
+  this.setProperty(scope, 'self', scope); // Editable.
 
   // Initialize global objects.
   this.initFunction(scope);
@@ -182,7 +208,8 @@ Interpreter.prototype.initGlobalScope = function(scope) {
 
   var func = this.createObject(this.FUNCTION);
   func.eval = true;
-  this.setProperty(func, 'length', this.NUMBER_ONE, true);
+  this.setProperty(func, 'length', this.NUMBER_ONE,
+                   Interpreter.READONLY_DESCRIPTOR);
   this.setProperty(scope, 'eval', func);
 
   var strFunctions = [
@@ -248,7 +275,8 @@ Interpreter.prototype.initFunction = function(scope) {
     var ast = acorn.parse('$ = function(' + args + ') {' + code + '};');
     newFunc.node = ast.body[0].expression.right;
     thisInterpreter.setProperty(newFunc, 'length',
-        thisInterpreter.createPrimitive(newFunc.node.length), true);
+        thisInterpreter.createPrimitive(newFunc.node.length),
+        Interpreter.READONLY_DESCRIPTOR);
     return newFunc;
   };
   this.FUNCTION = this.createObject(null);
@@ -280,8 +308,7 @@ Interpreter.prototype.initFunction = function(scope) {
     state.doneArgs_ = true;
     state.doneExec_ = false;
   };
-  this.setProperty(this.FUNCTION.properties.prototype, 'apply',
-                   this.createNativeFunction(wrapper), false, true);
+  this.setNativeFunctionPrototype(this.FUNCTION, 'apply', wrapper);
 
   wrapper = function(thisArg, var_args) {
     var state = thisInterpreter.stateStack[0];
@@ -297,8 +324,7 @@ Interpreter.prototype.initFunction = function(scope) {
     state.doneArgs_ = true;
     state.doneExec_ = false;
   };
-  this.setProperty(this.FUNCTION.properties.prototype, 'call',
-                   this.createNativeFunction(wrapper), false, true);
+  this.setNativeFunctionPrototype(this.FUNCTION, 'call', wrapper);
 
   wrapper = function(thisArg, var_args) {
     // Clone function
@@ -314,24 +340,21 @@ Interpreter.prototype.initFunction = function(scope) {
     }
     return clone;
   };
-  this.setProperty(this.FUNCTION.properties.prototype, 'bind',
-                   this.createNativeFunction(wrapper), false, true);
+  this.setNativeFunctionPrototype(this.FUNCTION, 'bind', wrapper);
   // Function has no parent to inherit from, so it needs its own mandatory
   // toString and valueOf functions.
   wrapper = function() {
     return thisInterpreter.createPrimitive(this.toString());
   };
-  this.setProperty(this.FUNCTION.properties.prototype, 'toString',
-                   this.createNativeFunction(wrapper), false, true);
+  this.setNativeFunctionPrototype(this.FUNCTION, 'toString', wrapper);
   this.setProperty(this.FUNCTION, 'toString',
-                   this.createNativeFunction(wrapper), false, true);
+      this.createNativeFunction(wrapper), Interpreter.NONENUMERABLE_DESCRIPTOR);
   wrapper = function() {
     return thisInterpreter.createPrimitive(this.valueOf());
   };
-  this.setProperty(this.FUNCTION.properties.prototype, 'valueOf',
-                   this.createNativeFunction(wrapper), false, true);
+  this.setNativeFunctionPrototype(this.FUNCTION, 'valueOf', wrapper);
   this.setProperty(this.FUNCTION, 'valueOf',
-                   this.createNativeFunction(wrapper), false, true);
+      this.createNativeFunction(wrapper), Interpreter.NONENUMERABLE_DESCRIPTOR);
 };
 
 /**
@@ -365,44 +388,7 @@ Interpreter.prototype.initObject = function(scope) {
   this.OBJECT = this.createNativeFunction(wrapper);
   this.setProperty(scope, 'Object', this.OBJECT);
 
-  wrapper = function() {
-    return thisInterpreter.createPrimitive(this.toString());
-  };
-  this.setProperty(this.OBJECT.properties.prototype, 'toString',
-                   this.createNativeFunction(wrapper), false, true);
-
-  wrapper = function() {
-    return thisInterpreter.createPrimitive(this.toString());
-  };
-  this.setProperty(this.OBJECT.properties.prototype, 'toLocaleString',
-                   this.createNativeFunction(wrapper), false, true);
-
-  wrapper = function() {
-    return thisInterpreter.createPrimitive(this.valueOf());
-  };
-  this.setProperty(this.OBJECT.properties.prototype, 'valueOf',
-                   this.createNativeFunction(wrapper), false, true);
-
-  wrapper = function(prop) {
-    prop = (prop || thisInterpreter.UNDEFINED).toString();
-    for (var key in this.properties) {
-      if (key == prop) {
-        return thisInterpreter.TRUE;
-      }
-    }
-    return thisInterpreter.FALSE;
-  };
-  this.setProperty(this.OBJECT.properties.prototype, 'hasOwnProperty',
-                   this.createNativeFunction(wrapper), false, true);
-
-  wrapper = function(key) {
-    key = (key || thisInterpreter.UNDEFINED).toString();
-    var enumerable = key in this.properties && !(key in this.notEnumerable);
-    return thisInterpreter.createPrimitive(enumerable);
-  };
-  this.setProperty(this.OBJECT.properties.prototype, 'propertyIsEnumerable',
-                   this.createNativeFunction(wrapper), false, true);
-
+  // Static methods on Object.
   wrapper = function(obj) {
     var pseudoList = thisInterpreter.createObject(thisInterpreter.ARRAY);
     var i = 0;
@@ -414,7 +400,7 @@ Interpreter.prototype.initObject = function(scope) {
     return pseudoList;
   };
   this.setProperty(this.OBJECT, 'getOwnPropertyNames',
-                   this.createNativeFunction(wrapper), false, true);
+      this.createNativeFunction(wrapper), Interpreter.NONENUMERABLE_DESCRIPTOR);
 
   wrapper = function(obj) {
     var pseudoList = thisInterpreter.createObject(thisInterpreter.ARRAY);
@@ -430,7 +416,7 @@ Interpreter.prototype.initObject = function(scope) {
     return pseudoList;
   };
   this.setProperty(this.OBJECT, 'keys',
-                   this.createNativeFunction(wrapper), false, true);
+      this.createNativeFunction(wrapper), Interpreter.NONENUMERABLE_DESCRIPTOR);
 
   wrapper = function(obj, prop, descriptor) {
     prop = (prop || thisInterpreter.UNDEFINED).toString();
@@ -440,7 +426,41 @@ Interpreter.prototype.initObject = function(scope) {
     return obj;
   };
   this.setProperty(this.OBJECT, 'defineProperty',
-                   this.createNativeFunction(wrapper), false, true);
+      this.createNativeFunction(wrapper), Interpreter.NONENUMERABLE_DESCRIPTOR);
+
+  // Instance methods on Object.
+  wrapper = function() {
+    return thisInterpreter.createPrimitive(this.toString());
+  };
+  this.setNativeFunctionPrototype(this.OBJECT, 'toString', wrapper);
+
+  wrapper = function() {
+    return thisInterpreter.createPrimitive(this.toString());
+  };
+  this.setNativeFunctionPrototype(this.OBJECT, 'toLocaleString', wrapper);
+
+  wrapper = function() {
+    return thisInterpreter.createPrimitive(this.valueOf());
+  };
+  this.setNativeFunctionPrototype(this.OBJECT, 'valueOf', wrapper);
+
+  wrapper = function(prop) {
+    prop = (prop || thisInterpreter.UNDEFINED).toString();
+    for (var key in this.properties) {
+      if (key == prop) {
+        return thisInterpreter.TRUE;
+      }
+    }
+    return thisInterpreter.FALSE;
+  };
+  this.setNativeFunctionPrototype(this.OBJECT, 'hasOwnProperty', wrapper);
+
+  wrapper = function(key) {
+    key = (key || thisInterpreter.UNDEFINED).toString();
+    var enumerable = key in this.properties && !(key in this.notEnumerable);
+    return thisInterpreter.createPrimitive(enumerable);
+  };
+  this.setNativeFunctionPrototype(this.OBJECT, 'propertyIsEnumerable', wrapper);
 };
 
 /**
@@ -497,7 +517,7 @@ Interpreter.prototype.initArray = function(scope) {
         thisInterpreter.isa(obj, thisInterpreter.ARRAY));
   };
   this.setProperty(this.ARRAY, 'isArray',
-                   this.createNativeFunction(wrapper), false, true);
+      this.createNativeFunction(wrapper), Interpreter.NONENUMERABLE_DESCRIPTOR);
 
   // Instance methods on Array.
   wrapper = function() {
@@ -510,8 +530,7 @@ Interpreter.prototype.initArray = function(scope) {
     }
     return value;
   };
-  this.setProperty(this.ARRAY.properties.prototype, 'pop',
-                   this.createNativeFunction(wrapper), false, true);
+  this.setNativeFunctionPrototype(this.ARRAY, 'pop', wrapper);
 
   wrapper = function(var_args) {
     for (var i = 0; i < arguments.length; i++) {
@@ -520,8 +539,7 @@ Interpreter.prototype.initArray = function(scope) {
     }
     return thisInterpreter.createPrimitive(this.length);
   };
-  this.setProperty(this.ARRAY.properties.prototype, 'push',
-                   this.createNativeFunction(wrapper), false, true);
+  this.setNativeFunctionPrototype(this.ARRAY, 'push', wrapper);
 
   wrapper = function() {
     if (this.length) {
@@ -536,8 +554,7 @@ Interpreter.prototype.initArray = function(scope) {
     }
     return value;
   };
-  this.setProperty(this.ARRAY.properties.prototype, 'shift',
-                   this.createNativeFunction(wrapper), false, true);
+  this.setNativeFunctionPrototype(this.ARRAY, 'shift', wrapper);
 
   wrapper = function(var_args) {
     for (var i = this.length - 1; i >= 0; i--) {
@@ -549,8 +566,7 @@ Interpreter.prototype.initArray = function(scope) {
     }
     return thisInterpreter.createPrimitive(this.length);
   };
-  this.setProperty(this.ARRAY.properties.prototype, 'unshift',
-                   this.createNativeFunction(wrapper), false, true);
+  this.setNativeFunctionPrototype(this.ARRAY, 'unshift', wrapper);
 
   wrapper = function() {
     for (var i = 0; i < this.length / 2; i++) {
@@ -560,8 +576,7 @@ Interpreter.prototype.initArray = function(scope) {
     }
     return this;
   };
-  this.setProperty(this.ARRAY.properties.prototype, 'reverse',
-                   this.createNativeFunction(wrapper), false, true);
+  this.setNativeFunctionPrototype(this.ARRAY, 'reverse', wrapper);
 
   wrapper = function(index, howmany, var_args) {
     index = getInt(index, 0);
@@ -597,8 +612,7 @@ Interpreter.prototype.initArray = function(scope) {
     }
     return removed;
   };
-  this.setProperty(this.ARRAY.properties.prototype, 'splice',
-                   this.createNativeFunction(wrapper), false, true);
+  this.setNativeFunctionPrototype(this.ARRAY, 'splice', wrapper);
 
   wrapper = function(opt_begin, opt_end) {
     var list = thisInterpreter.createObject(thisInterpreter.ARRAY);
@@ -619,8 +633,7 @@ Interpreter.prototype.initArray = function(scope) {
     }
     return list;
   };
-  this.setProperty(this.ARRAY.properties.prototype, 'slice',
-                   this.createNativeFunction(wrapper), false, true);
+  this.setNativeFunctionPrototype(this.ARRAY, 'slice', wrapper);
 
   wrapper = function(opt_separator) {
     if (!opt_separator || opt_separator.data === undefined) {
@@ -634,8 +647,7 @@ Interpreter.prototype.initArray = function(scope) {
     }
     return thisInterpreter.createPrimitive(text.join(sep));
   };
-  this.setProperty(this.ARRAY.properties.prototype, 'join',
-                   this.createNativeFunction(wrapper), false, true);
+  this.setNativeFunctionPrototype(this.ARRAY, 'join', wrapper);
 
   wrapper = function(var_args) {
     var list = thisInterpreter.createObject(thisInterpreter.ARRAY);
@@ -659,8 +671,7 @@ Interpreter.prototype.initArray = function(scope) {
     }
     return list;
   };
-  this.setProperty(this.ARRAY.properties.prototype, 'concat',
-                   this.createNativeFunction(wrapper), false, true);
+  this.setNativeFunctionPrototype(this.ARRAY, 'concat', wrapper);
 
   wrapper = function(searchElement, opt_fromIndex) {
     searchElement = searchElement || thisInterpreter.UNDEFINED;
@@ -677,8 +688,7 @@ Interpreter.prototype.initArray = function(scope) {
     }
     return thisInterpreter.createPrimitive(-1);
   };
-  this.setProperty(this.ARRAY.properties.prototype, 'indexOf',
-                   this.createNativeFunction(wrapper), false, true);
+  this.setNativeFunctionPrototype(this.ARRAY, 'indexOf', wrapper);
 
   wrapper = function(searchElement, opt_fromIndex) {
     searchElement = searchElement || thisInterpreter.UNDEFINED;
@@ -695,8 +705,7 @@ Interpreter.prototype.initArray = function(scope) {
     }
     return thisInterpreter.createPrimitive(-1);
   };
-  this.setProperty(this.ARRAY.properties.prototype, 'lastIndexOf',
-                   this.createNativeFunction(wrapper), false, true);
+  this.setNativeFunctionPrototype(this.ARRAY, 'lastIndexOf', wrapper);
 
   this.polyfills_.push(
 // Polyfill copied from:
@@ -874,6 +883,7 @@ Interpreter.prototype.initNumber = function(scope) {
                      this.createPrimitive(Number[numConsts[i]]));
   }
 
+  // Static methods on Number.
   wrapper = function(str) {
     str = str || thisInterpreter.UNDEFINED;
     return thisInterpreter.createPrimitive(parseFloat(str.toString()));
@@ -890,37 +900,34 @@ Interpreter.prototype.initNumber = function(scope) {
   this.setProperty(this.NUMBER, 'parseInt',
                    this.createNativeFunction(wrapper));
 
+  // Instance methods on Number.
   wrapper = function(fractionDigits) {
     fractionDigits = fractionDigits ? fractionDigits.toNumber() : undefined;
     var n = this.toNumber();
     return thisInterpreter.createPrimitive(n.toExponential(fractionDigits));
   };
-  this.setProperty(this.NUMBER.properties.prototype, 'toExponential',
-                   this.createNativeFunction(wrapper), false, true);
+  this.setNativeFunctionPrototype(this.NUMBER, 'toExponential', wrapper);
 
   wrapper = function(digits) {
     digits = digits ? digits.toNumber() : undefined;
     var n = this.toNumber();
     return thisInterpreter.createPrimitive(n.toFixed(digits));
   };
-  this.setProperty(this.NUMBER.properties.prototype, 'toFixed',
-                   this.createNativeFunction(wrapper), false, true);
+  this.setNativeFunctionPrototype(this.NUMBER, 'toFixed', wrapper);
 
   wrapper = function(precision) {
     precision = precision ? precision.toNumber() : undefined;
     var n = this.toNumber();
     return thisInterpreter.createPrimitive(n.toPrecision(precision));
   };
-  this.setProperty(this.NUMBER.properties.prototype, 'toPrecision',
-                   this.createNativeFunction(wrapper), false, true);
+  this.setNativeFunctionPrototype(this.NUMBER, 'toPrecision', wrapper);
 
   wrapper = function(radix) {
     radix = radix ? radix.toNumber() : 10;
     var n = this.toNumber();
     return thisInterpreter.createPrimitive(n.toString(radix));
   };
-  this.setProperty(this.NUMBER.properties.prototype, 'toString',
-                   this.createNativeFunction(wrapper), false, true);
+  this.setNativeFunctionPrototype(this.NUMBER, 'toString', wrapper);
 
   wrapper = function(locales, options) {
     locales = locales ? thisInterpreter.pseudoToNative(locales) : undefined;
@@ -928,8 +935,7 @@ Interpreter.prototype.initNumber = function(scope) {
     return thisInterpreter.createPrimitive(
         this.toNumber().toLocaleString(locales, options));
   };
-  this.setProperty(this.NUMBER.properties.prototype, 'toLocaleString',
-                   this.createNativeFunction(wrapper), false, true);
+  this.setNativeFunctionPrototype(this.NUMBER, 'toLocaleString', wrapper);
 };
 
 /**
@@ -953,7 +959,7 @@ Interpreter.prototype.initString = function(scope) {
   this.STRING = this.createNativeFunction(wrapper);
   this.setProperty(scope, 'String', this.STRING);
 
-  // Static methods.
+  // Static methods on String.
   wrapper = function(var_args) {
     for (var i = 0; i < arguments.length; i++) {
       arguments[i] = arguments[i].toNumber();
@@ -962,9 +968,9 @@ Interpreter.prototype.initString = function(scope) {
         String.fromCharCode.apply(String, arguments));
   };
   this.setProperty(this.STRING, 'fromCharCode',
-                   this.createNativeFunction(wrapper), false, true);
+      this.createNativeFunction(wrapper), Interpreter.NONENUMERABLE_DESCRIPTOR);
 
-  // Instance methods.
+  // Instance methods on String.
   // Methods with no arguments.
   var functions = ['toLowerCase', 'toUpperCase',
                    'toLocaleLowerCase', 'toLocaleUpperCase'];
@@ -974,8 +980,7 @@ Interpreter.prototype.initString = function(scope) {
         return thisInterpreter.createPrimitive(nativeFunc.apply(this));
       };
     })(String.prototype[functions[i]]);
-    this.setProperty(this.STRING.properties.prototype, functions[i],
-                     this.createNativeFunction(wrapper), false, true);
+    this.setNativeFunctionPrototype(this.STRING, functions[i], wrapper);
   }
 
   // Trim function may not exist in host browser.  Write them from scratch.
@@ -983,20 +988,17 @@ Interpreter.prototype.initString = function(scope) {
     var str = this.toString();
     return thisInterpreter.createPrimitive(str.replace(/^\s+|\s+$/g, ''));
   };
-  this.setProperty(this.STRING.properties.prototype, 'trim',
-                   this.createNativeFunction(wrapper), false, true);
+  this.setNativeFunctionPrototype(this.STRING, 'trim', wrapper);
   wrapper = function() {
     var str = this.toString();
     return thisInterpreter.createPrimitive(str.replace(/^\s+/g, ''));
   };
-  this.setProperty(this.STRING.properties.prototype, 'trimLeft',
-                   this.createNativeFunction(wrapper), false, true);
+  this.setNativeFunctionPrototype(this.STRING, 'trimLeft', wrapper);
   wrapper = function() {
     var str = this.toString();
     return thisInterpreter.createPrimitive(str.replace(/\s+$/g, ''));
   };
-  this.setProperty(this.STRING.properties.prototype, 'trimRight',
-                   this.createNativeFunction(wrapper), false, true);
+  this.setNativeFunctionPrototype(this.STRING, 'trimRight', wrapper);
 
   // Methods with only numeric arguments.
   functions = ['charAt', 'charCodeAt', 'substring', 'slice', 'substr'];
@@ -1010,8 +1012,7 @@ Interpreter.prototype.initString = function(scope) {
             nativeFunc.apply(this, arguments));
       };
     })(String.prototype[functions[i]]);
-    this.setProperty(this.STRING.properties.prototype, functions[i],
-                     this.createNativeFunction(wrapper), false, true);
+    this.setNativeFunctionPrototype(this.STRING, functions[i], wrapper);
   }
 
   wrapper = function(searchValue, fromIndex) {
@@ -1021,8 +1022,7 @@ Interpreter.prototype.initString = function(scope) {
     return thisInterpreter.createPrimitive(
         str.indexOf(searchValue, fromIndex));
   };
-  this.setProperty(this.STRING.properties.prototype, 'indexOf',
-                   this.createNativeFunction(wrapper), false, true);
+  this.setNativeFunctionPrototype(this.STRING, 'indexOf', wrapper);
 
   wrapper = function(searchValue, fromIndex) {
     var str = this.toString();
@@ -1031,8 +1031,7 @@ Interpreter.prototype.initString = function(scope) {
     return thisInterpreter.createPrimitive(
         str.lastIndexOf(searchValue, fromIndex));
   };
-  this.setProperty(this.STRING.properties.prototype, 'lastIndexOf',
-                   this.createNativeFunction(wrapper), false, true);
+  this.setNativeFunctionPrototype(this.STRING, 'lastIndexOf', wrapper);
 
   wrapper = function(compareString, locales, options) {
     compareString = (compareString || thisInterpreter.UNDEFINED).toString();
@@ -1041,8 +1040,7 @@ Interpreter.prototype.initString = function(scope) {
     return thisInterpreter.createPrimitive(
         this.toString().localeCompare(compareString, locales, options));
   };
-  this.setProperty(this.STRING.properties.prototype, 'localeCompare',
-                   this.createNativeFunction(wrapper), false, true);
+  this.setNativeFunctionPrototype(this.STRING, 'localeCompare', wrapper);
 
   wrapper = function(separator, limit) {
     var str = this.toString();
@@ -1061,8 +1059,7 @@ Interpreter.prototype.initString = function(scope) {
     }
     return pseudoList;
   };
-  this.setProperty(this.STRING.properties.prototype, 'split',
-                   this.createNativeFunction(wrapper), false, true);
+  this.setNativeFunctionPrototype(this.STRING, 'split', wrapper);
 
   wrapper = function(var_args) {
     var str = this.toString();
@@ -1071,8 +1068,7 @@ Interpreter.prototype.initString = function(scope) {
     }
     return thisInterpreter.createPrimitive(str);
   };
-  this.setProperty(this.STRING.properties.prototype, 'concat',
-                   this.createNativeFunction(wrapper), false, true);
+  this.setNativeFunctionPrototype(this.STRING, 'concat', wrapper);
 
   wrapper = function(regexp) {
     var str = this.toString();
@@ -1088,16 +1084,14 @@ Interpreter.prototype.initString = function(scope) {
     }
     return pseudoList;
   };
-  this.setProperty(this.STRING.properties.prototype, 'match',
-                   this.createNativeFunction(wrapper), false, true);
+  this.setNativeFunctionPrototype(this.STRING, 'match', wrapper);
 
   wrapper = function(regexp) {
     var str = this.toString();
     regexp = regexp ? regexp.data : undefined;
     return thisInterpreter.createPrimitive(str.search(regexp));
   };
-  this.setProperty(this.STRING.properties.prototype, 'search',
-                   this.createNativeFunction(wrapper), false, true);
+  this.setNativeFunctionPrototype(this.STRING, 'search', wrapper);
 
   wrapper = function(substr, newSubStr) {
     var str = this.toString();
@@ -1105,8 +1099,7 @@ Interpreter.prototype.initString = function(scope) {
     newSubStr = (newSubStr || thisInterpreter.UNDEFINED).toString();
     return thisInterpreter.createPrimitive(str.replace(substr, newSubStr));
   };
-  this.setProperty(this.STRING.properties.prototype, 'replace',
-                   this.createNativeFunction(wrapper), false, true);
+  this.setNativeFunctionPrototype(this.STRING, 'replace', wrapper);
 };
 
 /**
@@ -1164,19 +1157,19 @@ Interpreter.prototype.initDate = function(scope) {
   this.DATE = this.createNativeFunction(wrapper);
   this.setProperty(scope, 'Date', this.DATE);
 
-  // Static methods.
+  // Static methods on Date.
   wrapper = function() {
     return thisInterpreter.createPrimitive(new Date().getTime());
   };
   this.setProperty(this.DATE, 'now',
-                   this.createNativeFunction(wrapper), false, true);
+      this.createNativeFunction(wrapper), Interpreter.NONENUMERABLE_DESCRIPTOR);
 
   wrapper = function(dateString) {
     dateString = dateString ? dateString.toString() : undefined;
     return thisInterpreter.createPrimitive(Date.parse(dateString));
   };
   this.setProperty(this.DATE, 'parse',
-                   this.createNativeFunction(wrapper), false, true);
+      this.createNativeFunction(wrapper), Interpreter.NONENUMERABLE_DESCRIPTOR);
 
   wrapper = function(a, b, c, d, e, f, h) {
     var args = [];
@@ -1186,9 +1179,9 @@ Interpreter.prototype.initDate = function(scope) {
     return thisInterpreter.createPrimitive(Date.UTC.apply(Date, args));
   };
   this.setProperty(this.DATE, 'UTC',
-                   this.createNativeFunction(wrapper), false, true);
+      this.createNativeFunction(wrapper), Interpreter.NONENUMERABLE_DESCRIPTOR);
 
-  // Instance methods.
+  // Instance methods on Date.
   var functions = ['getDate', 'getDay', 'getFullYear', 'getHours',
       'getMilliseconds', 'getMinutes', 'getMonth', 'getSeconds', 'getTime',
       'getTimezoneOffset', 'getUTCDate', 'getUTCDay', 'getUTCFullYear',
@@ -1212,8 +1205,7 @@ Interpreter.prototype.initDate = function(scope) {
             this.data[nativeFunc].apply(this.data, args));
       };
     })(functions[i]);
-    this.setProperty(this.DATE.properties.prototype, functions[i],
-                     this.createNativeFunction(wrapper), false, true);
+    this.setNativeFunctionPrototype(this.DATE, functions[i], wrapper);
   }
 };
 
@@ -1229,7 +1221,8 @@ Interpreter.prototype.initMath = function(scope) {
                     'SQRT1_2', 'SQRT2'];
   for (var i = 0; i < mathConsts.length; i++) {
     this.setProperty(myMath, mathConsts[i],
-        this.createPrimitive(Math[mathConsts[i]]), false, true);
+        this.createPrimitive(Math[mathConsts[i]]),
+        Interpreter.READONLY_NONENUMERABLE_DESCRIPTOR);
   }
   var numFunctions = ['abs', 'acos', 'asin', 'atan', 'atan2', 'ceil', 'cos',
                       'exp', 'floor', 'log', 'max', 'min', 'pow', 'random',
@@ -1245,7 +1238,8 @@ Interpreter.prototype.initMath = function(scope) {
       };
     })(Math[numFunctions[i]]);
     this.setProperty(myMath, numFunctions[i],
-        this.createNativeFunction(wrapper), false, true);
+        this.createNativeFunction(wrapper),
+        Interpreter.NONENUMERABLE_DESCRIPTOR);
   }
 };
 
@@ -1271,21 +1265,21 @@ Interpreter.prototype.initRegExp = function(scope) {
   this.REGEXP = this.createNativeFunction(wrapper);
   this.setProperty(scope, 'RegExp', this.REGEXP);
 
-  this.setProperty(this.REGEXP.properties.prototype, 'global',
-      this.UNDEFINED, true, true);
-  this.setProperty(this.REGEXP.properties.prototype, 'ignoreCase',
-      this.UNDEFINED, true, true);
-  this.setProperty(this.REGEXP.properties.prototype, 'multiline',
-      this.UNDEFINED, true, true);
+  this.setProperty(this.REGEXP.properties.prototype, 'global', this.UNDEFINED,
+      Interpreter.READONLY_NONENUMERABLE_DESCRIPTOR);
+  this.setProperty(this.REGEXP.properties.prototype, 'ignoreCase', this.UNDEFINED,
+      Interpreter.READONLY_NONENUMERABLE_DESCRIPTOR);
+  this.setProperty(this.REGEXP.properties.prototype, 'multiline', this.UNDEFINED,
+      Interpreter.READONLY_NONENUMERABLE_DESCRIPTOR);
   this.setProperty(this.REGEXP.properties.prototype, 'source',
-      this.createPrimitive('(?:)'), true, true);
+      this.createPrimitive('(?:)'),
+      Interpreter.READONLY_NONENUMERABLE_DESCRIPTOR);
 
   wrapper = function(str) {
     str = str.toString();
     return thisInterpreter.createPrimitive(this.data.test(str));
   };
-  this.setProperty(this.REGEXP.properties.prototype, 'test',
-                   this.createNativeFunction(wrapper), false, true);
+  this.setNativeFunctionPrototype(this.REGEXP, 'test', wrapper);
 
   wrapper = function(str) {
     str = str.toString();
@@ -1311,8 +1305,7 @@ Interpreter.prototype.initRegExp = function(scope) {
     }
     return thisInterpreter.NULL;
   };
-  this.setProperty(this.REGEXP.properties.prototype, 'exec',
-                   this.createNativeFunction(wrapper), false, true);
+  this.setNativeFunctionPrototype(this.REGEXP, 'exec', wrapper);
 };
 
 /**
@@ -1354,16 +1347,17 @@ Interpreter.prototype.initError = function(scope) {
     }
     if (opt_message) {
       thisInterpreter.setProperty(newError, 'message',
-          thisInterpreter.createPrimitive(String(opt_message)), false, true);
+          thisInterpreter.createPrimitive(String(opt_message)),
+          Interpreter.NONENUMERABLE_DESCRIPTOR);
     }
     return newError;
   };
   this.ERROR = this.createNativeFunction(wrapper);
   this.setProperty(scope, 'Error', this.ERROR);
-  this.setProperty(this.ERROR.properties.prototype,
-                   'message', this.STRING_EMPTY, false, true);
-  this.setProperty(this.ERROR.properties.prototype,
-                   'name', this.createPrimitive('Error'), false, true);
+  this.setProperty(this.ERROR.properties.prototype, 'message',
+      this.STRING_EMPTY, Interpreter.NONENUMERABLE_DESCRIPTOR);
+  this.setProperty(this.ERROR.properties.prototype, 'name',
+      this.createPrimitive('Error'), Interpreter.NONENUMERABLE_DESCRIPTOR);
 
   // Create half a dozen error subclasses.
   var errors = {
@@ -1387,15 +1381,17 @@ Interpreter.prototype.initError = function(scope) {
         }
         if (opt_message) {
           thisInterpreter.setProperty(newError, 'message',
-              thisInterpreter.createPrimitive(String(opt_message)), false, true);
+              thisInterpreter.createPrimitive(String(opt_message)),
+              Interpreter.NONENUMERABLE_DESCRIPTOR);
         }
         return newError;
       };
     };
     this[constName] = this.createNativeFunction(wrapper(constName));
-    this.setProperty(this[constName], 'prototype', this.createObject(this.ERROR));
-    this.setProperty(this[constName].properties.prototype,
-                     'name', this.createPrimitive(errorName), false, true);
+    this.setProperty(this[constName], 'prototype',
+        this.createObject(this.ERROR));
+    this.setProperty(this[constName].properties.prototype, 'name',
+        this.createPrimitive(errorName), Interpreter.NONENUMERABLE_DESCRIPTOR);
     this.setProperty(scope, errorName, this[constName]);
   }
 };
@@ -1570,6 +1566,7 @@ Interpreter.prototype.createPrimitive = function(data) {
  * @constructor
  */
 Interpreter.Object = function(parent) {
+  this.notConfigurable = Object.create(null);
   this.notEnumerable = Object.create(null);
   this.notWritable = Object.create(null);
   this.properties = Object.create(null);
@@ -1668,20 +1665,20 @@ Interpreter.prototype.populateRegExp_ = function(pseudoRegexp, nativeRegexp) {
   pseudoRegexp.data = nativeRegexp;
   // lastIndex is settable, all others are read-only attributes
   this.setProperty(pseudoRegexp, 'lastIndex',
-                   this.createPrimitive(nativeRegexp.lastIndex),
-                   false, true);
+      this.createPrimitive(nativeRegexp.lastIndex),
+      Interpreter.NONENUMERABLE_DESCRIPTOR);
   this.setProperty(pseudoRegexp, 'source',
-                   this.createPrimitive(nativeRegexp.source),
-                   true, true);
+      this.createPrimitive(nativeRegexp.source),
+      Interpreter.READONLY_NONENUMERABLE_DESCRIPTOR);
   this.setProperty(pseudoRegexp, 'global',
-                   this.createPrimitive(nativeRegexp.global),
-                   true, true);
+      this.createPrimitive(nativeRegexp.global),
+      Interpreter.READONLY_NONENUMERABLE_DESCRIPTOR);
   this.setProperty(pseudoRegexp, 'ignoreCase',
-                   this.createPrimitive(nativeRegexp.ignoreCase),
-                   true, true);
+      this.createPrimitive(nativeRegexp.ignoreCase),
+      Interpreter.READONLY_NONENUMERABLE_DESCRIPTOR);
   this.setProperty(pseudoRegexp, 'multiline',
-                   this.createPrimitive(nativeRegexp.multiline),
-                   true, true);
+      this.createPrimitive(nativeRegexp.multiline),
+      Interpreter.READONLY_NONENUMERABLE_DESCRIPTOR);
   // Override a couple of Object's conversion functions.
   pseudoRegexp.toString = function() {return String(this.data);};
   pseudoRegexp.valueOf = function() {return this.data;};
@@ -1699,7 +1696,8 @@ Interpreter.prototype.createFunction = function(node, opt_scope) {
   func.parentScope = opt_scope || this.getScope();
   func.node = node;
   this.setProperty(func, 'length',
-                   this.createPrimitive(func.node.params.length), true);
+      this.createPrimitive(func.node.params.length),
+      Interpreter.READONLY_DESCRIPTOR);
   return func;
 };
 
@@ -1711,8 +1709,8 @@ Interpreter.prototype.createFunction = function(node, opt_scope) {
 Interpreter.prototype.createNativeFunction = function(nativeFunc) {
   var func = this.createObject(this.FUNCTION);
   func.nativeFunc = nativeFunc;
-  this.setProperty(func, 'length',
-                   this.createPrimitive(nativeFunc.length), true);
+  this.setProperty(func, 'length', this.createPrimitive(nativeFunc.length),
+      Interpreter.READONLY_DESCRIPTOR);
   return func;
 };
 
@@ -1724,8 +1722,8 @@ Interpreter.prototype.createNativeFunction = function(nativeFunc) {
 Interpreter.prototype.createAsyncFunction = function(asyncFunc) {
   var func = this.createObject(this.FUNCTION);
   func.asyncFunc = asyncFunc;
-  this.setProperty(func, 'length',
-                   this.createPrimitive(asyncFunc.length), true);
+  this.setProperty(func, 'length', this.createPrimitive(asyncFunc.length),
+      Interpreter.READONLY_DESCRIPTOR);
   return func;
 };
 
@@ -1870,12 +1868,18 @@ Interpreter.prototype.hasProperty = function(obj, name) {
  * @param {*} name Name of property.
  * @param {!Interpreter.Object|!Interpreter.Primitive} value
  *     New property value.
- * @param {boolean} opt_notWritable Unwritable property if true.
- * @param {boolean} opt_notEnumerable Non-enumerable property if true.
+ * @param {!Object} opt_descriptor Optional descriptor object.
  */
-Interpreter.prototype.setProperty = function(obj, name, value,
-    opt_notWritable, opt_notEnumerable) {
+Interpreter.prototype.setProperty = function(obj, name, value, opt_descriptor) {
   name = name.toString();
+  var configurable = undefined;
+  var enumerable = undefined;
+  var writable = undefined;
+  if (typeof opt_descriptor == 'object') {
+    configurable = opt_descriptor.configurable;
+    enumerable = opt_descriptor.enumerable;
+    writable = opt_descriptor.writable;
+  }
   if (typeof value != 'object') {
     throw Error('Failure to wrap a value: ' + value);
   }
@@ -1919,12 +1923,29 @@ Interpreter.prototype.setProperty = function(obj, name, value,
   }
   // Set the property.
   obj.properties[name] = value;
-  if (opt_notWritable) {
-    obj.notWritable[name] = true;
+  if (configurable !== undefined) {
+    obj.notConfigurable[name] = !configurable;
   }
-  if (opt_notEnumerable) {
-    obj.notEnumerable[name] = true;
+  if (enumerable !== undefined) {
+    obj.notEnumerable[name] = !enumerable;
   }
+  if (writable !== undefined) {
+    obj.notWritable[name] = !writable;
+  }
+};
+
+/**
+ * Convenience method for adding a native function as a non-enumerable property
+ * onto an object's prototype.
+ * @param {!Interpreter.Object} obj Data object.
+ * @param {*} name Name of property.
+ * @param {!Function} wrapper Function object.
+ */
+Interpreter.prototype.setNativeFunctionPrototype =
+    function(obj, name, wrapper) {
+  this.setProperty(obj.properties.prototype, name,
+      this.createNativeFunction(wrapper),
+      Interpreter.NONENUMERABLE_DESCRIPTOR);
 };
 
 /**
@@ -2166,8 +2187,8 @@ Interpreter.prototype.throwException = function(errorClass, opt_message) {
     var error = errorClass;
   } else {
     var error = this.createObject(errorClass);
-    this.setProperty(error, 'message',
-        this.createPrimitive(opt_message), false, true);
+    this.setProperty(error, 'message', this.createPrimitive(opt_message),
+        Interpreter.NONENUMERABLE_DESCRIPTOR);
   }
   // Search for a try statement.
   do {
