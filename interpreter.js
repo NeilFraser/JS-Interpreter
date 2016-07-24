@@ -406,7 +406,7 @@ Interpreter.prototype.initObject = function(scope) {
     var pseudoList = thisInterpreter.createObject(thisInterpreter.ARRAY);
     var i = 0;
     for (var key in obj.properties) {
-      if (key in obj.notEnumerable) {
+      if (obj.notEnumerable[key]) {
         continue;
       }
       thisInterpreter.setProperty(pseudoList, i,
@@ -423,6 +423,16 @@ Interpreter.prototype.initObject = function(scope) {
     if (!(descriptor instanceof Interpreter.Object)) {
       throw Error('Property description must be an object.');
     }
+    var value = thisInterpreter.getProperty(descriptor, 'value');
+    var nativeDescriptor = {
+      configurable: thisInterpreter.pseudoToNative(
+          thisInterpreter.getProperty(descriptor, 'configurable')),
+      enumerable: thisInterpreter.pseudoToNative(
+          thisInterpreter.getProperty(descriptor, 'enumerable')),
+      writable: thisInterpreter.pseudoToNative(
+          thisInterpreter.getProperty(descriptor, 'writable'))
+    };
+    thisInterpreter.setProperty(obj, prop, value, nativeDescriptor);
     return obj;
   };
   this.setProperty(this.OBJECT, 'defineProperty',
@@ -457,7 +467,7 @@ Interpreter.prototype.initObject = function(scope) {
 
   wrapper = function(key) {
     key = (key || thisInterpreter.UNDEFINED).toString();
-    var enumerable = key in this.properties && !(key in this.notEnumerable);
+    var enumerable = key in this.properties && !this.notEnumerable[key];
     return thisInterpreter.createPrimitive(enumerable);
   };
   this.setNativeFunctionPrototype(this.OBJECT, 'propertyIsEnumerable', wrapper);
@@ -1868,14 +1878,17 @@ Interpreter.prototype.hasProperty = function(obj, name) {
  * @param {*} name Name of property.
  * @param {!Interpreter.Object|!Interpreter.Primitive} value
  *     New property value.
- * @param {!Object} opt_descriptor Optional descriptor object.
+ * @param {Object=} opt_descriptor Optional descriptor object.
  */
 Interpreter.prototype.setProperty = function(obj, name, value, opt_descriptor) {
   name = name.toString();
+  if (obj.notConfigurable[name]) {
+    this.throwException(this.TYPE_ERROR, 'Cannot redefine property: ' + name);
+  }
   var configurable = undefined;
   var enumerable = undefined;
   var writable = undefined;
-  if (typeof opt_descriptor == 'object') {
+  if (opt_descriptor) {
     configurable = opt_descriptor.configurable;
     enumerable = opt_descriptor.enumerable;
     writable = opt_descriptor.writable;
@@ -1887,7 +1900,7 @@ Interpreter.prototype.setProperty = function(obj, name, value, opt_descriptor) {
     this.throwException(this.TYPE_ERROR,
                         "Cannot set property '" + name + "' of " + obj);
   }
-  if (obj.isPrimitive || obj.notWritable[name]) {
+  if (obj.isPrimitive) {
     return;
   }
   if (this.isa(obj, this.STRING)) {
@@ -1922,7 +1935,9 @@ Interpreter.prototype.setProperty = function(obj, name, value, opt_descriptor) {
     }
   }
   // Set the property.
-  obj.properties[name] = value;
+  if (opt_descriptor || !obj.notWritable[name]) {
+    obj.properties[name] = value;
+  }
   if (configurable !== undefined) {
     obj.notConfigurable[name] = !configurable;
   }
@@ -2701,7 +2716,7 @@ Interpreter.prototype['stepForInStatement'] = function() {
   done: do {
     var i = state.iterator;
     for (var prop in state.object.properties) {
-      if (prop in state.object.notEnumerable) {
+      if (state.object.notEnumerable[prop]) {
         continue;
       }
       if (i == 0) {
