@@ -1897,6 +1897,8 @@ Interpreter.prototype.hasProperty = function(obj, name) {
  * @param {Interpreter.Object|Interpreter.Primitive} value
  *     New property value or null if getter/setter is described.
  * @param {Object=} opt_descriptor Optional descriptor object.
+ * @return {!Interpreter.Object|undefined} Returns a setter function if one
+ *     needs to be called, otherwise undefined.
  */
 Interpreter.prototype.setProperty = function(obj, name, value, opt_descriptor) {
   name = name.toString();
@@ -1912,7 +1914,6 @@ Interpreter.prototype.setProperty = function(obj, name, value, opt_descriptor) {
   }
   if (opt_descriptor && (opt_descriptor.get || opt_descriptor.set) &&
       (value != this.UNDEFINED || opt_descriptor.writable !== undefined)) {
-    console.log(value)
     this.throwException(this.TYPE_ERROR, 'Invalid property descriptor. ' +
         'Cannot both specify accessors and a value or writable attribute');
   }
@@ -1950,11 +1951,9 @@ Interpreter.prototype.setProperty = function(obj, name, value, opt_descriptor) {
       obj.length = Math.max(obj.length, i + 1);
     }
   }
-  // Set the property.
-  if (opt_descriptor || !obj.notWritable[name]) {
-    obj.properties[name] = value;
-  }
   if (opt_descriptor) {
+    // Define the property.
+    obj.properties[name] = value;
     if (!opt_descriptor.configurable) {
       obj.notConfigurable[name] = true;
     }
@@ -1986,6 +1985,13 @@ Interpreter.prototype.setProperty = function(obj, name, value, opt_descriptor) {
       } else {
         obj.notWritable[name] = true;
       }
+    }
+  } else {
+    // Set the property.
+    if (obj.setter[name]) {
+      return obj.setter[name];
+    } else if (!obj.notWritable[name]) {
+      obj.properties[name] = value;
     }
   }
 };
@@ -2208,14 +2214,17 @@ Interpreter.prototype.getValue = function(left) {
  * @param {!Interpreter.Object|!Interpreter.Primitive|!Array} left
  *     Name of variable or object/propname tuple.
  * @param {!Interpreter.Object|!Interpreter.Primitive} value Value.
+ * @return {!Interpreter.Object|undefined} Returns a setter function if one
+ *     needs to be called, otherwise undefined.
  */
 Interpreter.prototype.setValue = function(left, value) {
   if (left instanceof Array) {
     var obj = left[0];
     var prop = left[1];
-    this.setProperty(obj, prop, value);
+    return this.setProperty(obj, prop, value);
   } else {
     this.setValueToScope(left, value);
+    return undefined;
   }
 };
 
@@ -2318,7 +2327,13 @@ Interpreter.prototype['stepAssignmentExpression'] = function() {
     this.stateStack.unshift({node: node.right});
     return;
   }
-  this.stateStack.shift();
+  if (state.doneSetter_) {
+    // Setter method on property has completed.
+    // Ignore its return value, and use the original set value instead.
+    this.stateStack.shift();
+    this.stateStack[0].value = state.doneSetter_;
+    return;
+  }
   var leftSide = state.leftSide;
   var rightSide = state.value;
   var value;
@@ -2364,7 +2379,20 @@ Interpreter.prototype['stepAssignmentExpression'] = function() {
     }
     value = this.createPrimitive(value);
   }
-  this.setValue(leftSide, value);
+  var setter = this.setValue(leftSide, value);
+  if (setter) {
+    state.doneSetter_ = value;
+    this.stateStack.unshift({
+      node: {type: 'CallExpression'},
+      doneCallee_: true,
+      funcThis_: leftSide[0],
+      func_: setter,
+      doneArgs_: true,
+      arguments: [value],
+    });
+    return;
+  }
+  this.stateStack.shift();
   this.stateStack[0].value = value;
 };
 
@@ -3136,6 +3164,7 @@ Interpreter.prototype['stepVariableDeclarator'] = function() {
     return;
   }
   if (node.init) {
+    // This setValue call never needs to deal with calling a setter function.
     this.setValue(this.createPrimitive(node.id.name), state.value);
   }
   this.stateStack.shift();
