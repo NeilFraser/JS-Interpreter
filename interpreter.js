@@ -83,6 +83,8 @@ var Interpreter = function(code, opt_initFunc) {
  * Property descriptor of readonly properties.
  */
 Interpreter.READONLY_DESCRIPTOR = {
+  configurable: true,
+  enumerable: true,
   writable: false
 };
 
@@ -90,13 +92,16 @@ Interpreter.READONLY_DESCRIPTOR = {
  * Property descriptor of non-enumerable properties.
  */
 Interpreter.NONENUMERABLE_DESCRIPTOR = {
-  enumerable: false
+  configurable: true,
+  enumerable: false,
+  writable: true
 };
 
 /**
  * Property descriptor of readonly, non-enumerable properties.
  */
 Interpreter.READONLY_NONENUMERABLE_DESCRIPTOR = {
+  configurable: true,
   enumerable: false,
   writable: false
 };
@@ -424,13 +429,17 @@ Interpreter.prototype.initObject = function(scope) {
       throw Error('Property description must be an object.');
     }
     var value = thisInterpreter.getProperty(descriptor, 'value');
+    var get = thisInterpreter.getProperty(descriptor, 'get');
+    var set = thisInterpreter.getProperty(descriptor, 'set');
     var nativeDescriptor = {
       configurable: thisInterpreter.pseudoToNative(
           thisInterpreter.getProperty(descriptor, 'configurable')),
       enumerable: thisInterpreter.pseudoToNative(
           thisInterpreter.getProperty(descriptor, 'enumerable')),
       writable: thisInterpreter.pseudoToNative(
-          thisInterpreter.getProperty(descriptor, 'writable'))
+          thisInterpreter.getProperty(descriptor, 'writable')),
+      get: get == thisInterpreter.UNDEFINED ? undefined : get,
+      set: set == thisInterpreter.UNDEFINED ? undefined : set
     };
     thisInterpreter.setProperty(obj, prop, value, nativeDescriptor);
     return obj;
@@ -1579,6 +1588,8 @@ Interpreter.Object = function(parent) {
   this.notConfigurable = Object.create(null);
   this.notEnumerable = Object.create(null);
   this.notWritable = Object.create(null);
+  this.getter = Object.create(null);
+  this.setter = Object.create(null);
   this.properties = Object.create(null);
   this.parent = parent;
 };
@@ -1823,6 +1834,13 @@ Interpreter.prototype.getProperty = function(obj, name) {
   }
   while (true) {
     if (obj.properties && name in obj.properties) {
+      var getter = obj.getter[name];
+      if (getter) {
+        // Flag this function as being a getter and thus needing immediate
+        // execution (rather than being the value of the property).
+        getter.isGetter = true;
+        return getter;
+      }
       return obj.properties[name];
     }
     if (obj.parent && obj.parent.properties &&
@@ -1876,22 +1894,14 @@ Interpreter.prototype.hasProperty = function(obj, name) {
  * Set a property value on a data object.
  * @param {!Interpreter.Object} obj Data object.
  * @param {*} name Name of property.
- * @param {!Interpreter.Object|!Interpreter.Primitive} value
- *     New property value.
+ * @param {Interpreter.Object|Interpreter.Primitive} value
+ *     New property value or null if getter/setter is described.
  * @param {Object=} opt_descriptor Optional descriptor object.
  */
 Interpreter.prototype.setProperty = function(obj, name, value, opt_descriptor) {
   name = name.toString();
-  if (obj.notConfigurable[name]) {
+  if (opt_descriptor && obj.notConfigurable[name]) {
     this.throwException(this.TYPE_ERROR, 'Cannot redefine property: ' + name);
-  }
-  var configurable = undefined;
-  var enumerable = undefined;
-  var writable = undefined;
-  if (opt_descriptor) {
-    configurable = opt_descriptor.configurable;
-    enumerable = opt_descriptor.enumerable;
-    writable = opt_descriptor.writable;
   }
   if (typeof value != 'object') {
     throw Error('Failure to wrap a value: ' + value);
@@ -1899,6 +1909,12 @@ Interpreter.prototype.setProperty = function(obj, name, value, opt_descriptor) {
   if (obj == this.UNDEFINED || obj == this.NULL) {
     this.throwException(this.TYPE_ERROR,
                         "Cannot set property '" + name + "' of " + obj);
+  }
+  if (opt_descriptor && (opt_descriptor.get || opt_descriptor.set) &&
+      (value != this.UNDEFINED || opt_descriptor.writable !== undefined)) {
+    console.log(value)
+    this.throwException(this.TYPE_ERROR, 'Invalid property descriptor. ' +
+        'Cannot both specify accessors and a value or writable attribute');
   }
   if (obj.isPrimitive) {
     return;
@@ -1938,14 +1954,39 @@ Interpreter.prototype.setProperty = function(obj, name, value, opt_descriptor) {
   if (opt_descriptor || !obj.notWritable[name]) {
     obj.properties[name] = value;
   }
-  if (configurable !== undefined) {
-    obj.notConfigurable[name] = !configurable;
-  }
-  if (enumerable !== undefined) {
-    obj.notEnumerable[name] = !enumerable;
-  }
-  if (writable !== undefined) {
-    obj.notWritable[name] = !writable;
+  if (opt_descriptor) {
+    if (!opt_descriptor.configurable) {
+      obj.notConfigurable[name] = true;
+    }
+    var getter = opt_descriptor.get;
+    if (getter) {
+      obj.getter[name] = getter;
+    } else {
+      delete obj.getter[name];
+    }
+    var setter = opt_descriptor.set;
+    if (setter) {
+      obj.setter[name] = setter;
+    } else {
+      delete obj.setter[name];
+    }
+    var enumerable = opt_descriptor.enumerable || false;
+    if (enumerable) {
+      delete obj.notEnumerable[name];
+    } else {
+      obj.notEnumerable[name] = true;
+    }
+    if (getter || setter) {
+      delete obj.notWritable[name];
+      obj.properties[name] = this.UNDEFINED;
+    } else {
+      var writable = opt_descriptor.writable || false;
+      if (writable) {
+        delete obj.notWritable[name];
+      } else {
+        obj.notWritable[name] = true;
+      }
+    }
   }
 };
 
@@ -2845,7 +2886,21 @@ Interpreter.prototype['stepMemberExpression'] = function() {
     if (state.components) {
       this.stateStack[0].value = [state.object, state.value];
     } else {
-      this.stateStack[0].value = this.getProperty(state.object, state.value);
+      var value = this.getProperty(state.object, state.value);
+      if (value.isGetter) {
+        // Clear the getter flag and call the getter function.
+        value.isGetter = false;
+        this.stateStack.unshift({
+          node: {type: 'CallExpression'},
+          doneCallee_: true,
+          funcThis_: state.object,
+          func_: value,
+          doneArgs_: true,
+          arguments: [],
+        });
+      } else {
+        this.stateStack[0].value = value;
+      }
     }
   }
 };
