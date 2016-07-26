@@ -2322,8 +2322,30 @@ Interpreter.prototype['stepAssignmentExpression'] = function() {
     return;
   }
   if (!state.doneRight) {
+    if (!state.leftSide) {
+      state.leftSide = state.value;
+    }
+    if (state.doneGetter_) {
+      state.leftValue = state.value;
+    }
+    if (!state.doneGetter_ && node.operator != '=') {
+      state.leftValue = this.getValue(state.leftSide);
+      if (state.leftValue.isGetter) {
+        // Clear the getter flag and call the getter function.
+        state.leftValue.isGetter = false;
+        state.doneGetter_ = true;
+        this.stateStack.unshift({
+          node: {type: 'CallExpression'},
+          doneCallee_: true,
+          funcThis_: state.leftSide[0],
+          func_: state.leftValue,
+          doneArgs_: true,
+          arguments: [],
+        });
+        return;
+      }
+    }
     state.doneRight = true;
-    state.leftSide = state.value;
     this.stateStack.unshift({node: node.right});
     return;
   }
@@ -2334,20 +2356,18 @@ Interpreter.prototype['stepAssignmentExpression'] = function() {
     this.stateStack[0].value = state.doneSetter_;
     return;
   }
-  var leftSide = state.leftSide;
   var rightSide = state.value;
   var value;
   if (node.operator == '=') {
     value = rightSide;
   } else {
-    var leftValue = this.getValue(leftSide);
     var rightValue = rightSide;
-    var leftNumber = leftValue.toNumber();
+    var leftNumber = state.leftValue.toNumber();
     var rightNumber = rightValue.toNumber();
     if (node.operator == '+=') {
       var left, right;
-      if (leftValue.type == 'string' || rightValue.type == 'string') {
-        left = leftValue.toString();
+      if (state.leftValue.type == 'string' || rightValue.type == 'string') {
+        left = state.leftValue.toString();
         right = rightValue.toString();
       } else {
         left = leftNumber;
@@ -2379,13 +2399,13 @@ Interpreter.prototype['stepAssignmentExpression'] = function() {
     }
     value = this.createPrimitive(value);
   }
-  var setter = this.setValue(leftSide, value);
+  var setter = this.setValue(state.leftSide, value);
   if (setter) {
     state.doneSetter_ = value;
     this.stateStack.unshift({
       node: {type: 'CallExpression'},
       doneCallee_: true,
-      funcThis_: leftSide[0],
+      funcThis_: state.leftSide[0],
       func_: setter,
       doneArgs_: true,
       arguments: [value],
