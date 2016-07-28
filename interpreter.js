@@ -2350,6 +2350,7 @@ Interpreter.prototype['stepAssignmentExpression'] = function() {
     return;
   }
   if (state.doneSetter_) {
+    // Return if setter function.
     // Setter method on property has completed.
     // Ignore its return value, and use the original set value instead.
     this.stateStack.shift();
@@ -2412,6 +2413,7 @@ Interpreter.prototype['stepAssignmentExpression'] = function() {
     });
     return;
   }
+  // Return if no setter function.
   this.stateStack.shift();
   this.stateStack[0].value = value;
 };
@@ -3142,14 +3144,43 @@ Interpreter.prototype['stepUnaryExpression'] = function() {
 Interpreter.prototype['stepUpdateExpression'] = function() {
   var state = this.stateStack[0];
   var node = state.node;
-  if (!state.done) {
-    state.done = true;
+  if (!state.doneLeft) {
+    state.doneLeft = true;
     this.stateStack.unshift({node: node.argument, components: true});
     return;
   }
-  this.stateStack.shift();
-  var leftSide = state.value;
-  var leftValue = this.getValue(leftSide).toNumber();
+  if (!state.leftSide) {
+    state.leftSide = state.value;
+  }
+  if (state.doneGetter_) {
+    state.leftValue = state.value;
+  }
+  if (!state.doneGetter_) {
+    state.leftValue = this.getValue(state.leftSide);
+    if (state.leftValue.isGetter) {
+      // Clear the getter flag and call the getter function.
+      state.leftValue.isGetter = false;
+      state.doneGetter_ = true;
+      this.stateStack.unshift({
+        node: {type: 'CallExpression'},
+        doneCallee_: true,
+        funcThis_: state.leftSide[0],
+        func_: state.leftValue,
+        doneArgs_: true,
+        arguments: [],
+      });
+      return;
+    }
+  }
+  if (state.doneSetter_) {
+    // Return if setter function.
+    // Setter method on property has completed.
+    // Ignore its return value, and use the original set value instead.
+    this.stateStack.shift();
+    this.stateStack[0].value = state.doneSetter_;
+    return;
+  }
+  var leftValue = state.leftValue.toNumber();
   var changeValue;
   if (node.operator == '++') {
     changeValue = this.createPrimitive(leftValue + 1);
@@ -3158,9 +3189,24 @@ Interpreter.prototype['stepUpdateExpression'] = function() {
   } else {
     throw SyntaxError('Unknown update expression: ' + node.operator);
   }
-  this.setValue(leftSide, changeValue);
-  this.stateStack[0].value = node.prefix ?
+  var returnValue = node.prefix ?
       changeValue : this.createPrimitive(leftValue);
+  var setter = this.setValue(state.leftSide, changeValue);
+  if (setter) {
+    state.doneSetter_ = returnValue;
+    this.stateStack.unshift({
+      node: {type: 'CallExpression'},
+      doneCallee_: true,
+      funcThis_: state.leftSide[0],
+      func_: setter,
+      doneArgs_: true,
+      arguments: [changeValue],
+    });
+    return;
+  }
+  // Return if no setter function.
+  this.stateStack.shift();
+  this.stateStack[0].value = returnValue;
 };
 
 Interpreter.prototype['stepVariableDeclaration'] = function() {
