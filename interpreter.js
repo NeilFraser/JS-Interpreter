@@ -33,7 +33,7 @@
  */
 var Interpreter = function(code, opt_initFunc) {
   if (typeof code == 'string') {
-    code = acorn.parse(code);
+    code = acorn.parse(code, Interpreter.PARSE_OPTIONS);
   }
   this.ast = code;
   this.initFunc_ = opt_initFunc;
@@ -60,7 +60,7 @@ var Interpreter = function(code, opt_initFunc) {
   this.NUMBER_ONE.parent = this.NUMBER;
   this.STRING_EMPTY.parent = this.STRING;
   // Run the polyfills.
-  this.ast = acorn.parse(this.polyfills_.join('\n'));
+  this.ast = acorn.parse(this.polyfills_.join('\n'), Interpreter.PARSE_OPTIONS);
   this.stripLocations_(this.ast);
   this.stateStack = [{
     node: this.ast,
@@ -77,6 +77,13 @@ var Interpreter = function(code, opt_initFunc) {
     thisExpression: scope,
     done: false
   }];
+};
+
+/**
+ * @const {!Object} Configuration used for all Acorn parsing.
+ */
+Interpreter.PARSE_OPTIONS = {
+  ecmaVersion: 5
 };
 
 /**
@@ -116,7 +123,7 @@ Interpreter.prototype.appendCode = function(code) {
     throw Error('Expecting original AST to start with a Program node.');
   }
   if (typeof code == 'string') {
-    code = acorn.parse(code);
+    code = acorn.parse(code, Interpreter.PARSE_OPTIONS);
   }
   if (!code || code.type != 'Program') {
     throw Error('Expecting new AST to start with a Program node.');
@@ -277,7 +284,8 @@ Interpreter.prototype.initFunction = function(scope) {
     // even if they were constructed in some other scope.
     newFunc.parentScope =
         thisInterpreter.stateStack[thisInterpreter.stateStack.length - 1].scope;
-    var ast = acorn.parse('$ = function(' + args + ') {' + code + '};');
+    var ast = acorn.parse('$ = function(' + args + ') {' + code + '};',
+        Interpreter.PARSE_OPTIONS);
     newFunc.node = ast.body[0].expression.right;
     thisInterpreter.setProperty(newFunc, 'length',
         thisInterpreter.createPrimitive(newFunc.node.length),
