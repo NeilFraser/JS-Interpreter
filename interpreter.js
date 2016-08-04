@@ -2348,7 +2348,7 @@ Interpreter.prototype['stepAssignmentExpression'] = function() {
           funcThis_: state.leftSide[0],
           func_: state.leftValue,
           doneArgs_: true,
-          arguments: [],
+          arguments: []
         });
         return;
       }
@@ -2417,7 +2417,7 @@ Interpreter.prototype['stepAssignmentExpression'] = function() {
       funcThis_: state.leftSide[0],
       func_: setter,
       doneArgs_: true,
-      arguments: [value],
+      arguments: [value]
     });
     return;
   }
@@ -2954,7 +2954,7 @@ Interpreter.prototype['stepMemberExpression'] = function() {
           funcThis_: state.object,
           func_: value,
           doneArgs_: true,
-          arguments: [],
+          arguments: []
         });
       } else {
         this.stateStack[0].value = value;
@@ -3176,7 +3176,7 @@ Interpreter.prototype['stepUpdateExpression'] = function() {
         funcThis_: state.leftSide[0],
         func_: state.leftValue,
         doneArgs_: true,
-        arguments: [],
+        arguments: []
       });
       return;
     }
@@ -3209,7 +3209,7 @@ Interpreter.prototype['stepUpdateExpression'] = function() {
       funcThis_: state.leftSide[0],
       func_: setter,
       doneArgs_: true,
-      arguments: [changeValue],
+      arguments: [changeValue]
     });
     return;
   }
