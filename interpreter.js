@@ -3114,7 +3114,7 @@ Interpreter.prototype['stepUnaryExpression'] = function() {
   if (!state.done) {
     state.done = true;
     var nextState = {node: node.argument};
-    if (node.operator == 'delete') {
+    if (node.operator == 'delete' || node.operator == 'typeof') {
       nextState.components = true;
     }
     this.stateStack.unshift(nextState);
@@ -3130,9 +3130,7 @@ Interpreter.prototype['stepUnaryExpression'] = function() {
     value = !state.value.toBoolean();
   } else if (node.operator == '~') {
     value = ~state.value.toNumber();
-  } else if (node.operator == 'typeof') {
-    value = state.value.type;
-  } else if (node.operator == 'delete') {
+  } else if (node.operator == 'delete' || node.operator == 'typeof') {
     if (state.value.length) {
       var obj = state.value[0];
       var name = state.value[1];
@@ -3140,7 +3138,10 @@ Interpreter.prototype['stepUnaryExpression'] = function() {
       var obj = this.getScope();
       var name = state.value;
     }
-    value = this.deleteProperty(obj, name);
+    if (node.operator == 'delete')
+      value = this.deleteProperty(obj, name);
+    else
+      value = this.getProperty(obj, name).type;
   } else if (node.operator == 'void') {
     value = undefined;
   } else {
