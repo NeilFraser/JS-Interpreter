@@ -26,7 +26,7 @@
 /**
  * Create a new interpreter.
  * @param {string|!Object} code Raw JavaScript text or AST.
- * @param {Function} opt_initFunc Optional initialization function.  Used to
+ * @param {Function=} opt_initFunc Optional initialization function.  Used to
  *     define APIs.  When called it is passed the interpreter object and the
  *     global scope object.
  * @constructor
@@ -1292,12 +1292,12 @@ Interpreter.prototype.initRegExp = function(scope) {
   this.REGEXP = this.createNativeFunction(wrapper);
   this.setProperty(scope, 'RegExp', this.REGEXP);
 
-  this.setProperty(this.REGEXP.properties.prototype, 'global', this.UNDEFINED,
-      Interpreter.READONLY_NONENUMERABLE_DESCRIPTOR);
-  this.setProperty(this.REGEXP.properties.prototype, 'ignoreCase', this.UNDEFINED,
-      Interpreter.READONLY_NONENUMERABLE_DESCRIPTOR);
-  this.setProperty(this.REGEXP.properties.prototype, 'multiline', this.UNDEFINED,
-      Interpreter.READONLY_NONENUMERABLE_DESCRIPTOR);
+  this.setProperty(this.REGEXP.properties.prototype, 'global',
+      this.UNDEFINED, Interpreter.READONLY_NONENUMERABLE_DESCRIPTOR);
+  this.setProperty(this.REGEXP.properties.prototype, 'ignoreCase',
+      this.UNDEFINED, Interpreter.READONLY_NONENUMERABLE_DESCRIPTOR);
+  this.setProperty(this.REGEXP.properties.prototype, 'multiline',
+      this.UNDEFINED, Interpreter.READONLY_NONENUMERABLE_DESCRIPTOR);
   this.setProperty(this.REGEXP.properties.prototype, 'source',
       this.createPrimitive('(?:)'),
       Interpreter.READONLY_NONENUMERABLE_DESCRIPTOR);
@@ -1717,7 +1717,7 @@ Interpreter.prototype.populateRegExp_ = function(pseudoRegexp, nativeRegexp) {
 /**
  * Create a new function.
  * @param {Object} node AST node defining the function.
- * @param {Object} opt_scope Optional parent scope.
+ * @param {Object=} opt_scope Optional parent scope.
  * @return {!Interpreter.Object} New function.
  */
 Interpreter.prototype.createFunction = function(node, opt_scope) {
@@ -2243,7 +2243,7 @@ Interpreter.prototype.setValue = function(left, value) {
  * with an actual object to be thrown.
  * @param {!Interpreter.Object} errorClass Type of error (if message is
  *   provided) or the value to throw (if no message).
- * @param {string} opt_message Message being thrown.
+ * @param {string=} opt_message Message being thrown.
  */
 Interpreter.prototype.throwException = function(errorClass, opt_message) {
   if (this.stateStack[0].interpreter) {
@@ -3138,10 +3138,11 @@ Interpreter.prototype['stepUnaryExpression'] = function() {
       var obj = this.getScope();
       var name = state.value;
     }
-    if (node.operator == 'delete')
+    if (node.operator == 'delete') {
       value = this.deleteProperty(obj, name);
-    else
+    } else {
       value = this.getProperty(obj, name).type;
+    }
   } else if (node.operator == 'void') {
     value = undefined;
   } else {
