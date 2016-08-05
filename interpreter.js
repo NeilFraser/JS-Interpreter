@@ -1789,8 +1789,8 @@ Interpreter.prototype.nativeToPseudo = function(nativeObj) {
 /**
  * Converts from a JS interpreter object to native JS object.
  * Can handle JSON-style values.
- * @param {!Interpreter.Object} pseudoObj The JS interpreter object to be
- *     converted.
+ * @param {!Interpreter.Object|!Interpreter.Primitive} pseudoObj The JS
+ *     interpreter object to be converted.
  * @return {*} The equivalent native JS object or value.
  */
 Interpreter.prototype.pseudoToNative = function(pseudoObj) {
