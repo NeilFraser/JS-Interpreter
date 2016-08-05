@@ -1363,9 +1363,8 @@ Interpreter.prototype.initJSON = function(scope) {
  */
 Interpreter.prototype.initError = function(scope) {
   var thisInterpreter = this;
-  var wrapper;
   // Error constructor.
-  wrapper = function(opt_message) {
+  this.ERROR = this.createNativeFunction(function(opt_message) {
     if (this.parent == thisInterpreter.ERROR) {
       // Called with new.
       var newError = this;
@@ -1378,49 +1377,45 @@ Interpreter.prototype.initError = function(scope) {
           Interpreter.NONENUMERABLE_DESCRIPTOR);
     }
     return newError;
-  };
-  this.ERROR = this.createNativeFunction(wrapper);
+  });
   this.setProperty(scope, 'Error', this.ERROR);
   this.setProperty(this.ERROR.properties.prototype, 'message',
       this.STRING_EMPTY, Interpreter.NONENUMERABLE_DESCRIPTOR);
   this.setProperty(this.ERROR.properties.prototype, 'name',
       this.createPrimitive('Error'), Interpreter.NONENUMERABLE_DESCRIPTOR);
 
-  // Create half a dozen error subclasses.
-  var errors = {
-    EVAL_ERROR: 'EvalError',
-    RANGE_ERROR: 'RangeError',
-    REFERENCE_ERROR: 'ReferenceError',
-    SYNTAX_ERROR: 'SyntaxError',
-    TYPE_ERROR: 'TypeError',
-    URI_ERROR: 'URIError'
+  var createErrorSubclass = function(name) {
+    var constructor = thisInterpreter.createNativeFunction(
+        function(opt_message) {
+          if (thisInterpreter.isa(this.parent, thisInterpreter.ERROR)) {
+            // Called with new.
+            var newError = this;
+          } else {
+            var newError = thisInterpreter.createObject(constructor);
+          }
+          if (opt_message) {
+            thisInterpreter.setProperty(newError, 'message',
+                thisInterpreter.createPrimitive(String(opt_message)),
+                Interpreter.NONENUMERABLE_DESCRIPTOR);
+          }
+          return newError;
+        });
+    thisInterpreter.setProperty(constructor, 'prototype',
+        thisInterpreter.createObject(thisInterpreter.ERROR));
+    thisInterpreter.setProperty(constructor.properties.prototype, 'name',
+        thisInterpreter.createPrimitive(name),
+        Interpreter.NONENUMERABLE_DESCRIPTOR);
+    thisInterpreter.setProperty(scope, name, constructor);
+
+    return constructor;
   };
-  for (var constName in errors) {
-    var errorName = errors[constName];
-    //EvalError, RangeError, ReferenceError, SyntaxError, TypeError, URIError
-    wrapper = function(name) {
-      return function(opt_message) {
-        if (thisInterpreter.isa(this.parent, thisInterpreter.ERROR)) {
-          // Called with new.
-          var newError = this;
-        } else {
-          var newError = thisInterpreter.createObject(thisInterpreter[name]);
-        }
-        if (opt_message) {
-          thisInterpreter.setProperty(newError, 'message',
-              thisInterpreter.createPrimitive(String(opt_message)),
-              Interpreter.NONENUMERABLE_DESCRIPTOR);
-        }
-        return newError;
-      };
-    };
-    this[constName] = this.createNativeFunction(wrapper(constName));
-    this.setProperty(this[constName], 'prototype',
-        this.createObject(this.ERROR));
-    this.setProperty(this[constName].properties.prototype, 'name',
-        this.createPrimitive(errorName), Interpreter.NONENUMERABLE_DESCRIPTOR);
-    this.setProperty(scope, errorName, this[constName]);
-  }
+
+  this.EVAL_ERROR = createErrorSubclass('EvalError');
+  this.RANGE_ERROR = createErrorSubclass('RangeError');
+  this.REFERENCE_ERROR = createErrorSubclass('ReferenceError');
+  this.SYNTAX_ERROR = createErrorSubclass('SyntaxError');
+  this.TYPE_ERROR = createErrorSubclass('TypeError');
+  this.URI_ERROR = createErrorSubclass('URIError');
 };
 
 /**
@@ -1789,8 +1784,8 @@ Interpreter.prototype.nativeToPseudo = function(nativeObj) {
 /**
  * Converts from a JS interpreter object to native JS object.
  * Can handle JSON-style values.
- * @param {!Interpreter.Object} pseudoObj The JS interpreter object to be
- *     converted.
+ * @param {!Interpreter.Object|!Interpreter.Primitive} pseudoObj The JS
+ *     interpreter object to be converted.
  * @return {*} The equivalent native JS object or value.
  */
 Interpreter.prototype.pseudoToNative = function(pseudoObj) {
