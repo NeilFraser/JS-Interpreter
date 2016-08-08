@@ -455,6 +455,16 @@ Interpreter.prototype.initObject = function(scope) {
   this.setProperty(this.OBJECT, 'defineProperty',
       this.createNativeFunction(wrapper), Interpreter.NONENUMERABLE_DESCRIPTOR);
 
+  this.polyfills_.push(
+"Object.defineProperties = function(obj, props) {",
+  "var keys = Object.keys(props);",
+  "for (var i = 0; i < keys.length; i++) {",
+    "Object.defineProperty(obj, keys[i], props[keys[i]]);",
+  "}",
+  "return obj;",
+"};",
+"");
+
   // Instance methods on Object.
   wrapper = function() {
     return thisInterpreter.createPrimitive(this.toString());
