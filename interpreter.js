@@ -465,6 +465,36 @@ Interpreter.prototype.initObject = function(scope) {
 "};",
 "");
 
+  wrapper = function(obj, prop) {
+    prop = (prop || thisInterpreter.UNDEFINED).toString();
+    if (!(prop in obj.properties)) {
+      return thisInterpreter.UNDEFINED;
+    }
+    var configurable = !obj.notConfigurable[prop];
+    var enumerable = !obj.notEnumerable[prop];
+    var writable = !obj.notWritable[prop];
+    var getter = obj.getter[prop];
+    var setter = obj.setter[prop];
+
+    var descriptor = thisInterpreter.createObject(thisInterpreter.OBJECT);
+    thisInterpreter.setProperty(descriptor, 'configurable',
+        thisInterpreter.createPrimitive(configurable));
+    thisInterpreter.setProperty(descriptor, 'enumerable',
+        thisInterpreter.createPrimitive(enumerable));
+    if (getter || setter) {
+      thisInterpreter.setProperty(descriptor, 'getter', getter);
+      thisInterpreter.setProperty(descriptor, 'setter', setter);
+    } else {
+      thisInterpreter.setProperty(descriptor, 'writable',
+          thisInterpreter.createPrimitive(writable));
+      thisInterpreter.setProperty(descriptor, 'value',
+          thisInterpreter.getProperty(obj, prop));
+    }
+    return descriptor;
+  };
+  this.setProperty(this.OBJECT, 'getOwnPropertyDescriptor',
+      this.createNativeFunction(wrapper), Interpreter.NONENUMERABLE_DESCRIPTOR);
+
   // Instance methods on Object.
   wrapper = function() {
     return thisInterpreter.createPrimitive(this.toString());
@@ -483,18 +513,14 @@ Interpreter.prototype.initObject = function(scope) {
 
   wrapper = function(prop) {
     prop = (prop || thisInterpreter.UNDEFINED).toString();
-    for (var key in this.properties) {
-      if (key == prop) {
-        return thisInterpreter.TRUE;
-      }
-    }
-    return thisInterpreter.FALSE;
+    return (prop in obj.properties) ?
+        thisInterpreter.TRUE : thisInterpreter.FALSE;
   };
   this.setNativeFunctionPrototype(this.OBJECT, 'hasOwnProperty', wrapper);
 
-  wrapper = function(key) {
-    key = (key || thisInterpreter.UNDEFINED).toString();
-    var enumerable = key in this.properties && !this.notEnumerable[key];
+  wrapper = function(prop) {
+    prop = (prop || thisInterpreter.UNDEFINED).toString();
+    var enumerable = prop in this.properties && !this.notEnumerable[prop];
     return thisInterpreter.createPrimitive(enumerable);
   };
   this.setNativeFunctionPrototype(this.OBJECT, 'propertyIsEnumerable', wrapper);
