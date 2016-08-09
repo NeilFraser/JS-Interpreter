@@ -437,6 +437,9 @@ Interpreter.prototype.initObject = function(scope) {
       throw Error('Property description must be an object.');
     }
     var value = thisInterpreter.getProperty(descriptor, 'value');
+    if (value == thisInterpreter.UNDEFINED) {
+      value = null;
+    }
     var get = thisInterpreter.getProperty(descriptor, 'get');
     var set = thisInterpreter.getProperty(descriptor, 'set');
     var nativeDescriptor = {
@@ -1952,7 +1955,7 @@ Interpreter.prototype.setProperty = function(obj, name, value, opt_descriptor) {
                         "Cannot set property '" + name + "' of " + obj);
   }
   if (opt_descriptor && (opt_descriptor.get || opt_descriptor.set) &&
-      (value != this.UNDEFINED || opt_descriptor.writable !== undefined)) {
+      (value || opt_descriptor.writable !== undefined)) {
     this.throwException(this.TYPE_ERROR, 'Invalid property descriptor. ' +
         'Cannot both specify accessors and a value or writable attribute');
   }
@@ -3004,11 +3007,16 @@ Interpreter.prototype['stepObjectExpression'] = function() {
   var n = state.n || 0;
   if (!state.object) {
     state.object = this.createObject(this.OBJECT);
+    state.properties = Object.create(null);
   } else {
     if (valueToggle) {
       state.key = state.value;
     } else {
-      this.setProperty(state.object, state.key, state.value);
+      if (!state.properties[state.key]) {
+        // Create temp object to collect value, getter, and/or setter.
+        state.properties[state.key] = {};
+      }
+      state.properties[state.key][state.kind] = state.value;
     }
   }
   if (node.properties[n]) {
@@ -3016,10 +3024,27 @@ Interpreter.prototype['stepObjectExpression'] = function() {
       state.n = n + 1;
       this.stateStack.unshift({node: node.properties[n].value});
     } else {
+      state.kind = node.properties[n].kind;
       this.stateStack.unshift({node: node.properties[n].key, components: true});
     }
     state.valueToggle = !valueToggle;
   } else {
+    for (var key in state.properties) {
+      var kinds = state.properties[key];
+      if ('get' in kinds || 'set' in kinds) {
+        // Set a property with a getter or setter.
+        var descriptor = {
+          configurable: true,
+          enumerable: true,
+          get: kinds['get'],
+          set: kinds['set']
+        };
+        this.setProperty(state.object, key, null, descriptor);
+      } else {
+        // Set a normal property with a value.
+        this.setProperty(state.object, key, kinds['init']);
+      }
+    }
     this.stateStack.shift();
     this.stateStack[0].value = state.object;
   }
