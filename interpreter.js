@@ -128,6 +128,7 @@ Interpreter.prototype.appendCode = function(code) {
   if (!code || code.type != 'Program') {
     throw Error('Expecting new AST to start with a Program node.');
   }
+  this.populateScope_(code, state.scope);
   // Append the new program to the old one.
   for (var i = 0, node; node = code.body[i]; i++) {
     state.node.body.push(node);
