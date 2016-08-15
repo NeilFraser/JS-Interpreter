@@ -499,6 +499,16 @@ Interpreter.prototype.initObject = function(scope) {
   this.setProperty(this.OBJECT, 'getOwnPropertyDescriptor',
       this.createNativeFunction(wrapper), Interpreter.NONENUMERABLE_DESCRIPTOR);
 
+  wrapper = function(obj) {
+    if (obj.parent && obj.parent.properties &&
+        obj.parent.properties.prototype) {
+      return obj.parent.properties.prototype;
+    }
+    return thisInterpreter.NULL;
+  };
+  this.setProperty(this.OBJECT, 'getPrototypeOf',
+      this.createNativeFunction(wrapper), Interpreter.NONENUMERABLE_DESCRIPTOR);
+
   // Instance methods on Object.
   wrapper = function() {
     return thisInterpreter.createPrimitive(this.toString());
