@@ -528,6 +528,22 @@ Interpreter.prototype.initObject = function(scope) {
     return thisInterpreter.createPrimitive(enumerable);
   };
   this.setNativeFunctionPrototype(this.OBJECT, 'propertyIsEnumerable', wrapper);
+
+  wrapper = function(obj) {
+    while (true) {
+      if (obj.parent && obj.parent.properties &&
+          obj.parent.properties.prototype) {
+        obj = obj.parent.properties.prototype;
+        if (obj == this) {
+          return thisInterpreter.createPrimitive(true);
+        }
+      } else {
+        // No parent, reached the top.
+        return thisInterpreter.createPrimitive(false);
+      }
+    }
+  };
+  this.setNativeFunctionPrototype(this.OBJECT, 'isPrototypeOf',  wrapper);
 };
 
 /**
