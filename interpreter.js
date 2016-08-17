@@ -435,7 +435,14 @@ Interpreter.prototype.initObject = function(scope) {
   wrapper = function(obj, prop, descriptor) {
     prop = (prop || thisInterpreter.UNDEFINED).toString();
     if (!(descriptor instanceof Interpreter.Object)) {
-      throw Error('Property description must be an object.');
+      thisInterpreter.throwException(thisInterpreter.TYPE_ERROR,
+          'Property description must be an object.');
+      return;
+    }
+    if (!obj.properties[prop] && obj.preventExtensions) {
+      thisInterpreter.throwException(thisInterpreter.TYPE_ERROR,
+          'Can\'t define property ' + prop + ', object is not extensible');
+      return;
     }
     var value = thisInterpreter.getProperty(descriptor, 'value');
     if (value == thisInterpreter.UNDEFINED) {
