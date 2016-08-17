@@ -509,6 +509,21 @@ Interpreter.prototype.initObject = function(scope) {
   this.setProperty(this.OBJECT, 'getPrototypeOf',
       this.createNativeFunction(wrapper), Interpreter.NONENUMERABLE_DESCRIPTOR);
 
+  wrapper = function(obj) {
+    return thisInterpreter.createPrimitive(!obj.preventExtensions);
+  };
+  this.setProperty(this.OBJECT, 'isExtensible',
+      this.createNativeFunction(wrapper), Interpreter.NONENUMERABLE_DESCRIPTOR);
+
+  wrapper = function(obj) {
+    if (!obj.isPrimitive) {
+      obj.preventExtensions = true;
+    }
+    return obj;
+  };
+  this.setProperty(this.OBJECT, 'preventExtensions',
+      this.createNativeFunction(wrapper), Interpreter.NONENUMERABLE_DESCRIPTOR);
+
   // Instance methods on Object.
   wrapper = function() {
     return thisInterpreter.createPrimitive(this.toString());
@@ -2019,6 +2034,14 @@ Interpreter.prototype.setProperty = function(obj, name, value, opt_descriptor) {
       // Increase length if this index is larger.
       obj.length = Math.max(obj.length, i + 1);
     }
+  }
+  if (!obj.properties[name] && obj.preventExtensions) {
+    var scope = this.getScope();
+    if (scope.strict) {
+      this.throwException(this.TYPE_ERROR, 'Can\'t add property ' + name +
+                          ', object is not extensible');
+    }
+    return;
   }
   if (opt_descriptor) {
     // Define the property.
