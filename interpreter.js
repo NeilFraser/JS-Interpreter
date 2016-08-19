@@ -549,7 +549,7 @@ Interpreter.prototype.initObject = function(scope) {
 
   wrapper = function(prop) {
     prop = (prop || thisInterpreter.UNDEFINED).toString();
-    return (prop in obj.properties) ?
+    return (prop in this.properties) ?
         thisInterpreter.TRUE : thisInterpreter.FALSE;
   };
   this.setNativeFunctionPrototype(this.OBJECT, 'hasOwnProperty', wrapper);
