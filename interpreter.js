@@ -69,6 +69,7 @@ var Interpreter = function(code, opt_initFunc) {
     done: false
   }];
   this.run();
+  this.value = this.UNDEFINED;
   // Point at the main program.
   this.ast = code;
   this.stateStack = [{
