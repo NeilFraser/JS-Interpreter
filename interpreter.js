@@ -2087,9 +2087,22 @@ Interpreter.prototype.setProperty = function(obj, name, value, opt_descriptor) {
     }
   } else {
     // Set the property.
-    if (obj.setter[name]) {
-      return obj.setter[name];
-    } else if (!obj.notWritable[name]) {
+    // Determine if there is a setter anywhere in the history chain.
+    var parent = obj;
+    while (true) {
+      if (parent.setter && parent.setter[name]) {
+        return parent.setter[name];
+      }
+      if (parent.parent && parent.parent.properties &&
+          parent.parent.properties.prototype) {
+        parent = parent.parent.properties.prototype;
+      } else {
+        // No parent, reached the top.
+        break;
+      }
+    }
+    // No setter, simple assignment.
+    if (!obj.notWritable[name]) {
       obj.properties[name] = value;
     }
   }
