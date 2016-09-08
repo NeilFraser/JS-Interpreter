@@ -1630,6 +1630,7 @@ Interpreter.Primitive.prototype.toNumber = function() {
 /**
  * Convert this primitive into a string.
  * @return {string} String value.
+ * @override
  */
 Interpreter.Primitive.prototype.toString = function() {
   return String(this.data);
@@ -1638,6 +1639,7 @@ Interpreter.Primitive.prototype.toString = function() {
 /**
  * Return the primitive value.
  * @return {number|string|boolean|null|undefined} Primitive value.
+ * @override
  */
 Interpreter.Primitive.prototype.valueOf = function() {
   return this.data;
@@ -1725,6 +1727,7 @@ Interpreter.Object.prototype.toNumber = function() {
 /**
  * Convert this object into a string.
  * @return {string} String value.
+ * @override
  */
 Interpreter.Object.prototype.toString = function() {
   return this.data === undefined ? ('[' + this.type + ']') : String(this.data);
@@ -1733,6 +1736,7 @@ Interpreter.Object.prototype.toString = function() {
 /**
  * Return the object value.
  * @return {*} Value.
+ * @override
  */
 Interpreter.Object.prototype.valueOf = function() {
   return this.data === undefined ? this : this.data;
