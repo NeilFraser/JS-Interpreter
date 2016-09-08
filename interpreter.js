@@ -2766,7 +2766,7 @@ Interpreter.prototype['stepCallExpression'] = function() {
         state.value = code;
       } else {
         var evalInterpreter = new Interpreter(code.toString());
-        evalInterpreter.stateStack[0].scope.parentScope = this.getScope();
+        evalInterpreter.stateStack[0].scope = this.getScope();
         state = {
           node: {type: 'Eval_'},
           interpreter: evalInterpreter
