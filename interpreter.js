@@ -61,6 +61,7 @@ var Interpreter = function(code, opt_initFunc) {
   this.STRING_EMPTY.parent = this.STRING;
   // Run the polyfills.
   this.ast = acorn.parse(this.polyfills_.join('\n'), Interpreter.PARSE_OPTIONS);
+  this.polyfills_ = undefined;  // Allow polyfill strings to garbage collect.
   this.stripLocations_(this.ast);
   this.stateStack = [{
     node: this.ast,
@@ -2311,20 +2312,11 @@ Interpreter.prototype.populateScope_ = function(node, scope) {
 Interpreter.prototype.stripLocations_ = function(node) {
   delete node.start;
   delete node.end;
-  var parent = node.constructor;
   for (var name in node) {
-    var prop = node[name];
-    if (prop && typeof prop == 'object') {
-      if (prop instanceof Array) {
-        for (var i = 0; i < prop.length; i++) {
-          if (prop[i] && prop[i].constructor == parent) {
-            this.stripLocations_(prop[i]);
-          }
-        }
-      } else {
-        if (prop.constructor == parent) {
-          this.stripLocations_(prop);
-        }
+    if (node.hasOwnProperty(name)) {
+      var prop = node[name];
+      if (prop && typeof prop == 'object') {
+        this.stripLocations_(prop);
       }
     }
   }
