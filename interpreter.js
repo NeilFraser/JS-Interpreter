@@ -1928,14 +1928,15 @@ Interpreter.prototype.pseudoToNative = function(pseudoObj) {
  * Fetch a property value from a data object.
  * @param {!Interpreter.Object|!Interpreter.Primitive} obj Data object.
  * @param {*} name Name of property.
- * @return {!Interpreter.Object|!Interpreter.Primitive} Property value
- *     (may be UNDEFINED).
+ * @return {!Interpreter.Object|!Interpreter.Primitive|null} Property value
+ *     (may be UNDEFINED), or null if an error was thrown and will be caught.
  */
 Interpreter.prototype.getProperty = function(obj, name) {
   name = name.toString();
   if (obj == this.UNDEFINED || obj == this.NULL) {
     this.throwException(this.TYPE_ERROR,
                         "Cannot read property '" + name + "' of " + obj);
+    return null;
   }
   // Special cases for magic length property.
   if (this.isa(obj, this.STRING)) {
@@ -2231,7 +2232,8 @@ Interpreter.prototype.createSpecialScope = function(parentScope, opt_scope) {
 /**
  * Retrieves a value from the scope chain.
  * @param {!Interpreter.Object|!Interpreter.Primitive} name Name of variable.
- * @return {!Interpreter.Object|!Interpreter.Primitive} The value.
+ * @return {!Interpreter.Object|!Interpreter.Primitive|null} The value
+ *     or null if an error was thrown and will be caught.
  */
 Interpreter.prototype.getValueFromScope = function(name) {
   var scope = this.getScope();
@@ -2243,7 +2245,7 @@ Interpreter.prototype.getValueFromScope = function(name) {
     scope = scope.parentScope;
   }
   this.throwException(this.REFERENCE_ERROR, nameStr + ' is not defined');
-  return this.UNDEFINED;
+  return null;
 };
 
 /**
@@ -2326,7 +2328,8 @@ Interpreter.prototype.stripLocations_ = function(node) {
  * Gets a value from the scope chain or from an object property.
  * @param {!Interpreter.Object|!Interpreter.Primitive|!Array} left
  *     Name of variable or object/propname tuple.
- * @return {!Interpreter.Object|!Interpreter.Primitive} Value.
+ * @return {!Interpreter.Object|!Interpreter.Primitive|null} Value
+ *     or null if an error was thrown and will be caught.
  */
 Interpreter.prototype.getValue = function(left) {
   if (left instanceof Array) {
@@ -2384,10 +2387,11 @@ Interpreter.prototype.throwException = function(errorClass, opt_message) {
     this.setProperty(error, 'message', this.createPrimitive(opt_message),
         Interpreter.NONENUMERABLE_DESCRIPTOR);
   }
-  // Search for a try statement.
+  // Search for a try statement with a catch clause.
   do {
     var state = this.stateStack.shift();
-  } while (state && state.node.type !== 'TryStatement');
+  } while (state &&
+      !(state.node.type === 'TryStatement' && state.node.handler));
   if (state) {
     // Error is being trapped.
     this.stateStack.unshift({
@@ -2406,8 +2410,10 @@ Interpreter.prototype.throwException = function(errorClass, opt_message) {
         'TypeError': TypeError,
         'URIError': URIError
       };
-      var type = errorTable[this.getProperty(error, 'name')] || Error;
-      realError = type(this.getProperty(error, 'message'));
+      var name = this.getProperty(error, 'name').toString();
+      var message = this.getProperty(error, 'message').valueOf();
+      var type = errorTable[name] || Error;
+      realError = type(message);
     } else {
       realError = error.toString();
     }
@@ -2693,7 +2699,9 @@ Interpreter.prototype['stepCallExpression'] = function() {
         state.member_ = state.value[0];
       }
       state.func_ = this.getValue(state.value);
-      if (!state.func_ || state.func_.type != 'function') {
+      if (!state.func_) {
+        return;  // Thrown error, but trapped.
+      } else if (state.func_.type != 'function') {
         this.throwException(this.TYPE_ERROR,
             (state.value && state.value.type) + ' is not a function');
         return;
@@ -3310,6 +3318,9 @@ Interpreter.prototype['stepUpdateExpression'] = function() {
   }
   if (!state.doneGetter_) {
     state.leftValue = this.getValue(state.leftSide);
+    if (!state.leftValue) {
+      return;  // Thrown error, but trapped.
+    }
     if (state.leftValue.isGetter) {
       // Clear the getter flag and call the getter function.
       state.leftValue.isGetter = false;
