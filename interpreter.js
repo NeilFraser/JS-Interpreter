@@ -2387,41 +2387,50 @@ Interpreter.prototype.throwException = function(errorClass, opt_message) {
     this.setProperty(error, 'message', this.createPrimitive(opt_message),
         Interpreter.NONENUMERABLE_DESCRIPTOR);
   }
-  // Search for a try statement with a catch clause.
-  do {
-    var state = this.stateStack.shift();
-  } while (state &&
-      !(state.node.type === 'TryStatement' && state.node.handler));
-  if (state) {
-    // Error is being trapped.
-    this.stateStack.unshift({
-      node: state.node.handler,
-      throwValue: error
-    });
-  } else {
-    // Throw a real error.
-    var realError;
-    if (this.isa(error, this.ERROR)) {
-      var errorTable = {
-        'EvalError': EvalError,
-        'RangeError': RangeError,
-        'ReferenceError': ReferenceError,
-        'SyntaxError': SyntaxError,
-        'TypeError': TypeError,
-        'URIError': URIError
-      };
-      var name = this.getProperty(error, 'name').toString();
-      var message = this.getProperty(error, 'message').valueOf();
-      var type = errorTable[name] || Error;
-      realError = type(message);
-    } else {
-      realError = error.toString();
-    }
-    throw realError;
-  }
+  this.executeException(error);
 };
 
+/**
+ * Throw an exception in the interpreter that can be handled by a
+ * interpreter try/catch statement.  If unhandled, a real exception will
+ * be thrown.
+ * @param {!Interpreter.Object} error Error object to execute.
+ */
+Interpreter.prototype.executeException = function(error) {
+  // Search for a try statement.
+  do {
+    this.stateStack.shift();
+    var state = this.stateStack[0];
+    if (state.node.type == 'TryStatement') {
+      state.throwValue = error;
+      return;
+    }
+  } while (state || state.node.type == 'Program');
+
+  // Throw a real error.
+  var realError;
+  if (this.isa(error, this.ERROR)) {
+    var errorTable = {
+      'EvalError': EvalError,
+      'RangeError': RangeError,
+      'ReferenceError': ReferenceError,
+      'SyntaxError': SyntaxError,
+      'TypeError': TypeError,
+      'URIError': URIError
+    };
+    var name = this.getProperty(error, 'name').toString();
+    var message = this.getProperty(error, 'message').valueOf();
+    var type = errorTable[name] || Error;
+    realError = type(message);
+  } else {
+    realError = error.toString();
+  }
+  throw realError;
+};
+
+///////////////////////////////////////////////////////////////////////////////
 // Functions to handle each node type.
+///////////////////////////////////////////////////////////////////////////////
 
 Interpreter.prototype['stepArrayExpression'] = function() {
   var state = this.stateStack[0];
@@ -3251,9 +3260,17 @@ Interpreter.prototype['stepTryStatement'] = function() {
   if (!state.doneBlock) {
     state.doneBlock = true;
     this.stateStack.unshift({node: node.block});
+  } else if (state.throwValue && !state.doneHandler && node.handler) {
+    state.doneHandler = true;
+    this.stateStack.unshift({node: node.handler, throwValue: state.throwValue});
+    state.throwValue = null;  // This error has been handled, don't rethrow.
   } else if (!state.doneFinalizer && node.finalizer) {
     state.doneFinalizer = true;
     this.stateStack.unshift({node: node.finalizer});
+  } else if (state.throwValue) {
+    // There was no catch handler, or the catch/finally threw an error.
+    // Throw the error up to a higher try.
+    this.executeException(state.throwValue);
   } else {
     this.stateStack.shift();
   }
