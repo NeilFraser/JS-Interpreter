@@ -454,11 +454,14 @@ Interpreter.prototype.initObject = function(scope) {
     var set = thisInterpreter.getProperty(descriptor, 'set');
     var nativeDescriptor = {
       configurable: thisInterpreter.pseudoToNative(
-          thisInterpreter.getProperty(descriptor, 'configurable')),
+          /** @type !Interpreter.Primitive */
+          (thisInterpreter.getProperty(descriptor, 'configurable'))),
       enumerable: thisInterpreter.pseudoToNative(
-          thisInterpreter.getProperty(descriptor, 'enumerable')),
+          /** @type !Interpreter.Primitive */
+          (thisInterpreter.getProperty(descriptor, 'enumerable'))),
       writable: thisInterpreter.pseudoToNative(
-          thisInterpreter.getProperty(descriptor, 'writable')),
+          /** @type !Interpreter.Primitive */
+          (thisInterpreter.getProperty(descriptor, 'writable'))),
       get: get == thisInterpreter.UNDEFINED ? undefined : get,
       set: set == thisInterpreter.UNDEFINED ? undefined : set
     };
