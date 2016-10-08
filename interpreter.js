@@ -2408,7 +2408,7 @@ Interpreter.prototype.executeException = function(error) {
       state.throwValue = error;
       return;
     }
-  } while (state || state.node.type == 'Program');
+  } while (state && state.node.type != 'Program');
 
   // Throw a real error.
   var realError;
