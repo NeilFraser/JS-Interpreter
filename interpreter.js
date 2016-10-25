@@ -1795,6 +1795,55 @@ Interpreter.prototype.createObject = function(parent) {
 };
 
 /**
+ * Some time the sandbox returned a native primitive value, like toString() does
+ * This function is to check this situation
+ * @param {Any} val value returned from sandbox
+ * @returns {Boolean} whether it's primitive value from sandbox
+ */
+Interpreter.prototype.isPrimitive = function(val) {
+  return !/object|function/.test(typeof val) || !val;
+}
+
+/**
+ * Converts input argument to a non-Object type. If an object is capable of
+ * converting to more than one primitive type, it may use the optional hint
+ * preferredType to favour that type.
+ * @param {Interpreter.Primitive|Interpreter.Object} input
+ * @param {"String"|"Number"} preferredType
+ * @return {Interpreter.Primitive} result primitive value
+ */
+Interpreter.prototype.toPrimitive = function (input, preferredType) {
+  return input.isPrimitive ? input : this.defaultValue(input, preferredType);
+}
+
+/**
+ * DefaultValue for native objects can return only primitive values. If a host
+ * object implements its own DefaultValue internal method, it must ensure that
+ * its DefaultValue internal method can return only primitive values.
+ * @param {Interpreter.Object} input
+ * @param {"String"|"Number"} preferredType
+ * @return {Interpreter.Primitive} result primitive value
+ * @throws {Interpreter.TYPE_ERROR} when cannot get result
+ */
+Interpreter.prototype.defaultValue = function (input, preferredType) {
+  // with no preferredType, it behaves as if the hint were Number,
+  // except for Date object behaves as if the hint were String.
+  preferredType = preferredType ||
+    (this.isa(input, this.DATE) ? 'String' : 'Number');
+  var methods = preferredType == 'String'
+      ? ['toString', 'valueOf']
+      : ['valueOf', 'toString'];
+  for (var value, method, i = 0; i < methods.length; i++) {
+    method = input[methods[i]];
+    if (typeof method != 'function') continue;
+    value = method.call(input);
+    if (this.isPrimitive(value) || value.isPrimitive) return value;
+  }
+  this.throwException(this.TYPE_ERROR,
+                      'Cannot get default value of ' + input);
+};
+
+/**
  * Initialize a pseudo regular expression object based on a native regular
  * expression object.
  * @param {!Interpreter.Object} pseudoRegexp The existing object to set.
@@ -2612,11 +2661,11 @@ Interpreter.prototype['stepBinaryExpression'] = function() {
     value = comp == -1 || comp === 0;
   } else if (node.operator == '+') {
     if (leftSide.type == 'string' || rightSide.type == 'string') {
-      var leftValue = leftSide.toString();
-      var rightValue = rightSide.toString();
+      var leftValue = this.toPrimitive(leftSide, "String");
+      var rightValue = this.toPrimitive(rightSide, "String");
     } else {
-      var leftValue = leftSide.toNumber();
-      var rightValue = rightSide.toNumber();
+      var leftValue = this.toPrimitive(leftSide, "Number");
+      var rightValue = this.toPrimitive(rightSide, "Number");
     }
     value = leftValue + rightValue;
   } else if (node.operator == 'in') {
