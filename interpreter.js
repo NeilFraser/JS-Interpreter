@@ -3093,6 +3093,13 @@ Interpreter.prototype['stepMemberExpression'] = function() {
       this.stateStack[0].value = [state.object, state.value];
     } else {
       var value = this.getProperty(state.object, state.value);
+      if (!value) {
+        this.stateStack.unshift({});
+        this.throwException(this.TYPE_ERROR,
+            "Cannot read property '" + state.value + "' of " +
+            state.object.toString());
+        return;
+      }
       if (value.isGetter) {
         // Clear the getter flag and call the getter function.
         value.isGetter = false;
