@@ -555,6 +555,11 @@ Interpreter.prototype.initObject = function(scope) {
   this.setNativeFunctionPrototype(this.OBJECT, 'valueOf', wrapper);
 
   wrapper = function(prop) {
+    if (this == thisInterpreter.NULL || this == thisInterpreter.UNDEFINED) {
+      thisInterpreter.throwException(thisInterpreter.TYPE_ERROR,
+          'Cannot convert undefined or null to object');
+      return;
+    }
     prop = (prop || thisInterpreter.UNDEFINED).toString();
     return (prop in this.properties) ?
         thisInterpreter.TRUE : thisInterpreter.FALSE;
@@ -1458,7 +1463,12 @@ Interpreter.prototype.initJSON = function(scope) {
   this.setProperty(scope, 'JSON', myJSON);
 
   var wrapper = function(text) {
-    var nativeObj = JSON.parse(text.toString());
+    try {
+      var nativeObj = JSON.parse(text.toString());
+    } catch (e) {
+      thisInterpreter.throwException(thisInterpreter.SYNTAX_ERROR, e.message);
+      return;
+    }
     return thisInterpreter.nativeToPseudo(nativeObj);
   };
   this.setProperty(myJSON, 'parse', this.createNativeFunction(wrapper));
