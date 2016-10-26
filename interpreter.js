@@ -2611,13 +2611,10 @@ Interpreter.prototype['stepBinaryExpression'] = function() {
   } else if (node.operator == '<=') {
     value = comp == -1 || comp === 0;
   } else if (node.operator == '+') {
-    if (leftSide.type == 'string' || rightSide.type == 'string') {
-      var leftValue = leftSide.toString();
-      var rightValue = rightSide.toString();
-    } else {
-      var leftValue = leftSide.toNumber();
-      var rightValue = rightSide.toNumber();
-    }
+    var leftValue =
+        leftSide.isPrimitive ? leftSide.data : leftSide.toString();
+    var rightValue =
+        rightSide.isPrimitive ? rightSide.data : rightSide.toString();
     value = leftValue + rightValue;
   } else if (node.operator == 'in') {
     value = this.hasProperty(rightSide, leftSide);
