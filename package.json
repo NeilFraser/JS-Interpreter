@@ -2,9 +2,10 @@
   "name": "js-interpreter",
   "version": "1.0.0",
   "description": "NPM package for https://github.com/NeilFraser/JS-Interpreter",
-  "main": "index.js",
+  "main": "lib/index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "build": "webpack src/interpreter.js lib/index.js",
+    "prepublish": "npm run build"
   },
   "repository": {
     "type": "git",
@@ -15,5 +16,9 @@
   "bugs": {
     "url": "https://github.com/aminmarashi/JS-Interpreter/issues"
   },
-  "homepage": "https://github.com/aminmarashi/JS-Interpreter#readme"
+  "homepage": "https://github.com/aminmarashi/JS-Interpreter#readme",
+  "devDependencies": {
+    "acorn": "^4.0.3",
+    "webpack": "^1.14.0"
+  }
 }
