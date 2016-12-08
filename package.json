@@ -4,7 +4,7 @@
   "description": "NPM package for https://github.com/NeilFraser/JS-Interpreter",
   "main": "lib/index.js",
   "scripts": {
-    "build": "webpack src/interpreter.js lib/index.js",
+    "build": "webpack",
     "prepublish": "npm run build"
   },
   "repository": {
