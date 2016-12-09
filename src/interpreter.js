@@ -1896,7 +1896,7 @@ Interpreter.prototype.nativeToPseudo = function(nativeObj) {
   if (nativeObj instanceof Function) {
     var wrapper = (function(interpreter, nativeObj){
       return function() {
-        return interpreter.createPrimitive(
+        return interpreter.nativeToPseudo(
           nativeObj.apply(interpreter,
             Array.prototype.slice.call(arguments)
               .map(function(i) {
