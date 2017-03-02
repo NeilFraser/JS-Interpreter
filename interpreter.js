@@ -23,6 +23,8 @@
  */
 'use strict';
 
+var acorn = require('./acorn');
+
 /**
  * Create a new interpreter.
  * @param {string|!Object} code Raw JavaScript text or AST.
@@ -31,7 +33,7 @@
  *     global scope object.
  * @constructor
  */
-var Interpreter = function(code, opt_initFunc) {
+var Interpreter = module.exports = function(code, opt_initFunc) {
   if (typeof code == 'string') {
     code = acorn.parse(code);
   }
