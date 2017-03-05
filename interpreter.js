@@ -1569,8 +1569,8 @@ Interpreter.prototype.isa = function(child, parent) {
  *     NaN if they are not comparable.
  */
 Interpreter.prototype.comp = function(a, b) {
-  if (a.isPrimitive && isNaN(a.data) ||
-      b.isPrimitive && isNaN(b.data)) {
+  if (a.isPrimitive && Number.isNaN(a.data) ||
+      b.isPrimitive && Number.isNaN(b.data)) {
     // NaN is not comparable to anything, including itself.
     return NaN;
   }
@@ -1585,8 +1585,14 @@ Interpreter.prototype.comp = function(a, b) {
     return -1;
   } else if (aValue > bValue) {
     return 1;
+  } else if (!a.isPrimitive && !b.isPrimitive) {
+    // Two objects that have equal values are still not equal.
+    // e.g. [1, 2] != [1, 2]
+    return NaN;
+  } else if (aValue == bValue) {
+    return 0;
   }
-  return 0;
+  return NaN;
 };
 
 /**
