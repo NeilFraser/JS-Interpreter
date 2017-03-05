@@ -1569,8 +1569,8 @@ Interpreter.prototype.isa = function(child, parent) {
  *     NaN if they are not comparable.
  */
 Interpreter.prototype.comp = function(a, b) {
-  if (a.isPrimitive && Number.isNaN(a.data) ||
-      b.isPrimitive && Number.isNaN(b.data)) {
+  if (a.isPrimitive && typeof a.data == 'number' && isNaN(a.data) ||
+      b.isPrimitive && typeof b.data == 'number' && isNaN(b.data)) {
     // NaN is not comparable to anything, including itself.
     return NaN;
   }
