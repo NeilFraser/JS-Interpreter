@@ -1,3 +1,4 @@
 node_modules
 *.komodoproject
 tests/test262
+tests/test-results-new.json

@@ -25,7 +25,7 @@
     "test262-harness": "^2.4.0"
   },
   "scripts": {
-    "test": "tests/build-test-report.js -t"
+    "test": "tests/build-test-report.js -r"
   },
   "dependencies": {
     "yargs": "^7.0.1"
