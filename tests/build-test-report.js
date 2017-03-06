@@ -172,7 +172,6 @@ Results:
         });
         return;
       }
-      console.log(getKeyForTest(newTest), 'is the same');
     });
 
     testsThatDiffer.forEach(({oldTest, newTest, message}) => {
