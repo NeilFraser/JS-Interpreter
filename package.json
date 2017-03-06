@@ -11,7 +11,9 @@
     "acorn.js",
     "interpreter.js",
     "LICENSE",
-    "README.md"
+    "README.md",
+    "bin"
   ],
-  "license": "Apache-2.0"
+  "license": "Apache-2.0",
+  "bin": "bin/run.js"
 }
