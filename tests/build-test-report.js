@@ -84,7 +84,7 @@ function runTests(outputFilePath) {
       },
       globs: [
         'tests/test262/test/language/**/*.js',
-//        'tests/test262/test/built-ins/TypedArray/**/*.js',
+        'tests/test262/test/built-ins/Array/**/*.js',
       ]
     });
   });
