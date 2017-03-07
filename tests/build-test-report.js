@@ -5,6 +5,7 @@ const fs = require('fs');
 const execSync = require('child_process').execSync;
 const spawn = require('child_process').spawn;
 const chalk = require('chalk');
+const runner = require('./runner');
 
 
 const TESTS_DIRECTORY = path.resolve(__dirname, 'test262');
@@ -50,48 +51,41 @@ function saveResults(results) {
 function runTests(outputFilePath) {
   downloadTestsIfNecessary();
   console.log(`running tests with ${argv.threads/1} threads...`);
-  const cmdString = './node_modules/.bin/test262-harness';
-  const cmdArgs = `--hostType js-interpreter --hostPath ./bin/run.js --test262Dir tests/test262 -t ${argv.threads} -r json tests/test262/test/language/**/*.js`.split(/\s/);
-  const command = spawn(
-    cmdString,
-    cmdArgs
-  );
-  const outputFile = fs.openSync(outputFilePath, 'w');
-  let count = 0;
-  command.stdout.on('data', data => {
-    fs.appendFileSync(outputFile, data);
-    const lines = data.toString().split('\n')
-    lines.forEach(line => {
-      if (line[0] === ',') {
-        line = line.slice(1);
-      }
-      if (line[0] === '{') {
-        let test;
-        try {
-          test = JSON.parse(line);
-        } catch (e) {
-          console.warn("couldn't parse", line);
-          return;
-        }
-        const color = test.result.pass ? chalk.red : chalk.green;
-        const description = (test.attrs.description || test.file).trim().replace('\n', ' ')
-        console.log(`${count+1} ${color(description)}`);
-        const prefix = count > 0 ? ',\n' : '';
-        const simplifiedTestResult = {
-          file: test.file,
-          attrs: test.attrs,
-          result: test.result,
-        };
-        count++;
-      }
-    });
-  });
-  command.stderr.on('data', data => console.log(data));
+
   return new Promise(resolve => {
-    command.on('close', code => {
-      console.log(`finished running ${count} tests`);
-      fs.closeSync(outputFile);
-      resolve(code);
+    let count = 1;
+    const outputFile = fs.openSync(outputFilePath, 'w');
+    runner.run({
+      threads: argv.threads,
+      hostType: 'js-interpreter',
+      hostPath: './bin/run.js',
+      test262Dir: 'tests/test262',
+      reporter: (results) => {
+        results.on('start', function () {
+          fs.appendFileSync(outputFile, '[\n');
+        });
+        results.on('end', function () {
+          fs.appendFileSync(outputFile, ']\n');
+          fs.closeSync(outputFile);
+          console.log(`finished running ${count} tests`);
+          resolve();
+        });
+
+        results.on('test end', test => {
+          const color = test.result.pass ? chalk.green : chalk.red;
+          const description = (test.attrs.description || test.file).trim().replace('\n', ' ')
+          console.log(`${count+1} ${color(description)}`);
+          if (count > 1) {
+            fs.appendFileSync(outputFile, ',\n')
+          }
+          fs.appendFileSync(outputFile, JSON.stringify(test, null, 2)+'\n');
+          count++;
+        });
+      },
+      globs: [
+        'tests/test262/test/language/**/*.js',
+//        'tests/test262/test/built-ins/TypedArray/**/*.js',
+      ]
     });
   });
 }
@@ -156,22 +150,21 @@ Results:
     const testsThatDiffer = [];
     results.forEach(newTest => {
       const oldTest = resultsByKey[getKeyForTest(newTest)];
+      let message;
       if (!oldTest) {
-        testsThatDiffer.push({
-          oldTest,
-          newTest,
-          message: 'This test is new',
-        });
+        message = 'This test is new';
+      } else if (oldTest.result.pass && !newTest.result.pass) {
+        message = 'This test regressed';
+      } else if (!oldTest.result.pass && newTest.result.pass) {
+        message = 'This test started passing';
+      } else {
         return;
       }
-      if (oldTest.result.pass !== newTest.result.pass) {
-        testsThatDiffer.push({
-          oldTest,
-          newTest,
-          message: `old: ${oldTest.result.pass}   new: ${newTest.result.pass}`
-        });
-        return;
-      }
+      testsThatDiffer.push({
+        oldTest,
+        newTest,
+        message
+      });
     });
 
     testsThatDiffer.forEach(({oldTest, newTest, message}) => {
