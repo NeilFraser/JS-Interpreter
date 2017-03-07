@@ -22,6 +22,7 @@ const argv = yargs
   .describe('s', 'save the results')
   .alias('t', 'threads')
   .describe('t', '# of threads to use')
+  .alias('v', 'verbose')
   .nargs('t', 1)
   .default('t', 4)
   .help('h')
@@ -104,6 +105,16 @@ function getResultsByKey(results) {
   return byKey;
 }
 
+function getTestType(test) {
+  return test.attrs.es5id ? 'es5' :
+         test.attrs.es6id ? 'es6' :
+         'other';
+}
+
+function getTestDescription(test) {
+  return test.attrs.description.trim().replace('\n', ' ');
+}
+
 
 function processTestResults() {
   const results = readResultsFromFile(RESULTS_FILE);
@@ -126,9 +137,7 @@ function processTestResults() {
 
 
   results.forEach(test => {
-    const type = test.attrs.es5id ? 'es5' :
-                 test.attrs.es6id ? 'es6' :
-                 'other';
+    const type = getTestType(test);
     total[type]++;
     if (test.result.pass) {
       passed[type]++;
@@ -147,32 +156,62 @@ Results:
       typeof argv.diff === 'string' ? argv.diff : SAVED_RESULTS_FILE
     );
     const resultsByKey = getResultsByKey(oldResults);
-    const testsThatDiffer = [];
+    const testsThatDiffer = {regressions: [], fixes: [], other: []};
+    let numRegressions = {
+      es5: 0,
+      es6: 0,
+    };
+    let numFixes = {
+      es5: 0,
+      es6: 0,
+    };
+    let total = {
+      es5: 0,
+      es6: 0,
+    };
     results.forEach(newTest => {
+      total[getTestType(newTest)]++;
       const oldTest = resultsByKey[getKeyForTest(newTest)];
       let message;
+      let diffList = testsThatDiffer.other;
       if (!oldTest) {
         message = 'This test is new';
       } else if (oldTest.result.pass && !newTest.result.pass) {
+        numRegressions[getTestType(newTest)]++;
         message = 'This test regressed';
+        diffList = testsThatDiffer.regressions;
       } else if (!oldTest.result.pass && newTest.result.pass) {
+        numFixes[getTestType(newTest)]++;
         message = 'This test started passing';
+        diffList = testsThatDiffer.fixes;
       } else {
         return;
       }
-      testsThatDiffer.push({
+      diffList.push({
         oldTest,
         newTest,
         message
       });
     });
 
-    testsThatDiffer.forEach(({oldTest, newTest, message}) => {
-      console.log(newTest.attrs.description);
-      console.log('  ', message);
-    });
 
-    console.log(`${testsThatDiffer.length} tests differ from before`);
+    if (argv.verbose) {
+      const printTest = ({oldTest, newTest, message}, index) => {
+        console.log(`  ${index}. ${getTestDescription(newTest)}`);
+      }
+      console.log('Fixes:')
+      testsThatDiffer.fixes.forEach(printTest);
+      console.log('\nRegressions:')
+      testsThatDiffer.regressions.forEach(printTest);
+    }
+    console.log(`
+Regressions:
+  es5: ${numRegressions.es5}/${total.es5}
+  es6: ${numRegressions.es6}/${total.es6}
+Fixes:
+  es5: ${numFixes.es5}/${total.es5}
+  es6: ${numFixes.es6}/${total.es6}
+`);
   }
 }
 
