@@ -10,6 +10,7 @@ const runner = require('./runner');
 
 const TESTS_DIRECTORY = path.resolve(__dirname, 'test262');
 const DEFAULT_TEST_RESULTS_FILE = 'test-results-new.json';
+const DEFAULT_VERBOSE_TEST_RESULTS_FILE = 'test-results-new.verbose.json';
 const SAVED_RESULTS_FILE = path.resolve(__dirname, 'test-results.json');
 
 const argv = yargs
@@ -30,6 +31,7 @@ const argv = yargs
   .argv;
 
 const RESULTS_FILE = argv._[0] || path.resolve(__dirname, DEFAULT_TEST_RESULTS_FILE);
+const VERBOSE_RESULTS_FILE = path.resolve(__dirname, DEFAULT_VERBOSE_TEST_RESULTS_FILE);
 
 function downloadTestsIfNecessary() {
   if (!fs.existsSync(TESTS_DIRECTORY)) {
@@ -49,13 +51,14 @@ function saveResults(results) {
   fs.writeFileSync(SAVED_RESULTS_FILE, JSON.stringify(results, null, 2));
 }
 
-function runTests(outputFilePath) {
+function runTests(outputFilePath, verboseOutputFilePath) {
   downloadTestsIfNecessary();
   console.log(`running tests with ${argv.threads/1} threads...`);
 
   return new Promise(resolve => {
     let count = 1;
     const outputFile = fs.openSync(outputFilePath, 'w');
+    const verboseOutputFile = fs.openSync(verboseOutputFilePath, 'w');
     runner.run({
       threads: argv.threads,
       hostType: 'js-interpreter',
@@ -64,9 +67,11 @@ function runTests(outputFilePath) {
       reporter: (results) => {
         results.on('start', function () {
           fs.appendFileSync(outputFile, '[\n');
+          fs.appendFileSync(verboseOutputFile, '[\n');
         });
         results.on('end', function () {
           fs.appendFileSync(outputFile, ']\n');
+          fs.appendFileSync(verboseOutputFile, ']\n');
           fs.closeSync(outputFile);
           console.log(`finished running ${count} tests`);
           resolve();
@@ -78,14 +83,72 @@ function runTests(outputFilePath) {
           console.log(`${count+1} ${color(description)}`);
           if (count > 1) {
             fs.appendFileSync(outputFile, ',\n')
+            fs.appendFileSync(verboseOutputFile, '.\n');
           }
-          fs.appendFileSync(outputFile, JSON.stringify(test, null, 2)+'\n');
+          fs.appendFileSync(
+            outputFile,
+            JSON.stringify({
+              file: test.file,
+              attrs: test.attrs,
+              result: test.result,
+            }, null, 2)+'\n'
+          );
+          fs.appendFileSync(verboseOutputFile, JSON.stringify(test, null, 2)+'\n');
+
           count++;
         });
       },
       globs: [
         'tests/test262/test/language/**/*.js',
         'tests/test262/test/built-ins/Array/**/*.js',
+        'tests/test262/test/built-ins/ArrayBuffer/**/*.js',
+        'tests/test262/test/built-ins/ArrayIteratorPrototype/**/*.js',
+        'tests/test262/test/built-ins/AsyncFunction/**/*.js',
+        'tests/test262/test/built-ins/Atomics/**/*.js',
+        'tests/test262/test/built-ins/Boolean/**/*.js',
+        'tests/test262/test/built-ins/DataView/**/*.js',
+        'tests/test262/test/built-ins/Date/**/*.js',
+        'tests/test262/test/built-ins/decodeURI/**/*.js',
+        'tests/test262/test/built-ins/decodeURIComponent/**/*.js',
+        'tests/test262/test/built-ins/encodeURI/**/*.js',
+        'tests/test262/test/built-ins/encodeURIComponent/**/*.js',
+        'tests/test262/test/built-ins/Error/**/*.js',
+        'tests/test262/test/built-ins/eval/**/*.js',
+        'tests/test262/test/built-ins/Function/**/*.js',
+        'tests/test262/test/built-ins/GeneratorFunction/**/*.js',
+        'tests/test262/test/built-ins/GeneratorPrototype/**/*.js',
+        'tests/test262/test/built-ins/global/**/*.js',
+        'tests/test262/test/built-ins/Infinity/**/*.js',
+        'tests/test262/test/built-ins/isFinite/**/*.js',
+        'tests/test262/test/built-ins/isNaN/**/*.js',
+        'tests/test262/test/built-ins/IteratorPrototype/**/*.js',
+        'tests/test262/test/built-ins/JSON/**/*.js',
+        'tests/test262/test/built-ins/Map/**/*.js',
+        'tests/test262/test/built-ins/MapIteratorPrototype/**/*.js',
+        'tests/test262/test/built-ins/Math/**/*.js',
+        'tests/test262/test/built-ins/NaN/**/*.js',
+        'tests/test262/test/built-ins/NativeErrors/**/*.js',
+        'tests/test262/test/built-ins/Number/**/*.js',
+        'tests/test262/test/built-ins/Object/**/*.js',
+        'tests/test262/test/built-ins/parseFloat/**/*.js',
+        'tests/test262/test/built-ins/parseInt/**/*.js',
+        'tests/test262/test/built-ins/Promise/**/*.js',
+        'tests/test262/test/built-ins/Proxy/**/*.js',
+        'tests/test262/test/built-ins/Reflect/**/*.js',
+        'tests/test262/test/built-ins/RegExp/**/*.js',
+        'tests/test262/test/built-ins/Set/**/*.js',
+        'tests/test262/test/built-ins/SetIteratorPrototype/**/*.js',
+        'tests/test262/test/built-ins/SharedArrayBuffer/**/*.js',
+        'tests/test262/test/built-ins/Simd/**/*.js',
+        'tests/test262/test/built-ins/String/**/*.js',
+        'tests/test262/test/built-ins/StringIteratorPrototype/**/*.js',
+        'tests/test262/test/built-ins/Symbol/**/*.js',
+        'tests/test262/test/built-ins/ThrowTypeError/**/*.js',
+        'tests/test262/test/built-ins/TypedArray/**/*.js',
+//        'tests/test262/test/built-ins/TypedArrays/**/*.js',
+        'tests/test262/test/built-ins/undefined/**/*.js',
+        'tests/test262/test/built-ins/WeakMap/**/*.js',
+        'tests/test262/test/built-ins/WeakSet/**/*.js',
       ]
     });
   });
@@ -217,7 +280,7 @@ Fixes:
 
 
 if (argv.run) {
-  runTests(RESULTS_FILE).then(processTestResults);
+  runTests(RESULTS_FILE, VERBOSE_RESULTS_FILE).then(processTestResults);
 } else {
   processTestResults()
 }
