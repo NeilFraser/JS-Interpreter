@@ -15,17 +15,27 @@ const SAVED_RESULTS_FILE = path.resolve(__dirname, 'test-results.json');
 
 const argv = yargs
   .usage(`Usage: $0 [options] [${DEFAULT_TEST_RESULTS_FILE}]`)
+
   .alias('d', 'diff')
   .describe('d', 'diff against existing test results')
+
   .alias('r', 'run')
   .describe('r', 'generate new test results')
+
   .alias('s', '--save')
   .describe('s', 'save the results')
+
   .alias('t', 'threads')
   .describe('t', '# of threads to use')
-  .alias('v', 'verbose')
   .nargs('t', 1)
   .default('t', 4)
+
+  .alias('v', 'verbose')
+
+  .alias('g', 'glob')
+  .describe('glob of tests to run')
+  .nargs('g', 1)
+
   .help('h')
   .alias('h', 'help')
   .argv;
@@ -80,10 +90,10 @@ function runTests(outputFilePath, verboseOutputFilePath) {
         results.on('test end', test => {
           const color = test.result.pass ? chalk.green : chalk.red;
           const description = (test.attrs.description || test.file).trim().replace('\n', ' ')
-          console.log(`${count+1} ${color(description)}`);
+          console.log(`${count+1} ${test.file} ${color(description)}`);
           if (count > 1) {
             fs.appendFileSync(outputFile, ',\n')
-            fs.appendFileSync(verboseOutputFile, '.\n');
+            fs.appendFileSync(verboseOutputFile, ',\n');
           }
           fs.appendFileSync(
             outputFile,
@@ -98,7 +108,7 @@ function runTests(outputFilePath, verboseOutputFilePath) {
           count++;
         });
       },
-      globs: [
+      globs: argv.glob ? [argv.glob] : [
         'tests/test262/test/language/**/*.js',
         'tests/test262/test/built-ins/Array/**/*.js',
         'tests/test262/test/built-ins/ArrayBuffer/**/*.js',
