@@ -1804,6 +1804,15 @@ Interpreter.prototype.createObject = function(parent) {
       return strs.join(',');
     };
   }
+  // Errors have a custom toString method.
+  if (this.isa(obj, this.ERROR)) {
+    var thisInterpreter = this;
+    obj.toString = function() {
+      var name = thisInterpreter.getProperty(this, 'name').toString();
+      var message = thisInterpreter.getProperty(this, 'message').toString();
+      return message ? name + ': ' + message : name;
+    };
+  }
   return obj;
 };
 
@@ -2397,7 +2406,7 @@ Interpreter.prototype.throwException = function(errorClass, opt_message) {
     }
   }
   if (opt_message === undefined) {
-    var error = errorClass;
+    var error = errorClass;  // This is a value to throw, not an error class.
   } else {
     var error = this.createObject(errorClass);
     this.setProperty(error, 'message', this.createPrimitive(opt_message),
