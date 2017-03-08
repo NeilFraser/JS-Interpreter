@@ -33,8 +33,12 @@ const argv = yargs
   .alias('v', 'verbose')
 
   .alias('g', 'glob')
-  .describe('glob of tests to run')
+  .describe('g', 'glob of tests to run')
   .nargs('g', 1)
+
+  .alias('o', 'out')
+  .describe('o', 'Directory to dump compiled test files to')
+  .nargs('o', 1)
 
   .help('h')
   .alias('h', 'help')
@@ -70,6 +74,7 @@ function runTests(outputFilePath, verboseOutputFilePath) {
     const outputFile = fs.openSync(outputFilePath, 'w');
     const verboseOutputFile = fs.openSync(verboseOutputFilePath, 'w');
     runner.run({
+      compiledFilesDir: argv.out && path.resolve(argv.out),
       threads: argv.threads,
       hostType: 'js-interpreter',
       hostPath: './bin/run.js',

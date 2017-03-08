@@ -2,6 +2,7 @@ const DEFAULT_TEST_TIMEOUT = 10000;
 
 const compile = require('test262-compiler');
 const fs = require('fs');
+const path = require('path');
 const Rx = require('rx');
 const agentPool = require('test262-harness/lib/agentPool.js');
 const globber = require('test262-harness/lib/globber.js');
@@ -56,7 +57,18 @@ module.exports = {
       } else {
         test.contents = preludeContents + test.contents;
       }
-      return compile(test, { test262Dir: test262Dir, includesDir: includesDir });
+      const compiledTest = compile(test, { test262Dir: test262Dir, includesDir: includesDir });
+      if (argv.compiledFilesDir) {
+        const outPath = path.join(argv.compiledFilesDir, test.file.replace(test262Dir, ''));
+        outPath.split('/').reduce(function(prev, curr, i) {
+          if (prev && !fs.existsSync(prev)) {
+            fs.mkdirSync(prev);
+          }
+          return prev + '/' + curr;
+        });
+        fs.writeFileSync(outPath, compiledTest.contents)
+      }
+      return compiledTest;
     }
   }
 };
