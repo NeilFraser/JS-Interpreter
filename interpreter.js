@@ -159,7 +159,7 @@ Interpreter.prototype.step = function() {
 
 /**
  * Execute the interpreter to program completion.  Vulnerable to infinite loops.
- * @return {boolean} True if a execution is asynchonously blocked,
+ * @return {boolean} True if a execution is asynchronously blocked,
  *     false if no more instructions.
  */
 Interpreter.prototype.run = function() {
@@ -2816,7 +2816,13 @@ Interpreter.prototype['stepCallExpression'] = function() {
         this.stateStack.unshift(state);
       }
     } else {
-      throw TypeError('function not a function (huh?)');
+      /* A child of a function is a function but is not callable.  For example:
+      var F = function() {};
+      F.prototype = escape;
+      var f = new F();
+      f();
+      */
+      this.throwException(this.TYPE_ERROR, 'function not a function');
     }
   } else {
     // Execution complete.  Put the return value on the stack.
