@@ -1486,6 +1486,8 @@ Interpreter.Object.prototype.valueOf = function() {
  */
 Interpreter.prototype.createObject = function(parent) {
   var obj = new Interpreter.Object(parent);
+  // Objects have constructors.
+  this.setProperty(obj, 'constructor', parent);
   // Functions have prototype objects.
   if (this.isa(obj, this.FUNCTION)) {
     obj.type = 'function';
