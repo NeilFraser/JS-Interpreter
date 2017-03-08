@@ -26,6 +26,33 @@ function initConsole(interpreter, scope) {
     interpreter.createNativeFunction(myLog),
     Interpreter.NONENUMERABLE_DESCRIPTOR
   );
+
+
+  // add vm object
+  var myVM = interpreter.createObject(interpreter.OBJECT);
+  interpreter.setProperty(
+    scope,
+    'vm',
+    myVM
+  );
+
+  function runInContext(source, context) {
+    const interp = new Interpreter(source.toString(), function(interpreter, scope) {
+      initConsole(interpreter, scope);
+      for (var key in context.properties) {
+        interpreter.setProperty(scope, key, context.properties[key]);
+      }
+    });
+    interp.run();
+  }
+
+  interpreter.setProperty(
+    myVM,
+    'runInContext',
+    interpreter.createNativeFunction(runInContext),
+    Interpreter.NONENUMERABLE_DESCRIPTOR
+  );
+
 }
 
 var code = fs.readFileSync(process.argv[process.argv.length - 1], 'utf-8');
