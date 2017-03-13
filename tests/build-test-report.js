@@ -73,7 +73,10 @@ function runTests(outputFilePath, verboseOutputFilePath) {
   return new Promise(resolve => {
     let count = 1;
     const outputFile = fs.openSync(outputFilePath, 'w');
-    const verboseOutputFile = fs.openSync(verboseOutputFilePath, 'w');
+    let verboseOutputFile;
+    if (argv.verbose) {
+      verboseOutputFile = fs.openSync(verboseOutputFilePath, 'w');
+    }
     runner.run({
       compiledFilesDir: argv.out && path.resolve(argv.out),
       threads: argv.threads,
@@ -83,23 +86,46 @@ function runTests(outputFilePath, verboseOutputFilePath) {
       reporter: (results) => {
         results.on('start', function () {
           fs.appendFileSync(outputFile, '[\n');
-          fs.appendFileSync(verboseOutputFile, '[\n');
+          if (verboseOutputFile) {
+            fs.appendFileSync(verboseOutputFile, '[\n');
+          }
         });
         results.on('end', function () {
           fs.appendFileSync(outputFile, ']\n');
-          fs.appendFileSync(verboseOutputFile, ']\n');
           fs.closeSync(outputFile);
-          console.log(`finished running ${count} tests`);
+          if (verboseOutputFile) {
+            fs.appendFileSync(verboseOutputFile, ']\n');
+            fs.closeSync(verboseOutputFile);
+          }
+          console.log(`\nfinished running ${count} tests`);
           resolve();
         });
 
         results.on('test end', test => {
           const color = test.result.pass ? chalk.green : chalk.red;
-          const description = (test.attrs.description || test.file).trim().replace('\n', ' ')
-          console.log(`${count+1} ${test.file} ${color(description)}`);
+          const description = (test.attrs.description || test.file).trim().replace('\n', ' ');
+          if (argv.diff) {
+            const testDiff = getTestDiff(test);
+            if (testDiff.isRegression) {
+              process.stdout.write('R');
+            } else if (testDiff.isFix) {
+              process.stdout.write('F');
+            } else if (testDiff.isNew) {
+              process.stdout.write('N');
+            } else {
+              process.stdout.write('.');
+            }
+          } else {
+            process.stdout.write('.');
+          }
+          if (argv.verbose) {
+            process.stdout.write(` ${count+1} ${test.file} ${color(description)}\n`);
+          }
           if (count > 1) {
             fs.appendFileSync(outputFile, ',\n')
-            fs.appendFileSync(verboseOutputFile, ',\n');
+            if (verboseOutputFile) {
+              fs.appendFileSync(verboseOutputFile, ',\n');
+            }
           }
           fs.appendFileSync(
             outputFile,
@@ -109,7 +135,9 @@ function runTests(outputFilePath, verboseOutputFilePath) {
               result: test.result,
             }, null, 2)+'\n'
           );
-          fs.appendFileSync(verboseOutputFile, JSON.stringify(test, null, 2)+'\n');
+          if (verboseOutputFile) {
+            fs.appendFileSync(verboseOutputFile, JSON.stringify(test, null, 2)+'\n');
+          }
 
           count++;
         });
@@ -224,11 +252,16 @@ function printResultsSummary(results) {
   });
 }
 
+function getTestDiff(newTest) {
+  const oldTest = OLD_RESULTS_BY_KEY[getKeyForTest(newTest)];
+  return {
+    isRegression: oldTest && oldTest.result.pass && !newTest.result.pass,
+    isFix: oldTest && !oldTest.result.pass && newTest.result.pass,
+    isNew: !oldTest,
+  };
+}
+
 function printAndCheckResultsDiff(results) {
-  const oldResults = readResultsFromFile(
-    typeof argv.diff === 'string' ? argv.diff : SAVED_RESULTS_FILE
-  );
-  const resultsByKey = getResultsByKey(oldResults);
   const testsThatDiffer = {regressions: [], fixes: [], other: []};
   let numRegressions = {};
   let numFixes = {};
@@ -241,19 +274,15 @@ function printAndCheckResultsDiff(results) {
       numFixes[type] = 0;
     }
     total[type]++;
-    const oldTest = resultsByKey[getKeyForTest(newTest)];
-    let message;
+    const oldTest = OLD_RESULTS_BY_KEY[getKeyForTest(newTest)];
     let diffList = testsThatDiffer.other;
-    if (oldTest) {
-      if (oldTest.result.pass && !newTest.result.pass) {
-        numRegressions[getTestType(newTest)]++;
-        diffList = testsThatDiffer.regressions;
-      } else if (!oldTest.result.pass && newTest.result.pass) {
-        numFixes[getTestType(newTest)]++;
-        diffList = testsThatDiffer.fixes;
-      } else {
-        return;
-      }
+    const testDiff = getTestDiff(newTest);
+    if (testDiff.isRegression) {
+      numRegressions[getTestType(newTest)]++;
+      diffList = testsThatDiffer.regressions;
+    } else if (testDiff.isFix) {
+      numFixes[getTestType(newTest)]++;
+      diffList = testsThatDiffer.fixes;
     }
     diffList.push({oldTest, newTest});
   });
@@ -306,6 +335,11 @@ function processTestResults() {
   }
 }
 
+const OLD_RESULTS_BY_KEY = argv.diff ? getResultsByKey(
+  readResultsFromFile(
+    typeof argv.diff === 'string' ? argv.diff : SAVED_RESULTS_FILE
+  )
+): {};
 
 if (argv.run) {
   runTests(RESULTS_FILE, VERBOSE_RESULTS_FILE).then(processTestResults);
