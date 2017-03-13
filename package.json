@@ -17,12 +17,14 @@
   "license": "Apache-2.0",
   "bin": "bin/run.js",
   "resolutions": {
-    "eshost": "pcardune/eshost#8430014"
+    "eshost": "pcardune/eshost#caa15e7",
+    "test262-compiler": "pcardune/test262-compiler#af9df33"
   },
   "devDependencies": {
     "chalk": "^1.1.3",
-    "eshost": "pcardune/eshost#8430014",
-    "test262-harness": "^2.4.0"
+    "eshost": "pcardune/eshost#caa15e7",
+    "test262-harness": "^2.4.0",
+    "test262-compiler": "pcardune/test262-compiler#af9df33"
   },
   "scripts": {
     "test": "tests/build-test-report.js -r"
