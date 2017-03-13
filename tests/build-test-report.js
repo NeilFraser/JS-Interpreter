@@ -68,7 +68,7 @@ function saveResults(results) {
 
 function runTests(outputFilePath, verboseOutputFilePath) {
   downloadTestsIfNecessary();
-  console.log(`running tests with ${argv.threads/1} threads...`);
+  console.log(`running tests with ${argv.threads} threads...`);
 
   return new Promise(resolve => {
     let count = 1;

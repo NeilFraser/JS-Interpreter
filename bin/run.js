@@ -16,10 +16,10 @@
  */
 
 window = typeof window === 'undefined' ? global : window;
-var fs = require('fs');
+const fs = require('fs');
 const yargs = require('yargs');
 
-var Interpreter = require('../interpreter');
+const Interpreter = require('../interpreter');
 
 const argv = yargs
   .usage(`Usage: $0 <filepath.js>`)
@@ -30,10 +30,10 @@ const argv = yargs
 
 
 function createConsoleObject(interpreter) {
-  var myConsole = interpreter.createObject(interpreter.OBJECT);
+  const myConsole = interpreter.createObject(interpreter.OBJECT);
   // add log function to console object
   function myLog() {
-    for (var j = 0; j < arguments.length; j++) {
+    for (let j = 0; j < arguments.length; j++) {
       arguments[j] = arguments[j].toString();
     }
     return interpreter.createPrimitive(console.log.apply(console, arguments));
@@ -48,11 +48,11 @@ function createConsoleObject(interpreter) {
 }
 
 function createVMObject(interpreter) {
-  var vm = interpreter.createObject(interpreter.OBJECT);
+  const vm = interpreter.createObject(interpreter.OBJECT);
   function runInContext(source, context) {
     const interp = new Interpreter(source.toString(), function(interpreter, scope) {
       initInterpreterScope(interpreter, scope);
-      for (var key in context.properties) {
+      for (let key in context.properties) {
         interpreter.setProperty(scope, key, context.properties[key]);
       }
     });
@@ -87,5 +87,5 @@ function initInterpreterScope(interpreter, scope) {
 
 }
 
-var code = fs.readFileSync(argv._[0], 'utf-8');
+const code = fs.readFileSync(argv._[0], 'utf-8');
 new Interpreter(code, initInterpreterScope).run();
