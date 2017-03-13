@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+const os = require('os');
 const path = require('path');
 const yargs = require('yargs');
 const fs = require('fs');
@@ -17,18 +18,18 @@ const argv = yargs
   .usage(`Usage: $0 [options] [${DEFAULT_TEST_RESULTS_FILE}]`)
 
   .alias('d', 'diff')
-  .describe('d', 'diff against existing test results')
+  .describe('d', 'diff against existing test results. Returns exit code 1 if there are changes.')
 
   .alias('r', 'run')
   .describe('r', 'generate new test results')
 
-  .alias('s', '--save')
+  .alias('s', 'save')
   .describe('s', 'save the results')
 
   .alias('t', 'threads')
   .describe('t', '# of threads to use')
   .nargs('t', 1)
-  .default('t', 4)
+  .default('t', os.cpus().length)
 
   .alias('v', 'verbose')
 
@@ -160,6 +161,7 @@ function runTests(outputFilePath, verboseOutputFilePath) {
         'tests/test262/test/built-ins/Symbol/**/*.js',
         'tests/test262/test/built-ins/ThrowTypeError/**/*.js',
         'tests/test262/test/built-ins/TypedArray/**/*.js',
+// this test file currently makes the interpreter explode.
 //        'tests/test262/test/built-ins/TypedArrays/**/*.js',
         'tests/test262/test/built-ins/undefined/**/*.js',
         'tests/test262/test/built-ins/WeakMap/**/*.js',
@@ -183,14 +185,109 @@ function getResultsByKey(results) {
   return byKey;
 }
 
+const TEST_TYPES = ['es5', 'es6', 'es', 'other'];
+
 function getTestType(test) {
   return test.attrs.es5id ? 'es5' :
          test.attrs.es6id ? 'es6' :
+         test.attrs.esid ? 'es' :
          'other';
 }
 
 function getTestDescription(test) {
   return test.attrs.description.trim().replace('\n', ' ');
+}
+
+function printResultsSummary(results) {
+  let total = {};
+  let passed = {};
+  let percent = {};
+
+  results.forEach(test => {
+    const type = getTestType(test);
+    if (!total[type]) {
+      total[type] = 0;
+      passed[type] = 0;
+    }
+    total[type]++;
+    if (test.result.pass) {
+      passed[type]++;
+    }
+    percent[type] = Math.floor(passed[type] / total[type] * 100);
+  });
+
+  console.log('Results:');
+  TEST_TYPES.forEach(type => {
+    if (total[type]) {
+      console.log(`  ${type}: ${passed[type]}/${total[type]} (${percent[type]}%) passed`);
+    }
+  });
+}
+
+function printAndCheckResultsDiff(results) {
+  const oldResults = readResultsFromFile(
+    typeof argv.diff === 'string' ? argv.diff : SAVED_RESULTS_FILE
+  );
+  const resultsByKey = getResultsByKey(oldResults);
+  const testsThatDiffer = {regressions: [], fixes: [], other: []};
+  let numRegressions = {};
+  let numFixes = {};
+  let total = {};
+  results.forEach(newTest => {
+    const type = getTestType(newTest);
+    if (!total[type]) {
+      total[type] = 0;
+      numRegressions[type] = 0;
+      numFixes[type] = 0;
+    }
+    total[type]++;
+    const oldTest = resultsByKey[getKeyForTest(newTest)];
+    let message;
+    let diffList = testsThatDiffer.other;
+    if (oldTest) {
+      if (oldTest.result.pass && !newTest.result.pass) {
+        numRegressions[getTestType(newTest)]++;
+        diffList = testsThatDiffer.regressions;
+      } else if (!oldTest.result.pass && newTest.result.pass) {
+        numFixes[getTestType(newTest)]++;
+        diffList = testsThatDiffer.fixes;
+      } else {
+        return;
+      }
+    }
+    diffList.push({oldTest, newTest});
+  });
+
+
+  if (argv.verbose) {
+    const printTest = ({oldTest, newTest}, index) => {
+      console.log(`  ${index}. ${getTestDescription(newTest)}`);
+    }
+    console.log('Fixes:')
+    testsThatDiffer.fixes.forEach(printTest);
+    console.log('\nRegressions:')
+    testsThatDiffer.regressions.forEach(printTest);
+  }
+  console.log('Regressions:');
+  TEST_TYPES.forEach(type => {
+    if (total[type]) {
+      console.log(`  ${type}: ${numRegressions[type]}/${total[type]}`);
+    }
+  });
+  console.log('Fixes:');
+  TEST_TYPES.forEach(type => {
+    if (total[type]) {
+      console.log(`  ${type}: ${numFixes[type]}/${total[type]}`);
+    }
+  });
+
+  for (let i = 0; i < TEST_TYPES.length; i++) {
+    const type = TEST_TYPES[i];
+    if (numRegressions[type] || numFixes[type]) {
+      return true;
+    }
+  }
+  return false;
 }
 
 
@@ -201,95 +298,11 @@ function processTestResults() {
     saveResults(results);
   }
 
-  let total = {
-    es6: 0,
-    es5: 0,
-    other: 0,
-  };
-  let passed = {
-    es6: 0,
-    es5: 0,
-    other: 0,
-  };
-  let percent = {};
-
-
-  results.forEach(test => {
-    const type = getTestType(test);
-    total[type]++;
-    if (test.result.pass) {
-      passed[type]++;
-    }
-    percent[type] = Math.floor(passed[type] / total[type] * 100);
-  });
-
-  console.log(`\
-Results:
-  es5: ${passed.es5}/${total.es5} (${percent.es5}%) passed
-  es6: ${passed.es6}/${total.es6} (${percent.es6}%) passed
-`);
-
+  printResultsSummary(results);
   if (argv.diff) {
-    const oldResults = readResultsFromFile(
-      typeof argv.diff === 'string' ? argv.diff : SAVED_RESULTS_FILE
-    );
-    const resultsByKey = getResultsByKey(oldResults);
-    const testsThatDiffer = {regressions: [], fixes: [], other: []};
-    let numRegressions = {
-      es5: 0,
-      es6: 0,
-    };
-    let numFixes = {
-      es5: 0,
-      es6: 0,
-    };
-    let total = {
-      es5: 0,
-      es6: 0,
-    };
-    results.forEach(newTest => {
-      total[getTestType(newTest)]++;
-      const oldTest = resultsByKey[getKeyForTest(newTest)];
-      let message;
-      let diffList = testsThatDiffer.other;
-      if (!oldTest) {
-        message = 'This test is new';
-      } else if (oldTest.result.pass && !newTest.result.pass) {
-        numRegressions[getTestType(newTest)]++;
-        message = 'This test regressed';
-        diffList = testsThatDiffer.regressions;
-      } else if (!oldTest.result.pass && newTest.result.pass) {
-        numFixes[getTestType(newTest)]++;
-        message = 'This test started passing';
-        diffList = testsThatDiffer.fixes;
-      } else {
-        return;
-      }
-      diffList.push({
-        oldTest,
-        newTest,
-        message
-      });
-    });
-
-
-    if (argv.verbose) {
-      const printTest = ({oldTest, newTest, message}, index) => {
-        console.log(`  ${index}. ${getTestDescription(newTest)}`);
-      }
-      console.log('Fixes:')
-      testsThatDiffer.fixes.forEach(printTest);
-      console.log('\nRegressions:')
-      testsThatDiffer.regressions.forEach(printTest);
+    if (printAndCheckResultsDiff(results)) {
+      process.exit(1);
     }
-    console.log(`
-Regressions:
-  es5: ${numRegressions.es5}/${total.es5}
-  es6: ${numRegressions.es6}/${total.es6}
-Fixes:
-  es5: ${numFixes.es5}/${total.es5}
-  es6: ${numFixes.es6}/${total.es6}
-`);
   }
 }
 

@@ -1,4 +1,8 @@
-const DEFAULT_TEST_TIMEOUT = 10000;
+/**
+ * This duplicates some of the code in test262-harness/bin/run.js, but
+ * wraps it inside a function that can be executed programmatically rather
+ * than just being a script that executes immediately upon import.
+ */
 
 const compile = require('test262-compiler');
 const fs = require('fs');
@@ -11,8 +15,28 @@ const scenariosForTest = require('test262-harness/lib/scenarios.js');
 const test262Finder = require('test262-harness/lib/findTest262.js');
 const validator = require('test262-harness/lib/validator.js');
 
+const DEFAULT_TEST_TIMEOUT = 10000;
 
 module.exports = {
+  /**
+   * @param {Object} argv
+   * @param {string} [argv.test262Dir] - Root test262 directory and is used to locate the includes directory.
+   * @param {string} [argv.includesDir] - Includes directory. By default inferred from test262Dir or else
+   *     detected by walking upward from the first test found.
+   * @param {string} [argv.hostType] - Type of host to run tests in.
+   *     See eshost's supported hosts for available options.
+   * @param {string} [argv.hostPath] - Path to the host executable.
+   * @param {string[]} [argv.hostArgs] - Any additional arguments to pass to the host when invoking it (eg.
+   *     --harmony, --es6all, etc).
+   * @param {number} [argv.threads] - Run this many tests in parallel. Note that the browser runners don't
+   *     work great with t > 1.
+   * @param {number} [argv.timeout] - ms to wait for a test to complete before failing it
+   * @param {string} [argv.prelude] - Path to a file to include before every test (useful for testing polyfills
+   *     for example)
+   * @param {Function} [argv.reporter] - Function to call that hooks up results stream to a reporter of some kind
+   * @param {string[]} [argv.globs] - List of path globs to test files.
+   * @param {string} [argv.compiledFilesDir] - Directory to store compiled test files that get run.
+   */
   run(argv) {
     let test262Dir = argv.test262Dir;
     let includesDir = argv.includesDir;
