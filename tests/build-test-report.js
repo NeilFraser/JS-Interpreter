@@ -120,6 +120,8 @@ function runTests(outputFilePath, verboseOutputFilePath) {
           }
           if (argv.verbose) {
             process.stdout.write(` ${count+1} ${test.file} ${color(description)}\n`);
+          } else if (count % 80 === 0) {
+            process.stdout.write('\n');
           }
           if (count > 1) {
             fs.appendFileSync(outputFile, ',\n')
