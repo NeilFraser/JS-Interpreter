@@ -1486,6 +1486,8 @@ Interpreter.Object.prototype.valueOf = function() {
  */
 Interpreter.prototype.createObject = function(parent) {
   var obj = new Interpreter.Object(parent);
+  // Objects have constructors.
+  this.setProperty(obj, 'constructor', parent);
   // Functions have prototype objects.
   if (this.isa(obj, this.FUNCTION)) {
     obj.type = 'function';
@@ -2821,7 +2823,6 @@ Interpreter.prototype['stepWhileStatement'] =
 
 // Preserve top-level API functions from being pruned by JS compilers.
 // Add others as needed.
-window['Interpreter'] = Interpreter;
 Interpreter.prototype['appendCode'] = Interpreter.prototype.appendCode;
 Interpreter.prototype['step'] = Interpreter.prototype.step;
 Interpreter.prototype['run'] = Interpreter.prototype.run;
