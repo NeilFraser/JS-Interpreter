@@ -15,16 +15,19 @@ const DEFAULT_VERBOSE_TEST_RESULTS_FILE = 'test-results-new.verbose.json';
 const SAVED_RESULTS_FILE = path.resolve(__dirname, 'test-results.json');
 
 const argv = yargs
-  .usage(`Usage: $0 [options] [${DEFAULT_TEST_RESULTS_FILE}]`)
+  .usage(`Usage: $0 [options] [test file glob pattern]`)
 
   .alias('d', 'diff')
   .describe('d', 'diff against existing test results. Returns exit code 1 if there are changes.')
+  .boolean('d')
 
   .alias('r', 'run')
   .describe('r', 'generate new test results')
+  .boolean('r')
 
   .alias('s', 'save')
   .describe('s', 'save the results')
+  .boolean('s')
 
   .alias('t', 'threads')
   .describe('t', '# of threads to use')
@@ -32,20 +35,22 @@ const argv = yargs
   .default('t', os.cpus().length)
 
   .alias('v', 'verbose')
-
-  .alias('g', 'glob')
-  .describe('g', 'glob of tests to run')
-  .nargs('g', 1)
+  .boolean('v')
 
   .alias('o', 'out')
   .describe('o', 'Directory to dump compiled test files to')
   .nargs('o', 1)
 
+  .alias('i', 'input')
+  .describe('i', 'Specify a results file')
+  .default('i', 'tests/test-results-new.json')
+  .nargs('i', 1)
+
   .help('h')
   .alias('h', 'help')
   .argv;
 
-const RESULTS_FILE = argv._[0] || path.resolve(__dirname, DEFAULT_TEST_RESULTS_FILE);
+const RESULTS_FILE = path.resolve(argv.input);
 const VERBOSE_RESULTS_FILE = path.resolve(__dirname, DEFAULT_VERBOSE_TEST_RESULTS_FILE);
 
 function downloadTestsIfNecessary() {
@@ -144,7 +149,7 @@ function runTests(outputFilePath, verboseOutputFilePath) {
           count++;
         });
       },
-      globs: argv.glob ? [argv.glob] : [
+      globs: argv._.length > 0 ? argv._ : [
         'tests/test262/test/language/**/*.js',
         'tests/test262/test/built-ins/Array/**/*.js',
         'tests/test262/test/built-ins/ArrayBuffer/**/*.js',
