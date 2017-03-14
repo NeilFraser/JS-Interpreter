@@ -8,9 +8,8 @@ dependencies:
     - yarn
   cache_directories:
     - ~/.cache/yarn
+    - tests/test262
 test:
   override:
-    - tests/build-test-report.js -rdt 1:
+    - tests/test-on-circle.sh:
         parallel: true
-        files:
-          - tests/test262/test/language/**/*.js
