@@ -10,4 +10,7 @@ dependencies:
     - ~/.cache/yarn
 test:
   override:
-    - yarn test
+    - tests/build-test-report.js -rdt 1:
+        parallel: true
+        files:
+          - tests/test262/test/language/**/*.js
