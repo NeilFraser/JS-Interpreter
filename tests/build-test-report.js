@@ -10,8 +10,6 @@ const runner = require('./runner');
 
 
 const TESTS_DIRECTORY = path.resolve(__dirname, 'test262');
-const DEFAULT_TEST_RESULTS_FILE = 'test-results-new.json';
-const DEFAULT_VERBOSE_TEST_RESULTS_FILE = 'test-results-new.verbose.json';
 const SAVED_RESULTS_FILE = path.resolve(__dirname, 'test-results.json');
 
 const argv = yargs
@@ -43,15 +41,18 @@ const argv = yargs
 
   .alias('i', 'input')
   .describe('i', 'Specify a results file')
-  .default('i', 'tests/test-results-new.json')
+  .default('i', path.resolve(__dirname, 'test-results-new.json'))
   .nargs('i', 1)
+
+  .nargs('interpreter', 1)
+  .describe('interpreter', 'path to interpreter module to use')
 
   .help('h')
   .alias('h', 'help')
   .argv;
 
 const RESULTS_FILE = path.resolve(argv.input);
-const VERBOSE_RESULTS_FILE = path.resolve(__dirname, DEFAULT_VERBOSE_TEST_RESULTS_FILE);
+const VERBOSE_RESULTS_FILE = path.resolve(__dirname, 'test-results-new.verbose.json');
 
 function downloadTestsIfNecessary() {
   if (!fs.existsSync(TESTS_DIRECTORY)) {
@@ -86,8 +87,9 @@ function runTests(outputFilePath, verboseOutputFilePath) {
       compiledFilesDir: argv.out && path.resolve(argv.out),
       threads: argv.threads,
       hostType: 'js-interpreter',
-      hostPath: './bin/run.js',
-      test262Dir: 'tests/test262',
+      hostPath: path.resolve(__dirname, '../bin/run.js'),
+      hostArgs: argv.interpreter ? ['--interpreter', argv.interpreter] : undefined,
+      test262Dir: path.resolve(__dirname, 'test262'),
       reporter: (results) => {
         results.on('start', function () {
           fs.appendFileSync(outputFile, '[\n');
@@ -150,58 +152,58 @@ function runTests(outputFilePath, verboseOutputFilePath) {
         });
       },
       globs: argv._.length > 0 ? argv._ : [
-        'tests/test262/test/language/**/*.js',
-        'tests/test262/test/built-ins/Array/**/*.js',
-        'tests/test262/test/built-ins/ArrayBuffer/**/*.js',
-        'tests/test262/test/built-ins/ArrayIteratorPrototype/**/*.js',
-        'tests/test262/test/built-ins/AsyncFunction/**/*.js',
-        'tests/test262/test/built-ins/Atomics/**/*.js',
-        'tests/test262/test/built-ins/Boolean/**/*.js',
-        'tests/test262/test/built-ins/DataView/**/*.js',
-        'tests/test262/test/built-ins/Date/**/*.js',
-        'tests/test262/test/built-ins/decodeURI/**/*.js',
-        'tests/test262/test/built-ins/decodeURIComponent/**/*.js',
-        'tests/test262/test/built-ins/encodeURI/**/*.js',
-        'tests/test262/test/built-ins/encodeURIComponent/**/*.js',
-        'tests/test262/test/built-ins/Error/**/*.js',
-        'tests/test262/test/built-ins/eval/**/*.js',
-        'tests/test262/test/built-ins/Function/**/*.js',
-        'tests/test262/test/built-ins/GeneratorFunction/**/*.js',
-        'tests/test262/test/built-ins/GeneratorPrototype/**/*.js',
-        'tests/test262/test/built-ins/global/**/*.js',
-        'tests/test262/test/built-ins/Infinity/**/*.js',
-        'tests/test262/test/built-ins/isFinite/**/*.js',
-        'tests/test262/test/built-ins/isNaN/**/*.js',
-        'tests/test262/test/built-ins/IteratorPrototype/**/*.js',
-        'tests/test262/test/built-ins/JSON/**/*.js',
-        'tests/test262/test/built-ins/Map/**/*.js',
-        'tests/test262/test/built-ins/MapIteratorPrototype/**/*.js',
-        'tests/test262/test/built-ins/Math/**/*.js',
-        'tests/test262/test/built-ins/NaN/**/*.js',
-        'tests/test262/test/built-ins/NativeErrors/**/*.js',
-        'tests/test262/test/built-ins/Number/**/*.js',
-        'tests/test262/test/built-ins/Object/**/*.js',
-        'tests/test262/test/built-ins/parseFloat/**/*.js',
-        'tests/test262/test/built-ins/parseInt/**/*.js',
-        'tests/test262/test/built-ins/Promise/**/*.js',
-        'tests/test262/test/built-ins/Proxy/**/*.js',
-        'tests/test262/test/built-ins/Reflect/**/*.js',
-        'tests/test262/test/built-ins/RegExp/**/*.js',
-        'tests/test262/test/built-ins/Set/**/*.js',
-        'tests/test262/test/built-ins/SetIteratorPrototype/**/*.js',
-        'tests/test262/test/built-ins/SharedArrayBuffer/**/*.js',
-        'tests/test262/test/built-ins/Simd/**/*.js',
-        'tests/test262/test/built-ins/String/**/*.js',
-        'tests/test262/test/built-ins/StringIteratorPrototype/**/*.js',
-        'tests/test262/test/built-ins/Symbol/**/*.js',
-        'tests/test262/test/built-ins/ThrowTypeError/**/*.js',
-        'tests/test262/test/built-ins/TypedArray/**/*.js',
+        'test262/test/language/**/*.js',
+        'test262/test/built-ins/Array/**/*.js',
+        'test262/test/built-ins/ArrayBuffer/**/*.js',
+        'test262/test/built-ins/ArrayIteratorPrototype/**/*.js',
+        'test262/test/built-ins/AsyncFunction/**/*.js',
+        'test262/test/built-ins/Atomics/**/*.js',
+        'test262/test/built-ins/Boolean/**/*.js',
+        'test262/test/built-ins/DataView/**/*.js',
+        'test262/test/built-ins/Date/**/*.js',
+        'test262/test/built-ins/decodeURI/**/*.js',
+        'test262/test/built-ins/decodeURIComponent/**/*.js',
+        'test262/test/built-ins/encodeURI/**/*.js',
+        'test262/test/built-ins/encodeURIComponent/**/*.js',
+        'test262/test/built-ins/Error/**/*.js',
+        'test262/test/built-ins/eval/**/*.js',
+        'test262/test/built-ins/Function/**/*.js',
+        'test262/test/built-ins/GeneratorFunction/**/*.js',
+        'test262/test/built-ins/GeneratorPrototype/**/*.js',
+        'test262/test/built-ins/global/**/*.js',
+        'test262/test/built-ins/Infinity/**/*.js',
+        'test262/test/built-ins/isFinite/**/*.js',
+        'test262/test/built-ins/isNaN/**/*.js',
+        'test262/test/built-ins/IteratorPrototype/**/*.js',
+        'test262/test/built-ins/JSON/**/*.js',
+        'test262/test/built-ins/Map/**/*.js',
+        'test262/test/built-ins/MapIteratorPrototype/**/*.js',
+        'test262/test/built-ins/Math/**/*.js',
+        'test262/test/built-ins/NaN/**/*.js',
+        'test262/test/built-ins/NativeErrors/**/*.js',
+        'test262/test/built-ins/Number/**/*.js',
+        'test262/test/built-ins/Object/**/*.js',
+        'test262/test/built-ins/parseFloat/**/*.js',
+        'test262/test/built-ins/parseInt/**/*.js',
+        'test262/test/built-ins/Promise/**/*.js',
+        'test262/test/built-ins/Proxy/**/*.js',
+        'test262/test/built-ins/Reflect/**/*.js',
+        'test262/test/built-ins/RegExp/**/*.js',
+        'test262/test/built-ins/Set/**/*.js',
+        'test262/test/built-ins/SetIteratorPrototype/**/*.js',
+        'test262/test/built-ins/SharedArrayBuffer/**/*.js',
+        'test262/test/built-ins/Simd/**/*.js',
+        'test262/test/built-ins/String/**/*.js',
+        'test262/test/built-ins/StringIteratorPrototype/**/*.js',
+        'test262/test/built-ins/Symbol/**/*.js',
+        'test262/test/built-ins/ThrowTypeError/**/*.js',
+        'test262/test/built-ins/TypedArray/**/*.js',
 // this test file currently makes the interpreter explode.
-//        'tests/test262/test/built-ins/TypedArrays/**/*.js',
-        'tests/test262/test/built-ins/undefined/**/*.js',
-        'tests/test262/test/built-ins/WeakMap/**/*.js',
-        'tests/test262/test/built-ins/WeakSet/**/*.js',
-      ]
+//        'test262/test/built-ins/TypedArrays/**/*.js',
+        'test262/test/built-ins/undefined/**/*.js',
+        'test262/test/built-ins/WeakMap/**/*.js',
+        'test262/test/built-ins/WeakSet/**/*.js',
+      ].map(t => path.resolve(__dirname, t))
     });
   });
 }
