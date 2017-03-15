@@ -18,16 +18,21 @@
 window = typeof window === 'undefined' ? global : window;
 const fs = require('fs');
 const yargs = require('yargs');
-
-const Interpreter = require('../interpreter');
+const path = require('path');
 
 const argv = yargs
   .usage(`Usage: $0 <filepath.js>`)
   .help('h')
   .alias('h', 'help')
+
+  .nargs('interpreter', 1)
+  .describe('interpreter', 'path to interpreter module to use')
+
   .demandCommand(1)
   .argv;
 
+
+const Interpreter = require(argv.interpreter ? path.resolve(argv.interpreter) : '../interpreter');
 
 function createConsoleObject(interpreter) {
   const myConsole = interpreter.createObject(interpreter.OBJECT);
