@@ -22,3 +22,14 @@ var myInterpreter = new Interpreter('2 * 2');
 import Interpreter from 'js-interpreter';
 const myInterpreter = new Interpreter('2 * 2');
 ```
+
+## What's new
+
+Full support of functions in `nativeToPseudo`:
+
+Example:
+```
+interpreter.nativeToPseudo({
+    log(...args) { console.log(...args) },
+}))
+```
