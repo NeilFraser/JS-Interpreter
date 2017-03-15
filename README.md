@@ -33,3 +33,15 @@ interpreter.nativeToPseudo({
     log(...args) { console.log(...args) },
 }))
 ```
+
+## Using command line interface
+
+```
+js-interpreter path/to/my/file.js
+```
+
+or
+
+```
+echo 'console.log(1 + 2)' | js-interpreter 
+```

@@ -3,9 +3,11 @@
   "version": "1.2.0",
   "description": "NPM package for https://github.com/NeilFraser/JS-Interpreter",
   "main": "lib/index.js",
+  "module": "src/interpreter.js",
+  "bin": "bin/js-interpreter",
   "scripts": {
-    "build": "webpack",
-    "prepublish": "npm run build"
+    "build": "webpack --config webpack.config.cli.js",
+    "prepublish": "webpack && npm run build"
   },
   "repository": {
     "type": "git",
@@ -18,7 +20,7 @@
   },
   "homepage": "https://github.com/aminmarashi/JS-Interpreter#readme",
   "devDependencies": {
-    "acorn": "^4.0.3",
-    "webpack": "^1.14.0"
+    "acorn": "^4.0.11",
+    "webpack": "^2.2.1"
   }
 }

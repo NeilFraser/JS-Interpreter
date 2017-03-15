@@ -1,12 +1,13 @@
+const path = require('path')
+
 module.exports = {
-    devtool: 'source-map',
-    entry: [
-        './src/interpreter.js',
-    ],
+    entry: {
+        index: [path.join(__dirname, 'src', 'interpreter.js')],
+    },
     output: {
         library: 'js-interpreter',
         libraryTarget: 'umd',
-        path: 'lib',
-        filename: 'index.js',
+        path: path.join(__dirname, 'lib'),
+        filename: '[name].js',
     },
 };
