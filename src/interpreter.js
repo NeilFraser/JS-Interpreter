@@ -31,7 +31,9 @@
  *     global scope object.
  * @constructor
  */
-var acorn = require('acorn');
+const acorn = require('acorn');
+
+const copy = require('./copy');
 
 var Interpreter = function(code, opt_initFunc) {
   if (typeof code == 'string') {
@@ -2587,6 +2589,20 @@ Interpreter.prototype.pushSetter_ = function(func, left, value) {
     doneArgs_: true,
     arguments_: [value]
   });
+};
+
+/**
+ * Take a snapshot from current stateStack. Restore by restoreStateSnapshot
+ */
+Interpreter.prototype.takeStateSnapshot = function() {
+  return copy(this.stateStack)
+};
+
+/**
+ * Restore a state snapshot
+ */
+Interpreter.prototype.restoreStateSnapshot = function(snapshot) {
+  this.stateStack = copy(snapshot)
 };
 
 ///////////////////////////////////////////////////////////////////////////////
