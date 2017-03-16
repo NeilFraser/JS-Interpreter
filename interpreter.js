@@ -285,8 +285,7 @@ Interpreter.prototype.initFunction = function(scope) {
     }
     // Interestingly, the scope for constructed functions is the global scope,
     // even if they were constructed in some other scope.
-    newFunc.parentScope =
-        thisInterpreter.stateStack[0].scope;
+    newFunc.parentScope = thisInterpreter.stateStack[0].scope;
     var ast = acorn.parse('$ = function(' + args + ') {' + code + '};',
         Interpreter.PARSE_OPTIONS);
     newFunc.node = ast.body[0].expression.right;
@@ -3414,8 +3413,7 @@ Interpreter.prototype['stepUpdateExpression'] = function() {
   } else {
     throw SyntaxError('Unknown update expression: ' + node.operator);
   }
-  var returnValue = node.prefix ?
-      changeValue : this.createPrimitive(leftValue);
+  var returnValue = node.prefix ? changeValue : this.createPrimitive(leftValue);
   var setter = this.setValue(state.leftSide, changeValue);
   if (setter) {
     state.doneSetter_ = returnValue;
