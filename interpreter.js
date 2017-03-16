@@ -2462,14 +2462,14 @@ Interpreter.prototype.executeException = function(error) {
 Interpreter.prototype['stepArrayExpression'] = function() {
   var state = this.stateStack[this.stateStack.length - 1];
   var node = state.node;
-  var n = state.n || 0;
-  if (!state.array) {
-    state.array = this.createObject(this.ARRAY);
+  var n = state.n_ || 0;
+  if (!state.array_) {
+    state.array_ = this.createObject(this.ARRAY);
   } else if (state.value) {
-    this.setProperty(state.array, n - 1, state.value);
+    this.setProperty(state.array_, n - 1, state.value);
   }
   if (n < node.elements.length) {
-    state.n = n + 1;
+    state.n_ = n + 1;
     if (node.elements[n]) {
       this.stateStack.push({node: node.elements[n]});
     } else {
@@ -2478,45 +2478,45 @@ Interpreter.prototype['stepArrayExpression'] = function() {
       state.value = undefined;
     }
   } else {
-    state.array.length = state.n || 0;
+    state.array_.length = state.n_ || 0;
     this.stateStack.pop();
-    this.stateStack[this.stateStack.length - 1].value = state.array;
+    this.stateStack[this.stateStack.length - 1].value = state.array_;
   }
 };
 
 Interpreter.prototype['stepAssignmentExpression'] = function() {
   var state = this.stateStack[this.stateStack.length - 1];
   var node = state.node;
-  if (!state.doneLeft) {
-    state.doneLeft = true;
+  if (!state.doneLeft_) {
+    state.doneLeft_ = true;
     this.stateStack.push({node: node.left, components: true});
     return;
   }
-  if (!state.doneRight) {
-    if (!state.leftSide) {
-      state.leftSide = state.value;
+  if (!state.doneRight_) {
+    if (!state.leftSide_) {
+      state.leftSide_ = state.value;
     }
     if (state.doneGetter_) {
-      state.leftValue = state.value;
+      state.leftValue_ = state.value;
     }
     if (!state.doneGetter_ && node.operator != '=') {
-      state.leftValue = this.getValue(state.leftSide);
-      if (state.leftValue.isGetter) {
+      state.leftValue_ = this.getValue(state.leftSide_);
+      if (state.leftValue_.isGetter) {
         // Clear the getter flag and call the getter function.
-        state.leftValue.isGetter = false;
+        state.leftValue_.isGetter = false;
         state.doneGetter_ = true;
         this.stateStack.push({
           node: {type: 'CallExpression'},
           doneCallee_: true,
-          funcThis_: state.leftSide[0],
-          func_: state.leftValue,
+          funcThis_: state.leftSide_[0],
+          func_: state.leftValue_,
           doneArgs_: true,
           arguments: []
         });
         return;
       }
     }
-    state.doneRight = true;
+    state.doneRight_ = true;
     this.stateStack.push({node: node.right});
     return;
   }
@@ -2534,12 +2534,12 @@ Interpreter.prototype['stepAssignmentExpression'] = function() {
     value = rightSide;
   } else {
     var rightValue = rightSide;
-    var leftNumber = state.leftValue.toNumber();
+    var leftNumber = state.leftValue_.toNumber();
     var rightNumber = rightValue.toNumber();
     if (node.operator == '+=') {
       var left, right;
-      if (state.leftValue.type == 'string' || rightValue.type == 'string') {
-        left = state.leftValue.toString();
+      if (state.leftValue_.type == 'string' || rightValue.type == 'string') {
+        left = state.leftValue_.toString();
         right = rightValue.toString();
       } else {
         left = leftNumber;
@@ -2571,13 +2571,13 @@ Interpreter.prototype['stepAssignmentExpression'] = function() {
     }
     value = this.createPrimitive(value);
   }
-  var setter = this.setValue(state.leftSide, value);
+  var setter = this.setValue(state.leftSide_, value);
   if (setter) {
     state.doneSetter_ = value;
     this.stateStack.push({
       node: {type: 'CallExpression'},
       doneCallee_: true,
-      funcThis_: state.leftSide[0],
+      funcThis_: state.leftSide_[0],
       func_: setter,
       doneArgs_: true,
       arguments: [value]
@@ -2592,19 +2592,19 @@ Interpreter.prototype['stepAssignmentExpression'] = function() {
 Interpreter.prototype['stepBinaryExpression'] = function() {
   var state = this.stateStack[this.stateStack.length - 1];
   var node = state.node;
-  if (!state.doneLeft) {
-    state.doneLeft = true;
+  if (!state.doneLeft_) {
+    state.doneLeft_ = true;
     this.stateStack.push({node: node.left});
     return;
   }
-  if (!state.doneRight) {
-    state.doneRight = true;
-    state.leftValue = state.value;
+  if (!state.doneRight_) {
+    state.doneRight_ = true;
+    state.leftValue_ = state.value;
     this.stateStack.push({node: node.right});
     return;
   }
   this.stateStack.pop();
-  var leftSide = state.leftValue;
+  var leftSide = state.leftValue_;
   var rightSide = state.value;
   var value;
   var comp = this.comp(leftSide, rightSide);
@@ -2684,15 +2684,10 @@ Interpreter.prototype['stepBlockStatement'] = function() {
   var node = state.node;
   var n = state.n_ || 0;
   if (node.body[n]) {
-    state.done = false;
     state.n_ = n + 1;
     this.stateStack.push({node: node.body[n]});
   } else {
-    state.done = true;
-    if (state.node.type != 'Program') {
-      // Leave the root scope on the tree in case the program is appended to.
-      this.stateStack.pop();
-    }
+    this.stateStack.pop();
   }
 };
 
@@ -2849,8 +2844,8 @@ Interpreter.prototype['stepCallExpression'] = function() {
 Interpreter.prototype['stepCatchClause'] = function() {
   var state = this.stateStack[this.stateStack.length - 1];
   var node = state.node;
-  if (!state.doneBody) {
-    state.doneBody = true;
+  if (!state.done_) {
+    state.done_ = true;
     var scope;
     if (node.param) {
       scope = this.createSpecialScope(this.getScope());
@@ -2866,23 +2861,26 @@ Interpreter.prototype['stepCatchClause'] = function() {
 
 Interpreter.prototype['stepConditionalExpression'] = function() {
   var state = this.stateStack[this.stateStack.length - 1];
-  if (!state.done) {
-    if (!state.test) {
-      state.test = true;
-      this.stateStack.push({node: state.node.test});
-    } else {
-      state.done = true;
-      if (state.value.toBoolean() && state.node.consequent) {
-        this.stateStack.push({node: state.node.consequent});
-      } else if (!state.value.toBoolean() && state.node.alternate) {
-        this.stateStack.push({node: state.node.alternate});
-      }
+  var mode = state.mode_ || 0;
+  if (mode == 0) {
+    state.mode_ = 1;
+    this.stateStack.push({node: state.node.test});
+    return;
+  }
+  if (mode == 1) {
+    state.mode_ = 2;
+    var value = state.value.toBoolean();
+    if (value && state.node.consequent) {
+      this.stateStack.push({node: state.node.consequent});
+      return;  // Execute 'if' block.
+    } else if (!value && state.node.alternate) {
+      this.stateStack.push({node: state.node.alternate});
+      return;  // Execute 'else' block.
     }
-  } else {
-    this.stateStack.pop();
-    if (state.node.type == 'ConditionalExpression') {
-      this.stateStack[this.stateStack.length - 1].value = state.value;
-    }
+  }
+  this.stateStack.pop();
+  if (state.node.type == 'ConditionalExpression') {
+    this.stateStack[this.stateStack.length - 1].value = state.value;
   }
 };
 
@@ -2910,20 +2908,20 @@ Interpreter.prototype['stepContinueStatement'] = function() {
 
 Interpreter.prototype['stepDoWhileStatement'] = function() {
   var state = this.stateStack[this.stateStack.length - 1];
-  state.isLoop = true;
   if (state.node.type == 'DoWhileStatement' && state.test === undefined) {
     // First iteration of do/while executes without checking test.
     state.value = this.TRUE;
-    state.test = true;
+    state.test_ = true;
   }
-  if (!state.test) {
-    state.test = true;
-    this.stateStack.push({node: state.node.test});
+  if (!state.test_) {
+    state.test_ = true;
+    this.stateStack.push({node: state.node.test_});
   } else {
-    state.test = false;
-    if (!state.value.toBoolean()) {
+    if (!state.value.toBoolean()) {  // Done, exit loop.
       this.stateStack.pop();
-    } else if (state.node.body) {
+    } else if (state.node.body) {  // Execute the body.
+      state.test_ = false;
+      state.isLoop = true;
       this.stateStack.push({node: state.node.body});
     }
   }
@@ -2944,8 +2942,8 @@ Interpreter.prototype['stepEval_'] = function() {
 
 Interpreter.prototype['stepExpressionStatement'] = function() {
   var state = this.stateStack[this.stateStack.length - 1];
-  if (!state.done) {
-    state.done = true;
+  if (!state.done_) {
+    state.done_ = true;
     this.stateStack.push({node: state.node.expression});
   } else {
     this.stateStack.pop();
@@ -2957,7 +2955,6 @@ Interpreter.prototype['stepExpressionStatement'] = function() {
 
 Interpreter.prototype['stepForInStatement'] = function() {
   var state = this.stateStack[this.stateStack.length - 1];
-  state.isLoop = true;
   var node = state.node;
   if (!state.doneVariable_) {
     state.doneVariable_ = true;
@@ -2971,20 +2968,20 @@ Interpreter.prototype['stepForInStatement'] = function() {
   }
   if (!state.doneObject_) {
     state.doneObject_ = true;
-    state.variable = state.value;
+    state.variable_ = state.value;
     this.stateStack.push({node: node.right});
     return;
   }
   if (typeof state.iterator == 'undefined') {
     // First iteration.
-    state.object = state.value;
+    state.object_ = state.value;
     state.iterator = 0;
   }
   var name = null;
   done: do {
     var i = state.iterator;
-    for (var prop in state.object.properties) {
-      if (state.object.notEnumerable[prop]) {
+    for (var prop in state.object_.properties) {
+      if (state.object_.notEnumerable[prop]) {
         continue;
       }
       if (i == 0) {
@@ -2993,16 +2990,17 @@ Interpreter.prototype['stepForInStatement'] = function() {
       }
       i--;
     }
-    state.object = state.object.parent &&
-        state.object.parent.properties.prototype;
+    state.object_ = state.object_.parent &&
+        state.object_.parent.properties.prototype;
     state.iterator = 0;
-  } while (state.object);
+  } while (state.object_);
   state.iterator++;
-  if (name === null) {
+  if (name === null) {  // Done, exit loop.
     this.stateStack.pop();
-  } else {
-    this.setValueToScope(state.variable, this.createPrimitive(name));
+  } else {  // Execute the body.
+    this.setValueToScope(state.variable_, this.createPrimitive(name));
     if (node.body) {
+      state.isLoop = true;
       this.stateStack.push({node: node.body});
     }
   }
@@ -3010,29 +3008,29 @@ Interpreter.prototype['stepForInStatement'] = function() {
 
 Interpreter.prototype['stepForStatement'] = function() {
   var state = this.stateStack[this.stateStack.length - 1];
-  state.isLoop = true;
   var node = state.node;
-  var mode = state.mode || 0;
+  var mode = state.mode_ || 0;
   if (mode == 0) {
-    state.mode = 1;
+    state.mode_ = 1;
     if (node.init) {
       this.stateStack.push({node: node.init});
     }
   } else if (mode == 1) {
-    state.mode = 2;
+    state.mode_ = 2;
     if (node.test) {
       this.stateStack.push({node: node.test});
     }
   } else if (mode == 2) {
-    state.mode = 3;
+    state.mode_ = 3;
     if (node.test && state.value && !state.value.toBoolean()) {
-      // Loop complete.  Bail out.
+      // Done, exit loop.
       this.stateStack.pop();
-    } else if (node.body) {
+    } else if (node.body) { // Execute the body.
+      state.isLoop = true;
       this.stateStack.push({node: node.body});
     }
   } else if (mode == 3) {
-    state.mode = 1;
+    state.mode_ = 1;
     if (node.update) {
       this.stateStack.push({node: node.update});
     }
@@ -3063,7 +3061,7 @@ Interpreter.prototype['stepLabeledStatement'] = function() {
   // No need to hit this node again on the way back up the stack.
   var state = this.stateStack.pop();
   this.stateStack.push({node: state.node.body,
-                          label: state.node.label.name});
+                        label: state.node.label.name});
 };
 
 Interpreter.prototype['stepLiteral'] = function() {
@@ -3105,7 +3103,7 @@ Interpreter.prototype['stepMemberExpression'] = function() {
     this.stateStack.push({node: node.object});
   } else if (!state.doneProperty_) {
     state.doneProperty_ = true;
-    state.object = state.value;
+    state.object_ = state.value;
     this.stateStack.push({
       node: node.property,
       components: !node.computed
@@ -3114,14 +3112,14 @@ Interpreter.prototype['stepMemberExpression'] = function() {
     this.stateStack.pop();
     if (state.components) {
       this.stateStack[this.stateStack.length - 1].value =
-          [state.object, state.value];
+          [state.object_, state.value];
     } else {
-      var value = this.getProperty(state.object, state.value);
+      var value = this.getProperty(state.object_, state.value);
       if (!value) {
         this.stateStack.push({});
         this.throwException(this.TYPE_ERROR,
             "Cannot read property '" + state.value + "' of " +
-            state.object.toString());
+            state.object_.toString());
         return;
       }
       if (value.isGetter) {
@@ -3130,7 +3128,7 @@ Interpreter.prototype['stepMemberExpression'] = function() {
         this.stateStack.push({
           node: {type: 'CallExpression'},
           doneCallee_: true,
-          funcThis_: state.object,
+          funcThis_: state.object_,
           func_: value,
           doneArgs_: true,
           arguments: []
@@ -3148,31 +3146,31 @@ Interpreter.prototype['stepNewExpression'] =
 Interpreter.prototype['stepObjectExpression'] = function() {
   var state = this.stateStack[this.stateStack.length - 1];
   var node = state.node;
-  var valueToggle = state.valueToggle;
-  var n = state.n || 0;
+  var valueToggle = state.valueToggle_;
+  var n = state.n_ || 0;
   if (!state.object) {
     state.object = this.createObject(this.OBJECT);
     state.properties = Object.create(null);
   } else {
     if (valueToggle) {
-      state.key = state.value;
+      state.key_ = state.value;
     } else {
-      if (!state.properties[state.key]) {
+      if (!state.properties[state.key_]) {
         // Create temp object to collect value, getter, and/or setter.
-        state.properties[state.key] = {};
+        state.properties[state.key_] = {};
       }
-      state.properties[state.key][state.kind] = state.value;
+      state.properties[state.key_][state.kind_] = state.value;
     }
   }
   if (node.properties[n]) {
     if (valueToggle) {
-      state.n = n + 1;
+      state.n_ = n + 1;
       this.stateStack.push({node: node.properties[n].value});
     } else {
-      state.kind = node.properties[n].kind;
+      state.kind_ = node.properties[n].kind;
       this.stateStack.push({node: node.properties[n].key, components: true});
     }
-    state.valueToggle = !valueToggle;
+    state.valueToggle_ = !valueToggle;
   } else {
     for (var key in state.properties) {
       var kinds = state.properties[key];
@@ -3195,14 +3193,26 @@ Interpreter.prototype['stepObjectExpression'] = function() {
   }
 };
 
-Interpreter.prototype['stepProgram'] =
-    Interpreter.prototype['stepBlockStatement'];
+Interpreter.prototype['stepProgram'] = function() {
+  var state = this.stateStack[this.stateStack.length - 1];
+  var node = state.node;
+  var n = state.n_ || 0;
+  if (node.body[n]) {
+    state.done = false;
+    state.n_ = n + 1;
+    this.stateStack.push({node: node.body[n]});
+  } else {
+    state.done = true;
+    // Don't pop the stateStack.
+    // Leave the root scope on the tree in case the program is appended to.
+  }
+};
 
 Interpreter.prototype['stepReturnStatement'] = function() {
   var state = this.stateStack[this.stateStack.length - 1];
   var node = state.node;
-  if (node.argument && !state.done) {
-    state.done = true;
+  if (node.argument && !state.done_) {
+    state.done_ = true;
     this.stateStack.push({node: node.argument});
   } else {
     var value = state.value || this.UNDEFINED;
@@ -3222,9 +3232,9 @@ Interpreter.prototype['stepReturnStatement'] = function() {
 Interpreter.prototype['stepSequenceExpression'] = function() {
   var state = this.stateStack[this.stateStack.length - 1];
   var node = state.node;
-  var n = state.n || 0;
+  var n = state.n_ || 0;
   if (node.expressions[n]) {
-    state.n = n + 1;
+    state.n_ = n + 1;
     this.stateStack.push({node: node.expressions[n]});
   } else {
     this.stateStack.pop();
@@ -3234,40 +3244,40 @@ Interpreter.prototype['stepSequenceExpression'] = function() {
 
 Interpreter.prototype['stepSwitchStatement'] = function() {
   var state = this.stateStack[this.stateStack.length - 1];
-  state.checked = state.checked || [];
-  state.isSwitch = true;
 
-  if (!state.test) {
-    state.test = true;
+  if (!state.test_) {
+    state.test_ = true;
     this.stateStack.push({node: state.node.discriminant});
     return;
   }
-  if (!state.switchValue) {
+  if (!state.switchValue_) {
     // Preserve switch value between case tests.
-    state.switchValue = state.value;
+    state.switchValue_ = state.value;
+    state.checked_ = [];
   }
 
-  var index = state.index || 0;
-  var currentCase = state.node.cases[index];
-  if (currentCase) {
-    if (!state.done && !state.checked[index] && currentCase.test) {
-      state.checked[index] = true;
-      this.stateStack.push({node: currentCase.test});
+  var index = state.index_ || 0;
+  var switchCase = state.node.cases[index];
+  if (switchCase) {
+    if (!state.done_ && !state.checked_[index] && switchCase.test) {
+      state.checked_[index] = true;
+      this.stateStack.push({node: switchCase.test});
       return;
     }
     // Test on the default case will be null.
-    if (state.done || !currentCase.test ||
-        this.comp(state.value, state.switchValue) == 0) {
-      state.done = true;
-      var n = state.n || 0;
-      if (currentCase.consequent[n]) {
-        this.stateStack.push({node: currentCase.consequent[n]});
-        state.n = n + 1;
+    if (state.done_ || !switchCase.test ||
+        this.comp(state.value, state.switchValue_) == 0) {
+      state.done_ = true;
+      var n = state.n_ || 0;
+      if (switchCase.consequent[n]) {
+        state.isSwitch = true;
+        this.stateStack.push({node: switchCase.consequent[n]});
+        state.n_ = n + 1;
         return;
       }
     }
-    state.n = 0;
-    state.index = index + 1;
+    state.n_ = 0;
+    state.index_ = index + 1;
   } else {
     this.stateStack.pop();
   }
@@ -3288,8 +3298,8 @@ Interpreter.prototype['stepThisExpression'] = function() {
 Interpreter.prototype['stepThrowStatement'] = function() {
   var state = this.stateStack[this.stateStack.length - 1];
   var node = state.node;
-  if (!state.argument) {
-    state.argument = true;
+  if (!state.done_) {
+    state.done_ = true;
     this.stateStack.push({node: node.argument});
   } else {
     this.throwException(state.value);
@@ -3299,15 +3309,15 @@ Interpreter.prototype['stepThrowStatement'] = function() {
 Interpreter.prototype['stepTryStatement'] = function() {
   var state = this.stateStack[this.stateStack.length - 1];
   var node = state.node;
-  if (!state.doneBlock) {
-    state.doneBlock = true;
+  if (!state.doneBlock_) {
+    state.doneBlock_ = true;
     this.stateStack.push({node: node.block});
-  } else if (state.throwValue && !state.doneHandler && node.handler) {
-    state.doneHandler = true;
+  } else if (state.throwValue && !state.doneHandler_ && node.handler) {
+    state.doneHandler_ = true;
     this.stateStack.push({node: node.handler, throwValue: state.throwValue});
     state.throwValue = null;  // This error has been handled, don't rethrow.
-  } else if (!state.doneFinalizer && node.finalizer) {
-    state.doneFinalizer = true;
+  } else if (!state.doneFinalizer_ && node.finalizer) {
+    state.doneFinalizer_ = true;
     this.stateStack.push({node: node.finalizer});
   } else if (state.throwValue) {
     // There was no catch handler, or the catch/finally threw an error.
@@ -3321,8 +3331,8 @@ Interpreter.prototype['stepTryStatement'] = function() {
 Interpreter.prototype['stepUnaryExpression'] = function() {
   var state = this.stateStack[this.stateStack.length - 1];
   var node = state.node;
-  if (!state.done) {
-    state.done = true;
+  if (!state.done_) {
+    state.done_ = true;
     var nextState = {node: node.argument};
     if (node.operator == 'delete' || node.operator == 'typeof') {
       nextState.components = true;
@@ -3331,22 +3341,22 @@ Interpreter.prototype['stepUnaryExpression'] = function() {
     return;
   }
   this.stateStack.pop();
-  var value;
+  var value = state.value;
   if (node.operator == '-') {
-    value = -state.value.toNumber();
+    value = -value.toNumber();
   } else if (node.operator == '+') {
-    value = state.value.toNumber();
+    value = value.toNumber();
   } else if (node.operator == '!') {
-    value = !state.value.toBoolean();
+    value = !value.toBoolean();
   } else if (node.operator == '~') {
-    value = ~state.value.toNumber();
+    value = ~value.toNumber();
   } else if (node.operator == 'delete' || node.operator == 'typeof') {
-    if (state.value.length) {
-      var obj = state.value[0];
-      var name = state.value[1];
+    if (value.length) {
+      var obj = value[0];
+      var name = value[1];
     } else {
       var obj = this.getScope();
-      var name = state.value;
+      var name = value;
     }
     if (node.operator == 'delete') {
       value = this.deleteProperty(obj, name);
@@ -3365,31 +3375,31 @@ Interpreter.prototype['stepUnaryExpression'] = function() {
 Interpreter.prototype['stepUpdateExpression'] = function() {
   var state = this.stateStack[this.stateStack.length - 1];
   var node = state.node;
-  if (!state.doneLeft) {
-    state.doneLeft = true;
+  if (!state.doneLeft_) {
+    state.doneLeft_ = true;
     this.stateStack.push({node: node.argument, components: true});
     return;
   }
-  if (!state.leftSide) {
-    state.leftSide = state.value;
+  if (!state.leftSide_) {
+    state.leftSide_ = state.value;
   }
   if (state.doneGetter_) {
-    state.leftValue = state.value;
+    state.leftValue_ = state.value;
   }
   if (!state.doneGetter_) {
-    state.leftValue = this.getValue(state.leftSide);
-    if (!state.leftValue) {
+    state.leftValue_ = this.getValue(state.leftSide_);
+    if (!state.leftValue_) {
       return;  // Thrown error, but trapped.
     }
-    if (state.leftValue.isGetter) {
+    if (state.leftValue_.isGetter) {
       // Clear the getter flag and call the getter function.
-      state.leftValue.isGetter = false;
+      state.leftValue_.isGetter = false;
       state.doneGetter_ = true;
       this.stateStack.push({
         node: {type: 'CallExpression'},
         doneCallee_: true,
-        funcThis_: state.leftSide[0],
-        func_: state.leftValue,
+        funcThis_: state.leftSide_[0],
+        func_: state.leftValue_,
         doneArgs_: true,
         arguments: []
       });
@@ -3404,7 +3414,7 @@ Interpreter.prototype['stepUpdateExpression'] = function() {
     this.stateStack[this.stateStack.length - 1].value = state.doneSetter_;
     return;
   }
-  var leftValue = state.leftValue.toNumber();
+  var leftValue = state.leftValue_.toNumber();
   var changeValue;
   if (node.operator == '++') {
     changeValue = this.createPrimitive(leftValue + 1);
@@ -3414,13 +3424,13 @@ Interpreter.prototype['stepUpdateExpression'] = function() {
     throw SyntaxError('Unknown update expression: ' + node.operator);
   }
   var returnValue = node.prefix ? changeValue : this.createPrimitive(leftValue);
-  var setter = this.setValue(state.leftSide, changeValue);
+  var setter = this.setValue(state.leftSide_, changeValue);
   if (setter) {
     state.doneSetter_ = returnValue;
     this.stateStack.push({
       node: {type: 'CallExpression'},
       doneCallee_: true,
-      funcThis_: state.leftSide[0],
+      funcThis_: state.leftSide_[0],
       func_: setter,
       doneArgs_: true,
       arguments: [changeValue]
@@ -3435,9 +3445,9 @@ Interpreter.prototype['stepUpdateExpression'] = function() {
 Interpreter.prototype['stepVariableDeclaration'] = function() {
   var state = this.stateStack[this.stateStack.length - 1];
   var node = state.node;
-  var n = state.n || 0;
+  var n = state.n_ || 0;
   if (node.declarations[n]) {
-    state.n = n + 1;
+    state.n_ = n + 1;
     this.stateStack.push({node: node.declarations[n]});
   } else {
     this.stateStack.pop();
@@ -3447,8 +3457,8 @@ Interpreter.prototype['stepVariableDeclaration'] = function() {
 Interpreter.prototype['stepVariableDeclarator'] = function() {
   var state = this.stateStack[this.stateStack.length - 1];
   var node = state.node;
-  if (node.init && !state.done) {
-    state.done = true;
+  if (node.init && !state.done_) {
+    state.done_ = true;
     this.stateStack.push({node: node.init});
     return;
   }
@@ -3462,11 +3472,11 @@ Interpreter.prototype['stepVariableDeclarator'] = function() {
 Interpreter.prototype['stepWithStatement'] = function() {
   var state = this.stateStack[this.stateStack.length - 1];
   var node = state.node;
-  if (!state.doneObject) {
-    state.doneObject = true;
+  if (!state.doneObject_) {
+    state.doneObject_ = true;
     this.stateStack.push({node: node.object});
-  } else if (!state.doneBody) {
-    state.doneBody = true;
+  } else if (!state.doneBody_) {
+    state.doneBody_ = true;
     var scope = this.createSpecialScope(this.getScope(), state.value);
     this.stateStack.push({node: node.body, scope: scope});
   } else {
