@@ -2941,16 +2941,9 @@ Interpreter.prototype['stepEval_'] = function() {
 };
 
 Interpreter.prototype['stepExpressionStatement'] = function() {
-  var state = this.stateStack[this.stateStack.length - 1];
-  if (!state.done_) {
-    state.done_ = true;
-    this.stateStack.push({node: state.node.expression});
-  } else {
-    this.stateStack.pop();
-    // Save this value to the interpreter for use as a return value if
-    // this code is inside an eval function.
-    this.value = state.value;
-  }
+  // ExpressionStatement is a useless wrapper.  Replace it with the expression.
+  var state = this.stateStack.pop();
+  this.stateStack.push({node: state.node.expression});
 };
 
 Interpreter.prototype['stepForInStatement'] = function() {
