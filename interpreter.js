@@ -2806,7 +2806,7 @@ Interpreter.prototype['stepCallExpression'] = function() {
       return;
     } else if (state.func_.eval) {
       var code = state.arguments[0];
-      if (!code) {
+      if (!code) {  // eval()
         state.value = this.UNDEFINED;
       } else if (!code.isPrimitive) {
         // JS does not parse String objects:
@@ -2935,15 +2935,21 @@ Interpreter.prototype['stepEval_'] = function() {
   var state = this.stateStack[this.stateStack.length - 1];
   if (!state.interpreter.step()) {
     this.stateStack.pop();
-    this.stateStack[this.stateStack.length - 1].value =
-        state.interpreter.value || this.UNDEFINED;
+    this.stateStack[this.stateStack.length - 1].value = state.interpreter.value;
   }
 };
 
 Interpreter.prototype['stepExpressionStatement'] = function() {
-  // ExpressionStatement is a useless wrapper.  Replace it with the expression.
-  var state = this.stateStack.pop();
-  this.stateStack.push({node: state.node.expression});
+  var state = this.stateStack[this.stateStack.length - 1];
+  if (!state.done_) {
+    state.done_ = true;
+    this.stateStack.push({node: state.node.expression});
+  } else {
+    this.stateStack.pop();
+    // Save this value to interpreter.value for use as a return value if
+    // this code is inside an eval function.
+    this.value = state.value;
+  }
 };
 
 Interpreter.prototype['stepForInStatement'] = function() {
@@ -3031,6 +3037,7 @@ Interpreter.prototype['stepForStatement'] = function() {
 };
 
 Interpreter.prototype['stepFunctionDeclaration'] = function() {
+  // This was found and handled when the scope was populated.
   this.stateStack.pop();
 };
 
