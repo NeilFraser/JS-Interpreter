@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+const request = require('request');
 const os = require('os');
 const path = require('path');
 const yargs = require('yargs');
@@ -46,6 +47,9 @@ const argv = yargs
   .describe('i', 'Specify a results file')
   .default('i', path.resolve(__dirname, 'test-results-new.json'))
   .nargs('i', 1)
+
+  .describe('circleBuild', 'specify a circle build to download results from')
+  .nargs('circleBuild', 1)
 
   .nargs('interpreter', 1)
   .describe('interpreter', 'path to interpreter module to use')
@@ -244,6 +248,68 @@ function runTests(outputFilePath, verboseOutputFilePath) {
   });
 }
 
+function downloadCircleResults() {
+  console.log("downloading test results from circle ci...");
+  const VCS_TYPE = 'github';
+  const USERNAME = 'code-dot-org';
+  const PROJECT = 'JS-Interpreter';
+  const REQUEST_PATH = `https://circleci.com/api/v1.1/project/${VCS_TYPE}/${USERNAME}/${PROJECT}/${argv.circleBuild}/artifacts`;
+
+
+  return new Promise((resolve, reject) => request(
+    {
+      url: REQUEST_PATH,
+      json: true,
+    },
+    (error, response, artifacts) => {
+      if (error) {
+        throw error;
+      }
+
+      const resultFileUrls = artifacts
+        .filter(a => a.pretty_path === '$CIRCLE_ARTIFACTS/test-results-new.json')
+        .map(a => a.url);
+
+      const bar = new ProgressBar(
+        '[:bar] :current/:total',
+        {
+          curr: 0,
+          total: artifacts.length,
+        });
+
+      Promise
+        .all(
+          resultFileUrls.map(
+            url => new Promise(
+              (resolve, reject) => request(
+                {
+                  url: url,
+                  json: true,
+                },
+                (error, response, body) => {
+                  if (error) {
+                    reject(error);
+                  }
+                  bar.tick();
+                  resolve(body);
+                }
+              )
+            )
+          )
+        )
+        .then(results => {
+          const allResults = results.reduce((acc, val) => acc.concat(val), []);
+          fs.writeFileSync(
+            argv.input,
+            JSON.stringify(allResults, null, 2)
+          );
+          resolve();
+        })
+        .catch(reject);
+    }
+  ));
+}
+
 function readResultsFromFile(filename) {
   return require(path.resolve(filename));
 }
@@ -401,6 +467,8 @@ const OLD_RESULTS_BY_KEY = argv.diff ? getResultsByKey(
 
 if (argv.run) {
   runTests(RESULTS_FILE, VERBOSE_RESULTS_FILE).then(processTestResults);
+} else if (argv.circleBuild) {
+  downloadCircleResults().then(processTestResults);
 } else {
   processTestResults()
 }
