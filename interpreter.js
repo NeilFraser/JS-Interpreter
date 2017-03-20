@@ -3457,25 +3457,22 @@ Interpreter.prototype['stepVariableDeclaration'] = function() {
   var state = this.stateStack[this.stateStack.length - 1];
   var node = state.node;
   var n = state.n_ || 0;
-  if (node.declarations[n]) {
-    state.n_ = n + 1;
-    this.stateStack.push({node: node.declarations[n]});
-  } else {
-    this.stateStack.pop();
-  }
-};
-
-Interpreter.prototype['stepVariableDeclarator'] = function() {
-  var state = this.stateStack[this.stateStack.length - 1];
-  var node = state.node;
-  if (node.init && !state.done_) {
-    state.done_ = true;
-    this.stateStack.push({node: node.init});
-    return;
-  }
-  if (node.init) {
+  var declarationNode = node.declarations[n];
+  if (state.value && declarationNode) {
     // This setValue call never needs to deal with calling a setter function.
-    this.setValue(this.createPrimitive(node.id.name), state.value);
+    this.setValue(this.createPrimitive(declarationNode.id.name), state.value);
+    state.value = null;
+    n++;
+  }
+  while (declarationNode) {
+    // Skip any declarations that are not initialized.  They have already
+    // been defined as undefined in populateScope_.
+    if (declarationNode.init) {
+      state.n_ = n;
+      this.stateStack.push({node: declarationNode.init});
+      return;
+    }
+    declarationNode = node.declarations[++n];
   }
   this.stateStack.pop();
 };
