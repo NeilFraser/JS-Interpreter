@@ -473,7 +473,7 @@ Interpreter.prototype.initObject = function(scope) {
       this.createNativeFunction(wrapper), Interpreter.NONENUMERABLE_DESCRIPTOR);
 
   this.polyfills_.push(
-"Object.defineProperty(Array.prototype, 'defineProperties', {configurable: true, value:",
+"Object.defineProperty(Object.prototype, 'defineProperties', {configurable: true, value:",
   "function(obj, props) {",
     "var keys = Object.keys(props);",
     "for (var i = 0; i < keys.length; i++) {",
@@ -2311,19 +2311,21 @@ Interpreter.prototype.populateScope_ = function(node, scope) {
     return;  // Do not recurse into function.
   } else if (node.type == 'FunctionExpression') {
     return;  // Do not recurse into function.
+  } else if (node.type == 'ExpressionStatement') {
+    return;  // Expressions can't contain variable/function declarations.
   }
-  var parent = node.constructor;
+  var nodeClass = node.constructor;
   for (var name in node) {
     var prop = node[name];
     if (prop && typeof prop == 'object') {
       if (prop instanceof Array) {
         for (var i = 0; i < prop.length; i++) {
-          if (prop[i] && prop[i].constructor == parent) {
+          if (prop[i] && prop[i].constructor == nodeClass) {
             this.populateScope_(prop[i], scope);
           }
         }
       } else {
-        if (prop.constructor == parent) {
+        if (prop.constructor == nodeClass) {
           this.populateScope_(prop, scope);
         }
       }
