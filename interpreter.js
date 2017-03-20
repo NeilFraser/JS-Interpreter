@@ -62,7 +62,7 @@ var Interpreter = function(code, opt_initFunc) {
   // Run the polyfills.
   this.ast = acorn.parse(this.polyfills_.join('\n'), Interpreter.PARSE_OPTIONS);
   this.polyfills_ = undefined;  // Allow polyfill strings to garbage collect.
-  this.stripLocations_(this.ast);
+  this.stripLocations_(this.ast, undefined, undefined);
   this.stateStack = [{
     node: this.ast,
     scope: scope,
@@ -2332,19 +2332,30 @@ Interpreter.prototype.populateScope_ = function(node, scope) {
 };
 
 /**
- * Remove start and end values from AST.
- * Used to remove highlighting from polyfills.
+ * Remove start and end values from AST, or set start and end values to a
+ * constant value.  Used to remove highlighting from polyfills and to set
+ * highlighting in an eval to cover the entire eval expression.
  * @param {!Object} node AST node.
+ * @param {number=} start Starting character of all nodes, or undefined.
+ * @param {number=} end Ending character of all nodes, or undefined.
  * @private
  */
-Interpreter.prototype.stripLocations_ = function(node) {
-  delete node.start;
-  delete node.end;
+Interpreter.prototype.stripLocations_ = function(node, start, end) {
+  if (start) {
+    node.start = start;
+  } else {
+    delete node.start;
+  }
+  if (end) {
+    node.end = end;
+  } else {
+    delete node.end;
+  }
   for (var name in node) {
     if (node.hasOwnProperty(name)) {
       var prop = node[name];
       if (prop && typeof prop == 'object') {
-        this.stripLocations_(prop);
+        this.stripLocations_(prop, start, end);
       }
     }
   }
@@ -2396,17 +2407,6 @@ Interpreter.prototype.setValue = function(left, value) {
  * @param {string=} opt_message Message being thrown.
  */
 Interpreter.prototype.throwException = function(errorClass, opt_message) {
-  if (this.stateStack[this.stateStack.length - 1].interpreter) {
-    // This is the wrong interpreter, we are spinning on an eval.
-    try {
-      this.stateStack[this.stateStack.length - 1]
-          .interpreter.throwException(errorClass, opt_message);
-      return;
-    } catch (e) {
-      // The eval threw an error and did not catch it.
-      // Continue to see if this level can catch it.
-    }
-  }
   if (opt_message === undefined) {
     var error = errorClass;  // This is a value to throw, not an error class.
   } else {
@@ -2813,16 +2813,17 @@ Interpreter.prototype['stepCallExpression'] = function() {
         // eval(new String('1 + 1')) -> '1 + 1'
         state.value = code;
       } else {
-        var evalInterpreter = new Interpreter(code.toString());
+        var ast = acorn.parse(code.toString(), Interpreter.PARSE_OPTIONS);
+        state = {
+          node: {
+            type: 'EvalProgram_',
+            body: ast.body
+          }
+        };
+        this.stripLocations_(state.node, node.start, node.end);
         // Update current scope with definitions in eval().
         var scope = this.getScope();
-        this.populateScope_(evalInterpreter.ast, scope);
-        // Destroy newly created global scope, and use current scope instead.
-        evalInterpreter.stateStack[0].scope = scope;
-        state = {
-          node: {type: 'Eval_', start: node.start, end: node.end},
-          interpreter: evalInterpreter
-        };
+        this.populateScope_(ast, scope);
         this.stateStack.push(state);
       }
     } else {
@@ -2936,11 +2937,16 @@ Interpreter.prototype['stepEmptyStatement'] = function() {
   this.stateStack.pop();
 };
 
-Interpreter.prototype['stepEval_'] = function() {
+Interpreter.prototype['stepEvalProgram_'] = function() {
   var state = this.stateStack[this.stateStack.length - 1];
-  if (!state.interpreter.step()) {
+  var node = state.node;
+  var n = state.n_ || 0;
+  if (node.body[n]) {
+    state.n_ = n + 1;
+    this.stateStack.push({node: node.body[n]});
+  } else {
     this.stateStack.pop();
-    this.stateStack[this.stateStack.length - 1].value = state.interpreter.value;
+    this.stateStack[this.stateStack.length - 1].value = this.value;
   }
 };
 
