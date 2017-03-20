@@ -2814,7 +2814,11 @@ Interpreter.prototype['stepCallExpression'] = function() {
         state.value = code;
       } else {
         var evalInterpreter = new Interpreter(code.toString());
-        evalInterpreter.stateStack[0].scope = this.getScope();
+        // Update current scope with definitions in eval().
+        var scope = this.getScope();
+        this.populateScope_(evalInterpreter.ast, scope);
+        // Destroy newly created global scope, and use current scope instead.
+        evalInterpreter.stateStack[0].scope = scope;
         state = {
           node: {type: 'Eval_', start: node.start, end: node.end},
           interpreter: evalInterpreter
@@ -2828,7 +2832,7 @@ Interpreter.prototype['stepCallExpression'] = function() {
       var f = new F();
       f();
       */
-      this.throwException(this.TYPE_ERROR, 'function not a function');
+      this.throwException(this.TYPE_ERROR, 'function is not a function');
     }
   } else {
     // Execution complete.  Put the return value on the stack.
