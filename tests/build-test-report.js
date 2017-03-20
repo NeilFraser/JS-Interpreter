@@ -7,11 +7,10 @@ const execSync = require('child_process').execSync;
 const spawn = require('child_process').spawn;
 const chalk = require('chalk');
 const runner = require('./runner');
-
+const globber = require('test262-harness/lib/globber.js');
+const ProgressBar = require('progress');
 
 const TESTS_DIRECTORY = path.resolve(__dirname, 'test262');
-const DEFAULT_TEST_RESULTS_FILE = 'test-results-new.json';
-const DEFAULT_VERBOSE_TEST_RESULTS_FILE = 'test-results-new.verbose.json';
 const SAVED_RESULTS_FILE = path.resolve(__dirname, 'test-results.json');
 
 const argv = yargs
@@ -34,6 +33,8 @@ const argv = yargs
   .nargs('t', 1)
   .default('t', os.cpus().length)
 
+  .describe('progress', 'display a progress bar')
+
   .alias('v', 'verbose')
   .boolean('v')
 
@@ -43,15 +44,74 @@ const argv = yargs
 
   .alias('i', 'input')
   .describe('i', 'Specify a results file')
-  .default('i', 'tests/test-results-new.json')
+  .default('i', path.resolve(__dirname, 'test-results-new.json'))
   .nargs('i', 1)
+
+  .nargs('interpreter', 1)
+  .describe('interpreter', 'path to interpreter module to use')
 
   .help('h')
   .alias('h', 'help')
   .argv;
 
 const RESULTS_FILE = path.resolve(argv.input);
-const VERBOSE_RESULTS_FILE = path.resolve(__dirname, DEFAULT_VERBOSE_TEST_RESULTS_FILE);
+const VERBOSE_RESULTS_FILE = path.resolve(__dirname, 'test-results-new.verbose.json');
+const TEST_GLOBS = argv._.length > 0 ? argv._ : [
+  'test262/test/annexB/**/*.js',
+  'test262/test/harness/**/*.js',
+  'test262/test/intl402/**/*.js',
+  'test262/test/language/**/*.js',
+  'test262/test/built-ins/Array/**/*.js',
+  'test262/test/built-ins/ArrayBuffer/**/*.js',
+  'test262/test/built-ins/ArrayIteratorPrototype/**/*.js',
+  'test262/test/built-ins/AsyncFunction/**/*.js',
+  'test262/test/built-ins/Atomics/**/*.js',
+  'test262/test/built-ins/Boolean/**/*.js',
+  'test262/test/built-ins/DataView/**/*.js',
+  'test262/test/built-ins/Date/**/*.js',
+  'test262/test/built-ins/decodeURI/**/*.js',
+  'test262/test/built-ins/decodeURIComponent/**/*.js',
+  'test262/test/built-ins/encodeURI/**/*.js',
+  'test262/test/built-ins/encodeURIComponent/**/*.js',
+  'test262/test/built-ins/Error/**/*.js',
+  'test262/test/built-ins/eval/**/*.js',
+  'test262/test/built-ins/Function/**/*.js',
+  'test262/test/built-ins/GeneratorFunction/**/*.js',
+  'test262/test/built-ins/GeneratorPrototype/**/*.js',
+  'test262/test/built-ins/global/**/*.js',
+  'test262/test/built-ins/Infinity/**/*.js',
+  'test262/test/built-ins/isFinite/**/*.js',
+  'test262/test/built-ins/isNaN/**/*.js',
+  'test262/test/built-ins/IteratorPrototype/**/*.js',
+  'test262/test/built-ins/JSON/**/*.js',
+  'test262/test/built-ins/Map/**/*.js',
+  'test262/test/built-ins/MapIteratorPrototype/**/*.js',
+  'test262/test/built-ins/Math/**/*.js',
+  'test262/test/built-ins/NaN/**/*.js',
+  'test262/test/built-ins/NativeErrors/**/*.js',
+  'test262/test/built-ins/Number/**/*.js',
+  'test262/test/built-ins/Object/**/*.js',
+  'test262/test/built-ins/parseFloat/**/*.js',
+  'test262/test/built-ins/parseInt/**/*.js',
+  'test262/test/built-ins/Promise/**/*.js',
+  'test262/test/built-ins/Proxy/**/*.js',
+  'test262/test/built-ins/Reflect/**/*.js',
+  'test262/test/built-ins/RegExp/**/*.js',
+  'test262/test/built-ins/Set/**/*.js',
+  'test262/test/built-ins/SetIteratorPrototype/**/*.js',
+  'test262/test/built-ins/SharedArrayBuffer/**/*.js',
+  'test262/test/built-ins/Simd/**/*.js',
+  'test262/test/built-ins/String/**/*.js',
+  'test262/test/built-ins/StringIteratorPrototype/**/*.js',
+  'test262/test/built-ins/Symbol/**/*.js',
+  'test262/test/built-ins/ThrowTypeError/**/*.js',
+  'test262/test/built-ins/TypedArray/**/*.js',
+// this test file currently makes the interpreter explode.
+//  'test262/test/built-ins/TypedArrays/**/*.js',
+  'test262/test/built-ins/undefined/**/*.js',
+  'test262/test/built-ins/WeakMap/**/*.js',
+  'test262/test/built-ins/WeakSet/**/*.js',
+].map(t => path.resolve(__dirname, t));
 
 function downloadTestsIfNecessary() {
   if (!fs.existsSync(TESTS_DIRECTORY)) {
@@ -73,135 +133,123 @@ function saveResults(results) {
 
 function runTests(outputFilePath, verboseOutputFilePath) {
   downloadTestsIfNecessary();
-  console.log(`running tests with ${argv.threads} threads...`);
+
 
   return new Promise(resolve => {
-    let count = 1;
-    const outputFile = fs.openSync(outputFilePath, 'w');
-    let verboseOutputFile;
-    if (argv.verbose) {
-      verboseOutputFile = fs.openSync(verboseOutputFilePath, 'w');
-    }
-    runner.run({
-      compiledFilesDir: argv.out && path.resolve(argv.out),
-      threads: argv.threads,
-      hostType: 'js-interpreter',
-      hostPath: './bin/run.js',
-      test262Dir: 'tests/test262',
-      reporter: (results) => {
-        results.on('start', function () {
-          fs.appendFileSync(outputFile, '[\n');
-          if (verboseOutputFile) {
-            fs.appendFileSync(verboseOutputFile, '[\n');
-          }
-        });
-        results.on('end', function () {
-          fs.appendFileSync(outputFile, ']\n');
-          fs.closeSync(outputFile);
-          if (verboseOutputFile) {
-            fs.appendFileSync(verboseOutputFile, ']\n');
-            fs.closeSync(verboseOutputFile);
-          }
-          console.log(`\nfinished running ${count} tests`);
-          resolve();
+    globber(TEST_GLOBS).toArray().subscribe(paths => {
+      console.log(`running ${paths.length} tests with ${argv.threads} threads...`);
+      var bar = new ProgressBar(
+        '[:bar] :current/:total :percent | :minutes left | R::regressed, F::fixed, N::new',
+        {
+          total: paths.length,
+          width: 50,
         });
 
-        results.on('test end', test => {
-          const color = test.result.pass ? chalk.green : chalk.red;
-          const description = (test.attrs.description || test.file).trim().replace('\n', ' ');
-          if (argv.diff) {
-            const testDiff = getTestDiff(test);
-            if (testDiff.isRegression) {
-              process.stdout.write('R');
-            } else if (testDiff.isFix) {
-              process.stdout.write('F');
-            } else if (testDiff.isNew) {
-              process.stdout.write('N');
-            } else {
-              process.stdout.write('.');
-            }
-          } else {
-            process.stdout.write('.');
-          }
-          if (argv.verbose) {
-            process.stdout.write(` ${count+1} ${test.file} ${color(description)}\n`);
-          } else if (count % 80 === 0) {
-            process.stdout.write('\n');
-          }
-          if (count > 1) {
-            fs.appendFileSync(outputFile, ',\n')
+      let count = 1;
+      const outputFile = fs.openSync(outputFilePath, 'w');
+      let verboseOutputFile;
+      if (argv.verbose) {
+        verboseOutputFile = fs.openSync(verboseOutputFilePath, 'w');
+      }
+      let startTime;
+      runner.run({
+        compiledFilesDir: argv.out && path.resolve(argv.out),
+        threads: argv.threads,
+        hostType: 'js-interpreter',
+        hostPath: path.resolve(__dirname, '../bin/run.js'),
+        hostArgs: argv.interpreter ? ['--interpreter', argv.interpreter] : undefined,
+        test262Dir: path.resolve(__dirname, 'test262'),
+        reporter: (results) => {
+          results.on('start', function () {
+            startTime = new Date().getTime();
+            fs.appendFileSync(outputFile, '[\n');
             if (verboseOutputFile) {
-              fs.appendFileSync(verboseOutputFile, ',\n');
+              fs.appendFileSync(verboseOutputFile, '[\n');
             }
-          }
-          fs.appendFileSync(
-            outputFile,
-            JSON.stringify({
-              file: test.file,
-              attrs: test.attrs,
-              result: test.result,
-            }, null, 2)+'\n'
-          );
-          if (verboseOutputFile) {
-            fs.appendFileSync(verboseOutputFile, JSON.stringify(test, null, 2)+'\n');
-          }
+          });
+          results.on('end', function () {
+            fs.appendFileSync(outputFile, ']\n');
+            fs.closeSync(outputFile);
+            if (verboseOutputFile) {
+              fs.appendFileSync(verboseOutputFile, ']\n');
+              fs.closeSync(verboseOutputFile);
+            }
+            console.log(`\nfinished running ${count} tests`);
+            resolve();
+          });
+          let numRegressed = 0;
+          let numFixed = 0;
+          let numNew = 0;
+          results.on('test end', test => {
+            test.file = test.file.replace(path.resolve(__dirname, '..') + '/', '');
+            const color = test.result.pass ? chalk.green : chalk.red;
+            const description = getTestDescription(test);
+            function write() {
+              if (!argv.progress) {
+                process.stdout.write(...arguments);
+              }
+            }
+            if (argv.diff) {
+              const testDiff = getTestDiff(test);
+              if (testDiff.isRegression) {
+                write('R');
+                numRegressed++;
+              } else if (testDiff.isFix) {
+                write('F');
+                numFixed++;
+              } else if (testDiff.isNew) {
+                write('N');
+                numNew++;
+              } else {
+                write('.');
+              }
+            } else {
+              write('.');
+            }
+            if (argv.verbose) {
+              write(` ${count+1} ${test.file} ${color(description)}\n`);
+            } else if (count % 80 === 0) {
+              write('\n');
+            }
+            if (count > 1) {
+              fs.appendFileSync(outputFile, ',\n')
+              if (verboseOutputFile) {
+                fs.appendFileSync(verboseOutputFile, ',\n');
+              }
+            }
 
-          count++;
-        });
-      },
-      globs: argv._.length > 0 ? argv._ : [
-        'tests/test262/test/language/**/*.js',
-        'tests/test262/test/built-ins/Array/**/*.js',
-        'tests/test262/test/built-ins/ArrayBuffer/**/*.js',
-        'tests/test262/test/built-ins/ArrayIteratorPrototype/**/*.js',
-        'tests/test262/test/built-ins/AsyncFunction/**/*.js',
-        'tests/test262/test/built-ins/Atomics/**/*.js',
-        'tests/test262/test/built-ins/Boolean/**/*.js',
-        'tests/test262/test/built-ins/DataView/**/*.js',
-        'tests/test262/test/built-ins/Date/**/*.js',
-        'tests/test262/test/built-ins/decodeURI/**/*.js',
-        'tests/test262/test/built-ins/decodeURIComponent/**/*.js',
-        'tests/test262/test/built-ins/encodeURI/**/*.js',
-        'tests/test262/test/built-ins/encodeURIComponent/**/*.js',
-        'tests/test262/test/built-ins/Error/**/*.js',
-        'tests/test262/test/built-ins/eval/**/*.js',
-        'tests/test262/test/built-ins/Function/**/*.js',
-        'tests/test262/test/built-ins/GeneratorFunction/**/*.js',
-        'tests/test262/test/built-ins/GeneratorPrototype/**/*.js',
-        'tests/test262/test/built-ins/global/**/*.js',
-        'tests/test262/test/built-ins/Infinity/**/*.js',
-        'tests/test262/test/built-ins/isFinite/**/*.js',
-        'tests/test262/test/built-ins/isNaN/**/*.js',
-        'tests/test262/test/built-ins/IteratorPrototype/**/*.js',
-        'tests/test262/test/built-ins/JSON/**/*.js',
-        'tests/test262/test/built-ins/Map/**/*.js',
-        'tests/test262/test/built-ins/MapIteratorPrototype/**/*.js',
-        'tests/test262/test/built-ins/Math/**/*.js',
-        'tests/test262/test/built-ins/NaN/**/*.js',
-        'tests/test262/test/built-ins/NativeErrors/**/*.js',
-        'tests/test262/test/built-ins/Number/**/*.js',
-        'tests/test262/test/built-ins/Object/**/*.js',
-        'tests/test262/test/built-ins/parseFloat/**/*.js',
-        'tests/test262/test/built-ins/parseInt/**/*.js',
-        'tests/test262/test/built-ins/Promise/**/*.js',
-        'tests/test262/test/built-ins/Proxy/**/*.js',
-        'tests/test262/test/built-ins/Reflect/**/*.js',
-        'tests/test262/test/built-ins/RegExp/**/*.js',
-        'tests/test262/test/built-ins/Set/**/*.js',
-        'tests/test262/test/built-ins/SetIteratorPrototype/**/*.js',
-        'tests/test262/test/built-ins/SharedArrayBuffer/**/*.js',
-        'tests/test262/test/built-ins/Simd/**/*.js',
-        'tests/test262/test/built-ins/String/**/*.js',
-        'tests/test262/test/built-ins/StringIteratorPrototype/**/*.js',
-        'tests/test262/test/built-ins/Symbol/**/*.js',
-        'tests/test262/test/built-ins/ThrowTypeError/**/*.js',
-        'tests/test262/test/built-ins/TypedArray/**/*.js',
-// this test file currently makes the interpreter explode.
-//        'tests/test262/test/built-ins/TypedArrays/**/*.js',
-        'tests/test262/test/built-ins/undefined/**/*.js',
-        'tests/test262/test/built-ins/WeakMap/**/*.js',
-        'tests/test262/test/built-ins/WeakSet/**/*.js',
-      ]
+            fs.appendFileSync(
+              outputFile,
+              JSON.stringify({
+                file: test.file,
+                attrs: test.attrs,
+                result: test.result,
+              }, null, 2)+'\n'
+            );
+            if (verboseOutputFile) {
+              fs.appendFileSync(verboseOutputFile, JSON.stringify(test, null, 2)+'\n');
+            }
+
+            count++;
+            if (argv.progress) {
+              let secondsRemaining = (new Date().getTime() - startTime)/bar.curr * (bar.total - bar.curr)/1000;
+              let eta;
+              if (secondsRemaining > 60) {
+                eta = `${Math.floor(secondsRemaining/60)}m`;
+              } else {
+                eta = `${Math.floor(secondsRemaining)}s`;
+              }
+              bar.tick({
+                regressed: numRegressed,
+                fixed: numFixed,
+                "new": numNew,
+                minutes: eta,
+              });
+            }
+          });
+        },
+        globs: TEST_GLOBS
+      });
     });
   });
 }
@@ -230,7 +278,7 @@ function getTestType(test) {
 }
 
 function getTestDescription(test) {
-  return test.attrs.description.trim().replace('\n', ' ');
+  return (test.attrs.description || test.file).trim().replace('\n', ' ');
 }
 
 function printResultsSummary(results) {
@@ -269,9 +317,10 @@ function getTestDiff(newTest) {
 }
 
 function printAndCheckResultsDiff(results) {
-  const testsThatDiffer = {regressions: [], fixes: [], other: []};
+  const testsThatDiffer = {regressions: [], fixes: [], other: [], "new": []};
   let numRegressions = {};
   let numFixes = {};
+  let numNew = {};
   let total = {};
   results.forEach(newTest => {
     const type = getTestType(newTest);
@@ -279,6 +328,7 @@ function printAndCheckResultsDiff(results) {
       total[type] = 0;
       numRegressions[type] = 0;
       numFixes[type] = 0;
+      numNew[type] = 0;
     }
     total[type]++;
     const oldTest = OLD_RESULTS_BY_KEY[getKeyForTest(newTest)];
@@ -290,6 +340,9 @@ function printAndCheckResultsDiff(results) {
     } else if (testDiff.isFix) {
       numFixes[getTestType(newTest)]++;
       diffList = testsThatDiffer.fixes;
+    } else if (testDiff.isNew) {
+      numNew[getTestType(newTest)]++;
+      diffList = testsThatDiffer.new;
     }
     diffList.push({oldTest, newTest});
   });
@@ -299,21 +352,29 @@ function printAndCheckResultsDiff(results) {
     const printTest = ({oldTest, newTest}, index) => {
       console.log(`  ${index}. ${getTestDescription(newTest)}`);
     }
+    console.log('\nNew:')
+    testsThatDiffer.new.forEach(printTest);
     console.log('Fixes:')
     testsThatDiffer.fixes.forEach(printTest);
     console.log('\nRegressions:')
     testsThatDiffer.regressions.forEach(printTest);
   }
-  console.log('Regressions:');
+  console.log('New:');
   TEST_TYPES.forEach(type => {
     if (total[type]) {
-      console.log(`  ${type}: ${numRegressions[type]}/${total[type]}`);
+      console.log(`  ${type}: ${numNew[type]}/${total[type]}`);
     }
   });
   console.log('Fixes:');
   TEST_TYPES.forEach(type => {
     if (total[type]) {
       console.log(`  ${type}: ${numFixes[type]}/${total[type]}`);
+    }
+  });
+  console.log('Regressions:');
+  TEST_TYPES.forEach(type => {
+    if (total[type]) {
+      console.log(`  ${type}: ${numRegressions[type]}/${total[type]}`);
     }
   });
 
