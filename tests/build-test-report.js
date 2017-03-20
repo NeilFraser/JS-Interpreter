@@ -25,6 +25,12 @@ const argv = yargs
   .describe('r', 'generate new test results')
   .boolean('r')
 
+  .describe('splitInto', 'Only run 1/N tests')
+  .nargs('splitInto', 1)
+
+  .describe('splitIndex', 'Which 1/N tests to run')
+  .nargs('splitIndex', 1)
+
   .alias('s', 'save')
   .describe('s', 'save the results')
   .boolean('s')
@@ -117,6 +123,7 @@ const TEST_GLOBS = argv._.length > 0 ? argv._ : [
   'test262/test/built-ins/WeakSet/**/*.js',
 ].map(t => path.resolve(__dirname, t));
 
+
 function saveResults(results) {
   console.log('Saving results for future comparison...');
   results = results.map(test => ({
@@ -131,8 +138,18 @@ function saveResults(results) {
 function runTests(outputFilePath, verboseOutputFilePath) {
   return new Promise(resolve => {
     globber(TEST_GLOBS).toArray().subscribe(paths => {
+
+      let globs = TEST_GLOBS;
+      if (argv.splitInto) {
+        // split up the globs in circle according to which container we are running on
+        paths = paths.sort().filter(
+          (path, index) => index % parseInt(argv.splitInto) === parseInt(argv.splitIndex)
+        );
+        globs = paths;
+      }
       console.log(`running ${paths.length} tests with ${argv.threads} threads...`);
-      var bar = new ProgressBar(
+
+      const bar = new ProgressBar(
         '[:bar] :current/:total :percent | :minutes left | R::regressed, F::fixed, N::new',
         {
           total: paths.length,
