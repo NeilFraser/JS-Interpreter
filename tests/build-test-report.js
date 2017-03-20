@@ -113,13 +113,6 @@ const TEST_GLOBS = argv._.length > 0 ? argv._ : [
   'test262/test/built-ins/WeakSet/**/*.js',
 ].map(t => path.resolve(__dirname, t));
 
-function downloadTestsIfNecessary() {
-  if (!fs.existsSync(TESTS_DIRECTORY)) {
-    console.log("Downloading test262 test suite");
-    execSync(`git clone https://github.com/tc39/test262.git --depth 1 ${TESTS_DIRECTORY}`);
-  }
-}
-
 function saveResults(results) {
   console.log('Saving results for future comparison...');
   results = results.map(test => ({
@@ -132,9 +125,6 @@ function saveResults(results) {
 }
 
 function runTests(outputFilePath, verboseOutputFilePath) {
-  downloadTestsIfNecessary();
-
-
   return new Promise(resolve => {
     globber(TEST_GLOBS).toArray().subscribe(paths => {
       console.log(`running ${paths.length} tests with ${argv.threads} threads...`);

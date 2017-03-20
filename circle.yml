@@ -3,12 +3,15 @@ machine:
     version: 6.9
   environment:
     PATH: "${PATH}:${HOME}/${CIRCLE_PROJECT_REPONAME}/node_modules/.bin"
+checkout:
+  post:
+    - git submodule sync
+    - git submodule update --init
 dependencies:
   override:
     - yarn
   cache_directories:
     - ~/.cache/yarn
-    - tests/test262
 test:
   override:
     - tests/test-on-circle.sh:
