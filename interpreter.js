@@ -3393,6 +3393,11 @@ Interpreter.prototype['stepUnaryExpression'] = function() {
     }
     if (node.operator == 'delete') {
       value = this.deleteProperty(obj, name);
+      if (!value && this.getScope().strict) {
+        this.throwException(this.TYPE_ERROR, 'Cannot delete property \'' +
+                            name + '\' of \'' + obj + '\'');
+        return;
+      }
     } else {
       value = this.getProperty(obj, name).type;
     }
