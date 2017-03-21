@@ -2073,13 +2073,22 @@ Interpreter.prototype.setProperty = function(obj, name, value, opt_descriptor) {
     this.throwException(this.TYPE_ERROR, 'Invalid property descriptor. ' +
         'Cannot both specify accessors and a value or writable attribute');
   }
+  var strict = !this.stateStack || this.getScope().strict;
   if (obj.isPrimitive) {
+    if (strict) {
+      this.throwException(this.TYPE_ERROR, 'Can\'t create property \'' + name +
+                          '\' on \'' + obj.data + '\'');
+    }
     return;
   }
   if (this.isa(obj, this.STRING)) {
     var n = this.arrayIndex(name);
     if (name == 'length' || (!isNaN(n) && n < obj.data.length)) {
-      // Can't set length or letters on Strings.
+      // Can't set length or letters on String objects.
+      if (strict) {
+        this.throwException(this.TYPE_ERROR, 'Cannot assign to read only ' +
+            'property \'' + name + '\' of String \'' + obj.data + '\'');
+      }
       return;
     }
   }
@@ -2108,8 +2117,7 @@ Interpreter.prototype.setProperty = function(obj, name, value, opt_descriptor) {
     }
   }
   if (!obj.properties[name] && obj.preventExtensions) {
-    var scope = this.getScope();
-    if (scope.strict) {
+    if (strict) {
       this.throwException(this.TYPE_ERROR, 'Can\'t add property ' + name +
                           ', object is not extensible');
     }
