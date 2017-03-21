@@ -661,7 +661,7 @@ Interpreter.prototype.initArray = function(scope) {
       var newArray = thisInterpreter.createObject(thisInterpreter.ARRAY);
     }
     var first = arguments[0];
-    if (first && first.type == 'number') {
+    if (arguments.length == 1 && first.type == 'number') {
       if (isNaN(thisInterpreter.arrayIndex(first))) {
         thisInterpreter.throwException(thisInterpreter.RANGE_ERROR,
                                        'Invalid array length');
