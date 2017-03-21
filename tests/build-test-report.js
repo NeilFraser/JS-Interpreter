@@ -147,12 +147,12 @@ function runTests(outputFilePath, verboseOutputFilePath) {
         );
         globs = paths;
       }
-      console.log(`running ${paths.length} tests with ${argv.threads} threads...`);
+      console.log(`running around ${paths.length * 2} tests with ${argv.threads} threads...`);
 
       const bar = new ProgressBar(
         '[:bar] :current/:total :percent | :minutes left | R::regressed, F::fixed, N::new',
         {
-          total: paths.length,
+          total: paths.length * 2, // each file gets run in strict and unstrict mode
           width: 50,
         });
 
@@ -250,12 +250,16 @@ function runTests(outputFilePath, verboseOutputFilePath) {
               } else {
                 eta = `${Math.floor(secondsRemaining)}s`;
               }
-              bar.tick({
-                regressed: numRegressed,
-                fixed: numFixed,
-                "new": numNew,
-                minutes: eta,
-              });
+              bar.tick(
+                // tick twice for tests that don't run in both strict and non-strict modes
+                !test.attrs.flags.onlyStrict && !test.attrs.flags.noStrict && !test.attrs.flags.raw ? 1 : 2,
+                {
+                  regressed: numRegressed,
+                  fixed: numFixed,
+                  "new": numNew,
+                  minutes: eta,
+                }
+              );
             }
           });
         },
