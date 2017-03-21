@@ -201,7 +201,7 @@ escape-string-regexp@^1.0.2:
   version "1.0.5"
   resolved "https://registry.yarnpkg.com/escape-string-regexp/-/escape-string-regexp-1.0.5.tgz#1b61c0562190a8dff6ae3bb2cf0200ca130b86d4"
 
-eshost@^3.3.2, eshost@pcardune/eshost#f3fa7fa:
+eshost@^3.3.2, "eshost@github:pcardune/eshost#f3fa7fa":
   version "3.3.4"
   resolved "https://codeload.github.com/pcardune/eshost/tar.gz/f3fa7fa"
   dependencies:
@@ -646,9 +646,16 @@ temp@^0.8.3:
     os-tmpdir "^1.0.0"
     rimraf "~2.2.6"
 
-test262-compiler@^2.0.0, test262-compiler@pcardune/test262-compiler#af9df33:
+test262-compiler@^2.0.0:
   version "2.0.0"
   resolved "https://registry.yarnpkg.com/test262-compiler/-/test262-compiler-2.0.0.tgz#d9c300c2a46616932e08a3b2fd03ade5bc1bcf11"
+  dependencies:
+    test262-parser "^2.0.7"
+    yargs "^4.7.1"
+
+"test262-compiler@github:pcardune/test262-compiler#ffa0dff":
+  version "2.0.1"
+  resolved "https://codeload.github.com/pcardune/test262-compiler/tar.gz/ffa0dff"
   dependencies:
     test262-parser "^2.0.7"
     yargs "^4.7.1"
