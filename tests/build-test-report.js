@@ -399,15 +399,18 @@ function printAndCheckResultsDiff(results) {
 
 
   if (argv.verbose) {
-    const printTest = ({oldTest, newTest}, index) => {
-      console.log(`  ${index}. ${getTestDescription(newTest)}`);
+    const printTest = (color, {oldTest, newTest}, index) => {
+      console.log(color(chalk.bold(`  ${index}. ${getTestDescription(newTest)}`)));
+      console.log(chalk.gray(`     ${newTest.file}`));
+      console.log(`     - ${oldTest.result.message}`);
+      console.log(`     + ${newTest.result.message}`);
     }
     console.log('\nNew:')
-    testsThatDiffer.new.forEach(printTest);
+    testsThatDiffer.new.forEach(printTest.bind(null, chalk.green));
     console.log('Fixes:')
-    testsThatDiffer.fixes.forEach(printTest);
+    testsThatDiffer.fixes.forEach(printTest.bind(null, chalk.green));
     console.log('\nRegressions:')
-    testsThatDiffer.regressions.forEach(printTest);
+    testsThatDiffer.regressions.forEach(printTest.bind(null, chalk.red));
   }
   console.log('New:');
   TEST_TYPES.forEach(type => {
