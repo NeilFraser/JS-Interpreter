@@ -263,7 +263,7 @@ function runTests(outputFilePath, verboseOutputFilePath) {
             }
           });
         },
-        globs: TEST_GLOBS
+        globs: globs
       });
     });
   });
