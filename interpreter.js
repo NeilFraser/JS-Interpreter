@@ -281,13 +281,22 @@ Interpreter.prototype.initFunction = function(scope) {
     }
     args = args.join(', ');
     if (args.indexOf(')') != -1) {
-      throw SyntaxError('Function arg string contains parenthesis');
+      thisInterpreter.throwException(thisInterpreter.SYNTAX_ERROR,
+          'Function arg string contains parenthesis');
+      return;
     }
     // Interestingly, the scope for constructed functions is the global scope,
     // even if they were constructed in some other scope.
     newFunc.parentScope = thisInterpreter.stateStack[0].scope;
+    // Acorn needs to parse code in the context of a function or else 'return'
+    // statements will be syntax errors.
     var ast = acorn.parse('$ = function(' + args + ') {' + code + '};',
         Interpreter.PARSE_OPTIONS);
+    if (ast.body.length != 1) {
+      thisInterpreter.throwException(thisInterpreter.SYNTAX_ERROR,
+          'Invalid code in function body.');
+      return;
+    }
     newFunc.node = ast.body[0].expression.right;
     thisInterpreter.setProperty(newFunc, 'length',
         thisInterpreter.createPrimitive(newFunc.node.length),
@@ -2734,7 +2743,7 @@ Interpreter.prototype['stepCallExpression'] = function() {
         return;  // Thrown error, but trapped.
       } else if (state.func_.type != 'function') {
         this.throwException(this.TYPE_ERROR,
-            (state.value && state.value.type) + ' is not a function');
+            (state.func_ && state.func_.type) + ' is not a function');
         return;
       }
     }
