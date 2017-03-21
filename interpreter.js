@@ -262,6 +262,7 @@ Interpreter.prototype.initGlobalScope = function(scope) {
 Interpreter.prototype.initFunction = function(scope) {
   var thisInterpreter = this;
   var wrapper;
+  var identifierRegexp = /^[A-Za-z_]\w*$/;
   // Function constructor.
   wrapper = function(var_args) {
     if (this.parent == thisInterpreter.FUNCTION) {
@@ -277,14 +278,15 @@ Interpreter.prototype.initFunction = function(scope) {
     }
     var args = [];
     for (var i = 0; i < arguments.length - 1; i++) {
-      args.push(arguments[i].toString());
+      var name = arguments[i].toString();
+      if (!name.match(identifierRegexp)) {
+        thisInterpreter.throwException(thisInterpreter.SYNTAX_ERROR,
+            'Invalid function argument: ' + name);
+        return;
+      }
+      args.push(name);
     }
     args = args.join(', ');
-    if (args.indexOf(')') != -1) {
-      thisInterpreter.throwException(thisInterpreter.SYNTAX_ERROR,
-          'Function arg string contains parenthesis');
-      return;
-    }
     // Interestingly, the scope for constructed functions is the global scope,
     // even if they were constructed in some other scope.
     newFunc.parentScope = thisInterpreter.stateStack[0].scope;
@@ -293,6 +295,7 @@ Interpreter.prototype.initFunction = function(scope) {
     var ast = acorn.parse('$ = function(' + args + ') {' + code + '};',
         Interpreter.PARSE_OPTIONS);
     if (ast.body.length != 1) {
+      // Function('a', 'return a + 6;}; {alert(1);');
       thisInterpreter.throwException(thisInterpreter.SYNTAX_ERROR,
           'Invalid code in function body.');
       return;
