@@ -45,9 +45,12 @@ const argv = yargs
   .alias('v', 'verbose')
   .boolean('v')
 
-  .alias('o', 'out')
-  .describe('o', 'Directory to dump compiled test files to')
-  .nargs('o', 1)
+  .describe('compiledOut', 'Directory to dump compiled test files to')
+  .nargs('compiledOut', 1)
+
+  .describe('savedResults', 'Specify a results file to compare and/or save to')
+  .default('savedResults', path.resolve(__dirname, 'test-results.json'))
+  .nargs('savedResults', 1)
 
   .alias('i', 'input')
   .describe('i', 'Specify a results file')
@@ -132,7 +135,7 @@ function saveResults(results) {
     result: test.result,
   }))
   results.sort((a,b) => a.file < b.file ? -1 : a.file === b.file ? 0 : 1);
-  fs.writeFileSync(SAVED_RESULTS_FILE, JSON.stringify(results, null, 2));
+  fs.writeFileSync(argv.savedResults, JSON.stringify(results, null, 2));
 }
 
 function runTests(outputFilePath, verboseOutputFilePath) {
@@ -164,8 +167,9 @@ function runTests(outputFilePath, verboseOutputFilePath) {
       }
       let startTime;
       runner.run({
-        compiledFilesDir: argv.out && path.resolve(argv.out),
+        compiledFilesDir: argv.compiledOut && path.resolve(argv.compiledOut),
         threads: argv.threads,
+        timeout: 60000,
         hostType: 'js-interpreter',
         hostPath: path.resolve(__dirname, '../bin/run.js'),
         hostArgs: argv.interpreter ? ['--interpreter', argv.interpreter] : undefined,
@@ -192,7 +196,7 @@ function runTests(outputFilePath, verboseOutputFilePath) {
           let numFixed = 0;
           let numNew = 0;
           results.on('test end', test => {
-            test.file = test.file.replace(path.resolve(__dirname, '..') + '/', '');
+            test.file = fs.realpathSync(test.file).replace(path.resolve(__dirname, '..') + '/', '');
             const color = test.result.pass ? chalk.green : chalk.red;
             const description = getTestDescription(test);
             function write() {
@@ -218,7 +222,9 @@ function runTests(outputFilePath, verboseOutputFilePath) {
               write('.');
             }
             if (argv.verbose) {
-              write(` ${count+1} ${test.file} ${color(description)}\n`);
+              write(` ${count+1} ${chalk.bold(color(description))}\n`);
+              write(`   ${chalk.gray(test.file)}\n`);
+              write(`   ${chalk.gray(test.result.message)}\n`);
             } else if (count % 80 === 0) {
               write('\n');
             }
@@ -458,7 +464,7 @@ function processTestResults() {
 
 const OLD_RESULTS_BY_KEY = argv.diff ? getResultsByKey(
   readResultsFromFile(
-    typeof argv.diff === 'string' ? argv.diff : SAVED_RESULTS_FILE
+    typeof argv.diff === 'string' ? argv.diff : argv.savedResults
   )
 ): {};
 
