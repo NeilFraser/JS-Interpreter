@@ -3377,7 +3377,7 @@ Interpreter.prototype['stepUnaryExpression'] = function() {
   if (!state.done_) {
     state.done_ = true;
     var nextState = {node: node.argument};
-    if (node.operator == 'delete' || node.operator == 'typeof') {
+    if (node.operator == 'delete') {
       nextState.components = true;
     }
     this.stateStack.push(nextState);
@@ -3393,7 +3393,7 @@ Interpreter.prototype['stepUnaryExpression'] = function() {
     value = !value.toBoolean();
   } else if (node.operator == '~') {
     value = ~value.toNumber();
-  } else if (node.operator == 'delete' || node.operator == 'typeof') {
+  } else if (node.operator == 'delete') {
     if (value.length) {
       var obj = value[0];
       var name = value[1];
@@ -3401,16 +3401,14 @@ Interpreter.prototype['stepUnaryExpression'] = function() {
       var obj = this.getScope();
       var name = value;
     }
-    if (node.operator == 'delete') {
-      value = this.deleteProperty(obj, name);
-      if (!value && this.getScope().strict) {
-        this.throwException(this.TYPE_ERROR, 'Cannot delete property \'' +
-                            name + '\' of \'' + obj + '\'');
-        return;
-      }
-    } else {
-      value = this.getProperty(obj, name).type;
+    value = this.deleteProperty(obj, name);
+    if (!value && this.getScope().strict) {
+      this.throwException(this.TYPE_ERROR, 'Cannot delete property \'' +
+                          name + '\' of \'' + obj + '\'');
+      return;
     }
+  } else if (node.operator == 'typeof') {
+    value = value.type;
   } else if (node.operator == 'void') {
     value = undefined;
   } else {
