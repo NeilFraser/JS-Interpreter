@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+const fetch = require('node-fetch');
 const os = require('os');
 const path = require('path');
 const yargs = require('yargs');
@@ -24,6 +25,12 @@ const argv = yargs
   .describe('r', 'generate new test results')
   .boolean('r')
 
+  .describe('splitInto', 'Only run 1/N tests')
+  .nargs('splitInto', 1)
+
+  .describe('splitIndex', 'Which 1/N tests to run')
+  .nargs('splitIndex', 1)
+
   .alias('s', 'save')
   .describe('s', 'save the results')
   .boolean('s')
@@ -46,6 +53,9 @@ const argv = yargs
   .describe('i', 'Specify a results file')
   .default('i', path.resolve(__dirname, 'test-results-new.json'))
   .nargs('i', 1)
+
+  .describe('circleBuild', 'specify a circle build to download results from')
+  .nargs('circleBuild', 1)
 
   .nargs('interpreter', 1)
   .describe('interpreter', 'path to interpreter module to use')
@@ -113,12 +123,6 @@ const TEST_GLOBS = argv._.length > 0 ? argv._ : [
   'test262/test/built-ins/WeakSet/**/*.js',
 ].map(t => path.resolve(__dirname, t));
 
-function downloadTestsIfNecessary() {
-  if (!fs.existsSync(TESTS_DIRECTORY)) {
-    console.log("Downloading test262 test suite");
-    execSync(`git clone https://github.com/tc39/test262.git --depth 1 ${TESTS_DIRECTORY}`);
-  }
-}
 
 function saveResults(results) {
   console.log('Saving results for future comparison...');
@@ -132,16 +136,23 @@ function saveResults(results) {
 }
 
 function runTests(outputFilePath, verboseOutputFilePath) {
-  downloadTestsIfNecessary();
-
-
   return new Promise(resolve => {
     globber(TEST_GLOBS).toArray().subscribe(paths => {
-      console.log(`running ${paths.length} tests with ${argv.threads} threads...`);
-      var bar = new ProgressBar(
+
+      let globs = TEST_GLOBS;
+      if (argv.splitInto) {
+        // split up the globs in circle according to which container we are running on
+        paths = paths.sort().filter(
+          (path, index) => index % parseInt(argv.splitInto) === parseInt(argv.splitIndex)
+        );
+        globs = paths;
+      }
+      console.log(`running around ${paths.length * 2} tests with ${argv.threads} threads...`);
+
+      const bar = new ProgressBar(
         '[:bar] :current/:total :percent | :minutes left | R::regressed, F::fixed, N::new',
         {
-          total: paths.length,
+          total: paths.length * 2, // each file gets run in strict and unstrict mode
           width: 50,
         });
 
@@ -239,19 +250,58 @@ function runTests(outputFilePath, verboseOutputFilePath) {
               } else {
                 eta = `${Math.floor(secondsRemaining)}s`;
               }
-              bar.tick({
-                regressed: numRegressed,
-                fixed: numFixed,
-                "new": numNew,
-                minutes: eta,
-              });
+              bar.tick(
+                // tick twice for tests that don't run in both strict and non-strict modes
+                !test.attrs.flags.onlyStrict && !test.attrs.flags.noStrict && !test.attrs.flags.raw ? 1 : 2,
+                {
+                  regressed: numRegressed,
+                  fixed: numFixed,
+                  "new": numNew,
+                  minutes: eta,
+                }
+              );
             }
           });
         },
-        globs: TEST_GLOBS
+        globs: globs
       });
     });
   });
+}
+
+function downloadCircleResults() {
+  console.log("downloading test results from circle ci...");
+  const VCS_TYPE = 'github';
+  const USERNAME = 'code-dot-org';
+  const PROJECT = 'JS-Interpreter';
+  const REQUEST_PATH = `https://circleci.com/api/v1.1/project/${VCS_TYPE}/${USERNAME}/${PROJECT}/${argv.circleBuild}/artifacts`;
+
+  return fetch(REQUEST_PATH)
+    .then(res => res.json())
+    .then(artifacts => artifacts
+      .filter(a => a.pretty_path === '$CIRCLE_ARTIFACTS/test-results-new.json')
+      .map(a => a.url))
+    .then(resultFileUrls => {
+      const bar = new ProgressBar(
+        '[:bar] :current/:total',
+        {
+          curr: 0,
+          total: resultFileUrls.length,
+        });
+      return Promise.all(resultFileUrls.map(url =>
+        fetch(url).then(res => {
+          bar.tick();
+          return res.json();
+        })
+      ));
+    })
+    .then(results => {
+      const allResults = results.reduce((acc, val) => acc.concat(val), []);
+      fs.writeFileSync(
+        argv.input,
+        JSON.stringify(allResults, null, 2)
+      );
+    });
 }
 
 function readResultsFromFile(filename) {
@@ -349,15 +399,18 @@ function printAndCheckResultsDiff(results) {
 
 
   if (argv.verbose) {
-    const printTest = ({oldTest, newTest}, index) => {
-      console.log(`  ${index}. ${getTestDescription(newTest)}`);
+    const printTest = (color, {oldTest, newTest}, index) => {
+      console.log(color(chalk.bold(`  ${index}. ${getTestDescription(newTest)}`)));
+      console.log(chalk.gray(`     ${newTest.file}`));
+      console.log(`     - ${oldTest.result.message}`);
+      console.log(`     + ${newTest.result.message}`);
     }
     console.log('\nNew:')
-    testsThatDiffer.new.forEach(printTest);
+    testsThatDiffer.new.forEach(printTest.bind(null, chalk.green));
     console.log('Fixes:')
-    testsThatDiffer.fixes.forEach(printTest);
+    testsThatDiffer.fixes.forEach(printTest.bind(null, chalk.green));
     console.log('\nRegressions:')
-    testsThatDiffer.regressions.forEach(printTest);
+    testsThatDiffer.regressions.forEach(printTest.bind(null, chalk.red));
   }
   console.log('New:');
   TEST_TYPES.forEach(type => {
@@ -411,6 +464,8 @@ const OLD_RESULTS_BY_KEY = argv.diff ? getResultsByKey(
 
 if (argv.run) {
   runTests(RESULTS_FILE, VERBOSE_RESULTS_FILE).then(processTestResults);
+} else if (argv.circleBuild) {
+  downloadCircleResults().then(processTestResults);
 } else {
   processTestResults()
 }
