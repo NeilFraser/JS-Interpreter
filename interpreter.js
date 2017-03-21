@@ -2160,7 +2160,7 @@ Interpreter.prototype.setProperty = function(obj, name, value, opt_descriptor) {
     }
   } else {
     // Set the property.
-    // Determine if there is a setter anywhere in the history chain.
+    // Determine if there is a setter anywhere in the parent chain.
     var parent = obj;
     while (true) {
       if (parent.setter && parent.setter[name]) {
@@ -2174,12 +2174,19 @@ Interpreter.prototype.setProperty = function(obj, name, value, opt_descriptor) {
         break;
       }
     }
-    // No setter, simple assignment.
-    if (!obj.notWritable[name]) {
-      obj.properties[name] = value;
-    } else if (strict) {
-      this.throwException(this.TYPE_ERROR, 'Cannot assign to read only ' +
-          'property \'' + name + '\' of object \'' + obj + '\'');
+    if (obj.getter && obj.getter[name]) {
+      if (strict) {
+        this.throwException(this.TYPE_ERROR, 'Cannot set property \'' + name +
+            '\' of object \'' + obj + '\' which only has a getter');
+      }
+    } else {
+      // No setter, simple assignment.
+      if (!obj.notWritable[name]) {
+        obj.properties[name] = value;
+      } else if (strict) {
+        this.throwException(this.TYPE_ERROR, 'Cannot assign to read only ' +
+            'property \'' + name + '\' of object \'' + obj + '\'');
+      }
     }
   }
 };
