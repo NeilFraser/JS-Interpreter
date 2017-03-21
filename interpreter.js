@@ -2177,6 +2177,9 @@ Interpreter.prototype.setProperty = function(obj, name, value, opt_descriptor) {
     // No setter, simple assignment.
     if (!obj.notWritable[name]) {
       obj.properties[name] = value;
+    } else if (strict) {
+      this.throwException(this.TYPE_ERROR, 'Cannot assign to read only ' +
+          'property \'' + name + '\' of object \'' + obj + '\'');
     }
   }
 };
