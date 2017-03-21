@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-const request = require('request');
+const fetch = require('node-fetch');
 const os = require('os');
 const path = require('path');
 const yargs = require('yargs');
@@ -276,59 +276,32 @@ function downloadCircleResults() {
   const PROJECT = 'JS-Interpreter';
   const REQUEST_PATH = `https://circleci.com/api/v1.1/project/${VCS_TYPE}/${USERNAME}/${PROJECT}/${argv.circleBuild}/artifacts`;
 
-
-  return new Promise((resolve, reject) => request(
-    {
-      url: REQUEST_PATH,
-      json: true,
-    },
-    (error, response, artifacts) => {
-      if (error) {
-        throw error;
-      }
-
-      const resultFileUrls = artifacts
-        .filter(a => a.pretty_path === '$CIRCLE_ARTIFACTS/test-results-new.json')
-        .map(a => a.url);
-
+  return fetch(REQUEST_PATH)
+    .then(res => res.json())
+    .then(artifacts => artifacts
+      .filter(a => a.pretty_path === '$CIRCLE_ARTIFACTS/test-results-new.json')
+      .map(a => a.url))
+    .then(resultFileUrls => {
       const bar = new ProgressBar(
         '[:bar] :current/:total',
         {
           curr: 0,
-          total: artifacts.length,
+          total: resultFileUrls.length,
         });
-
-      Promise
-        .all(
-          resultFileUrls.map(
-            url => new Promise(
-              (resolve, reject) => request(
-                {
-                  url: url,
-                  json: true,
-                },
-                (error, response, body) => {
-                  if (error) {
-                    reject(error);
-                  }
-                  bar.tick();
-                  resolve(body);
-                }
-              )
-            )
-          )
-        )
-        .then(results => {
-          const allResults = results.reduce((acc, val) => acc.concat(val), []);
-          fs.writeFileSync(
-            argv.input,
-            JSON.stringify(allResults, null, 2)
-          );
-          resolve();
+      return Promise.all(resultFileUrls.map(url =>
+        fetch(url).then(res => {
+          bar.tick();
+          return res.json();
         })
-        .catch(reject);
-    }
-  ));
+      ));
+    })
+    .then(results => {
+      const allResults = results.reduce((acc, val) => acc.concat(val), []);
+      fs.writeFileSync(
+        argv.input,
+        JSON.stringify(allResults, null, 2)
+      );
+    });
 }
 
 function readResultsFromFile(filename) {
