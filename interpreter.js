@@ -262,7 +262,7 @@ Interpreter.prototype.initGlobalScope = function(scope) {
 Interpreter.prototype.initFunction = function(scope) {
   var thisInterpreter = this;
   var wrapper;
-  var identifierRegexp = /^[A-Za-z_]\w*$/;
+  var identifierRegexp = /^[A-Za-z_$][\w$]*$/;
   // Function constructor.
   wrapper = function(var_args) {
     if (this.parent == thisInterpreter.FUNCTION) {
@@ -314,19 +314,35 @@ Interpreter.prototype.initFunction = function(scope) {
   this.setProperty(this.FUNCTION, 'prototype', this.createObject(null));
   this.FUNCTION.nativeFunc = wrapper;
 
+  var boxThis = function(value) {
+    // In non-strict mode 'this' must be an object.
+    if (value.isPrimitive && !thisInterpreter.getScope().strict) {
+      if (value == thisInterpreter.UNDEFINED || value == thisInterpreter.NULL) {
+        // 'Undefined' and 'null' are changed to global object.
+        value = thisInterpreter.stateStack[0].thisExpression;
+      } else {
+        // Primitives must be boxed in non-strict mode.
+        var box = thisInterpreter.createObject(value.parent);
+        box.data = value.data;
+        value = box;
+      }
+    }
+    return value;
+  };
+
   wrapper = function(thisArg, args) {
     var state =
         thisInterpreter.stateStack[thisInterpreter.stateStack.length - 1];
     // Rewrite the current 'CallExpression' to apply a different function.
     state.func_ = this;
     // Assign the 'this' object.
-    state.funcThis_ = thisArg;
+    state.funcThis_ = boxThis(thisArg);
     // Bind any provided arguments.
-    state.arguments = [];
+    state.arguments_ = [];
     if (args) {
       if (thisInterpreter.isa(args, thisInterpreter.ARRAY)) {
         for (var i = 0; i < args.length; i++) {
-          state.arguments[i] = thisInterpreter.getProperty(args, i);
+          state.arguments_[i] = thisInterpreter.getProperty(args, i);
         }
       } else {
         thisInterpreter.throwException(thisInterpreter.TYPE_ERROR,
@@ -344,32 +360,43 @@ Interpreter.prototype.initFunction = function(scope) {
     // Rewrite the current 'CallExpression' to call a different function.
     state.func_ = this;
     // Assign the 'this' object.
-    state.funcThis_ = thisArg;
+    state.funcThis_ = boxThis(thisArg);
     // Bind any provided arguments.
-    state.arguments = [];
+    state.arguments_ = [];
     for (var i = 1; i < arguments.length; i++) {
-      state.arguments.push(arguments[i]);
+      state.arguments_.push(arguments[i]);
     }
     state.doneArgs_ = true;
     state.doneExec_ = false;
   };
   this.setNativeFunctionPrototype(this.FUNCTION, 'call', wrapper);
 
-  wrapper = function(thisArg, var_args) {
-    // Clone function
-    var clone = thisInterpreter.createFunction(this.node, this.parentScope);
-    // Assign the 'this' object.
-    if (thisArg) {
-      clone.boundThis_ = thisArg;
-    }
-    // Bind any provided arguments.
-    clone.boundArgs_ = [];
-    for (var i = 1; i < arguments.length; i++) {
-      clone.boundArgs_.push(arguments[i]);
-    }
-    return clone;
-  };
-  this.setNativeFunctionPrototype(this.FUNCTION, 'bind', wrapper);
+  this.polyfills_.push(
+// Polyfill copied from:
+// https://developer.mozilla.org/en/docs/Web/JavaScript/Reference/Global_objects/Function/bind
+"Object.defineProperty(Function.prototype, 'bind', {configurable: true, value:",
+  "function(oThis) {",
+    "if (typeof this !== 'function') {",
+      "throw new TypeError('Function.prototype.bind - what is trying to be bound is not callable');",
+    "}",
+    "var aArgs   = Array.prototype.slice.call(arguments, 1),",
+        "fToBind = this,",
+        "fNOP    = function() {},",
+        "fBound  = function() {",
+          "return fToBind.apply(this instanceof fNOP",
+                 "? this",
+                 ": oThis,",
+                 "aArgs.concat(Array.prototype.slice.call(arguments)));",
+        "};",
+    "if (this.prototype) {",
+      "fNOP.prototype = this.prototype;",
+    "}",
+    "fBound.prototype = new fNOP();",
+    "return fBound;",
+  "}",
+"});",
+"");
+
   // Function has no parent to inherit from, so it needs its own mandatory
   // toString and valueOf functions.
   wrapper = function() {
@@ -2543,7 +2570,7 @@ Interpreter.prototype['stepAssignmentExpression'] = function() {
           funcThis_: state.leftSide_[0],
           func_: state.leftValue_,
           doneArgs_: true,
-          arguments: []
+          arguments_: []
         });
         return;
       }
@@ -2612,7 +2639,7 @@ Interpreter.prototype['stepAssignmentExpression'] = function() {
       funcThis_: state.leftSide_[0],
       func_: setter,
       doneArgs_: true,
-      arguments: [value]
+      arguments_: [value]
     });
     return;
   }
@@ -2770,25 +2797,23 @@ Interpreter.prototype['stepCallExpression'] = function() {
     }
     // Determine value of 'this' in function.
     if (state.node.type == 'NewExpression') {
+      // Constructor, 'this' is new object.
       state.funcThis_ = this.createObject(state.func_);
       state.isConstructor_ = true;
-    } else if (state.func_.boundThis_) {
-      state.funcThis_ = state.func_.boundThis_;
     } else if (state.value.length) {
+      // Method function, 'this' is object.
       state.funcThis_ = state.value[0];
     } else {
-      state.funcThis_ = this.stateStack[0].thisExpression;
+      // Global function, 'this' is global object (or 'undefined' if strict).
+      state.funcThis_ = this.getScope().strict ?
+          this.UNDEFINED : this.stateStack[0].thisExpression;
     }
-    if (state.func_.boundArgs_) {
-      state.arguments = state.func_.boundArgs_.concat();
-    } else {
-      state.arguments = [];
-    }
+    state.arguments_ = [];
     state.n_ = 0;
   }
   if (!state.doneArgs_) {
     if (state.n_ != 0) {
-      state.arguments.push(state.value);
+      state.arguments_.push(state.value);
     }
     if (node.arguments[state.n_]) {
       this.stateStack.push({node: node.arguments[state.n_]});
@@ -2805,15 +2830,15 @@ Interpreter.prototype['stepCallExpression'] = function() {
       // Add all arguments.
       for (var i = 0; i < state.func_.node.params.length; i++) {
         var paramName = this.createPrimitive(state.func_.node.params[i].name);
-        var paramValue = state.arguments.length > i ? state.arguments[i] :
+        var paramValue = state.arguments_.length > i ? state.arguments_[i] :
             this.UNDEFINED;
         this.setProperty(scope, paramName, paramValue);
       }
       // Build arguments variable.
       var argsList = this.createObject(this.ARRAY);
-      for (var i = 0; i < state.arguments.length; i++) {
+      for (var i = 0; i < state.arguments_.length; i++) {
         this.setProperty(argsList, this.createPrimitive(i),
-                         state.arguments[i]);
+                         state.arguments_[i]);
       }
       this.setProperty(scope, 'arguments', argsList);
       var funcState = {
@@ -2824,20 +2849,20 @@ Interpreter.prototype['stepCallExpression'] = function() {
       this.stateStack.push(funcState);
       state.value = this.UNDEFINED;  // Default value if no explicit return.
     } else if (state.func_.nativeFunc) {
-      state.value = state.func_.nativeFunc.apply(state.funcThis_,
-                                                 state.arguments);
+      state.value =
+          state.func_.nativeFunc.apply(state.funcThis_, state.arguments_);
     } else if (state.func_.asyncFunc) {
       var thisInterpreter = this;
       var callback = function(value) {
         state.value = value || thisInterpreter.UNDEFINED;
         thisInterpreter.paused_ = false;
       };
-      var argsWithCallback = state.arguments.concat(callback);
+      var argsWithCallback = state.arguments_.concat(callback);
       state.func_.asyncFunc.apply(state.funcThis_, argsWithCallback);
       this.paused_ = true;
       return;
     } else if (state.func_.eval) {
-      var code = state.arguments[0];
+      var code = state.arguments_[0];
       if (!code) {  // eval()
         state.value = this.UNDEFINED;
       } else if (!code.isPrimitive) {
@@ -3174,7 +3199,7 @@ Interpreter.prototype['stepMemberExpression'] = function() {
           funcThis_: state.object_,
           func_: value,
           doneArgs_: true,
-          arguments: []
+          arguments_: []
         });
       } else {
         this.stateStack[this.stateStack.length - 1].value = value;
@@ -3376,10 +3401,10 @@ Interpreter.prototype['stepUnaryExpression'] = function() {
   var node = state.node;
   if (!state.done_) {
     state.done_ = true;
-    var nextState = {node: node.argument};
-    if (node.operator == 'delete') {
-      nextState.components = true;
-    }
+    var nextState = {
+      node: node.argument,
+      components: node.operator == 'delete'
+    };
     this.stateStack.push(nextState);
     return;
   }
@@ -3447,7 +3472,7 @@ Interpreter.prototype['stepUpdateExpression'] = function() {
         funcThis_: state.leftSide_[0],
         func_: state.leftValue_,
         doneArgs_: true,
-        arguments: []
+        arguments_: []
       });
       return;
     }
@@ -3479,7 +3504,7 @@ Interpreter.prototype['stepUpdateExpression'] = function() {
       funcThis_: state.leftSide_[0],
       func_: setter,
       doneArgs_: true,
-      arguments: [changeValue]
+      arguments_: [changeValue]
     });
     return;
   }
@@ -3497,7 +3522,7 @@ Interpreter.prototype['stepVariableDeclaration'] = function() {
     // This setValue call never needs to deal with calling a setter function.
     this.setValue(this.createPrimitive(declarationNode.id.name), state.value);
     state.value = null;
-    n++;
+    declarationNode = node.declarations[++n];
   }
   while (declarationNode) {
     // Skip any declarations that are not initialized.  They have already
