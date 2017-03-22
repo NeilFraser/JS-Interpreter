@@ -2311,7 +2311,6 @@ Interpreter.prototype.createSpecialScope = function(parentScope, opt_scope) {
   return scope;
 };
 
-
 /**
  * Retrieves a value from the scope chain.
  * @param {!Interpreter.Object|!Interpreter.Primitive} name Name of variable.
@@ -2340,26 +2339,24 @@ Interpreter.prototype.getValueFromScope = function(name) {
  * Sets a value to the current scope.
  * @param {!Interpreter.Object|!Interpreter.Primitive} name Name of variable.
  * @param {!Interpreter.Object|!Interpreter.Primitive} value Value.
+ * @return {!Interpreter.Object|undefined} Returns a setter function if one
+ *     needs to be called, otherwise undefined.
  */
 Interpreter.prototype.setValueToScope = function(name, value) {
   var scope = this.getScope();
-  var strict = scope.strict;
   var nameStr = name.toString();
-  while (scope) {
-    if ((nameStr in scope.properties) || (!strict && !scope.parentScope)) {
-      if (scope.notWritable[nameStr] || (nameStr in scope.getter)) {
-        // Properties on the global object are global variables and could be
-        // read-only or getter-only.  E.g. 'undefined'
-        if (strict) {
-          this.throwException(this.TYPE_ERROR,
-              'Cannot assign to read only variable \'' + name + '\'');
-        }
-      } else {
-        scope.properties[nameStr] = value;
-      }
-      return;
+  while (scope && scope != this.global) {
+    if (nameStr in scope.properties) {
+      scope.properties[nameStr] = value;
+      return undefined;
     }
     scope = scope.parentScope;
+  }
+  // The root scope is also an object which has readonly properties and
+  // could also have setters.
+  if (scope == this.global &&
+      (!scope.strict || this.hasProperty(scope, nameStr))) {
+    return this.setProperty(scope, nameStr, value);
   }
   this.throwException(this.REFERENCE_ERROR, nameStr + ' is not defined');
 };
@@ -2463,8 +2460,7 @@ Interpreter.prototype.setValue = function(left, value) {
     var prop = left[1];
     return this.setProperty(obj, prop, value);
   } else {
-    this.setValueToScope(left, value);
-    return undefined;
+    return this.setValueToScope(left, value);
   }
 };
 
