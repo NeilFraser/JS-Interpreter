@@ -2331,6 +2331,11 @@ Interpreter.prototype.getValueFromScope = function(name) {
   if (scope == this.global && this.hasProperty(scope, nameStr)) {
     return this.getProperty(scope, nameStr);
   }
+  // Typeof operator is unique: it can safely look at non-defined variables.
+  var prevNode = this.stateStack[this.stateStack.length - 1].node;
+  if (prevNode.type == 'UnaryExpression' && prevNode.operator == 'typeof') {
+    return this.UNDEFINED;
+  }
   this.throwException(this.REFERENCE_ERROR, nameStr + ' is not defined');
   return null;
 };
