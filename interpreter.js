@@ -2522,6 +2522,49 @@ Interpreter.prototype.executeException = function(error) {
   throw realError;
 };
 
+/**
+ * Push a call to a getter onto the statestack.
+ * @param {!Interpreter.Object} func Function to execute.
+ * @param {!Interpreter.Object|!Array} left
+ *     Name of variable or object/propname tuple.
+ * @private
+ */
+Interpreter.prototype.pushGetter_ = function(func, funcThis) {
+  // Normally 'this' will be specified as the object component (o.x).
+  // Sometimes 'this' is explicitly provided (o).
+  var funcThis = (left instanceof Array) ? left[0] : left;
+  this.stateStack.push({
+    node: {type: 'CallExpression'},
+    doneCallee_: true,
+    funcThis_: funcThis,
+    func_: func,
+    doneArgs_: true,
+    arguments_: []
+  });
+};
+
+/**
+ * Push a call to a setter onto the statestack.
+ * @param {!Interpreter.Object} func Function to execute.
+ * @param {!Interpreter.Object|!Array} left
+ *     Name of variable or object/propname tuple.
+ * @param {!Interpreter.Object} value Value to set.
+ * @private
+ */
+Interpreter.prototype.pushSetter_ = function(func, left, value) {
+  // Normally 'this' will be specified as the object component (o.x).
+  // Sometimes 'this' is implicitly the global object (x).
+  var funcThis = (left instanceof Array) ? left[0] : this.global;
+  this.stateStack.push({
+    node: {type: 'CallExpression'},
+    doneCallee_: true,
+    funcThis_: funcThis,
+    func_: func,
+    doneArgs_: true,
+    arguments_: [value]
+  });
+};
+
 ///////////////////////////////////////////////////////////////////////////////
 // Functions to handle each node type.
 ///////////////////////////////////////////////////////////////////////////////
@@ -2572,14 +2615,7 @@ Interpreter.prototype['stepAssignmentExpression'] = function() {
         // Clear the getter flag and call the getter function.
         state.leftValue_.isGetter = false;
         state.doneGetter_ = true;
-        this.stateStack.push({
-          node: {type: 'CallExpression'},
-          doneCallee_: true,
-          funcThis_: state.leftSide_[0],
-          func_: state.leftValue_,
-          doneArgs_: true,
-          arguments_: []
-        });
+        this.pushGetter_(state.leftValue_, state.leftSide_);
         return;
       }
     }
@@ -2641,14 +2677,7 @@ Interpreter.prototype['stepAssignmentExpression'] = function() {
   var setter = this.setValue(state.leftSide_, value);
   if (setter) {
     state.doneSetter_ = value;
-    this.stateStack.push({
-      node: {type: 'CallExpression'},
-      doneCallee_: true,
-      funcThis_: state.leftSide_[0],
-      func_: setter,
-      doneArgs_: true,
-      arguments_: [value]
-    });
+    this.pushSetter_(setter, state.leftSide_, value);
     return;
   }
   // Return if no setter function.
@@ -3047,19 +3076,19 @@ Interpreter.prototype['stepForInStatement'] = function() {
     this.stateStack.push({node: node.right});
     return;
   }
-  if (typeof state.iterator == 'undefined') {
+  if (typeof state.iterator_ == 'undefined') {
     // First iteration.
     state.object_ = state.value;
-    state.iterator = 0;
+    state.iterator_ = 0;
   }
   var name = null;
   done: do {
-    var i = state.iterator;
+    var i = state.iterator_;
     for (var prop in state.object_.properties) {
       if (state.object_.notEnumerable[prop]) {
         continue;
       }
-      if (i == 0) {
+      if (i == 0) {  // Found the i'th enumerable property.
         name = prop;
         break done;
       }
@@ -3067,17 +3096,27 @@ Interpreter.prototype['stepForInStatement'] = function() {
     }
     state.object_ = state.object_.parent &&
         state.object_.parent.properties.prototype;
-    state.iterator = 0;
+    state.iterator_ = 0;
   } while (state.object_);
-  state.iterator++;
+
   if (name === null) {  // Done, exit loop.
     this.stateStack.pop();
   } else {  // Execute the body.
-    this.setValueToScope(state.variable_, this.createPrimitive(name));
+    if (!state.doneSetter_) {
+      var value = this.createPrimitive(name);
+      var setter = this.setValue(state.variable_, value);
+      if (setter) {
+        state.doneSetter_ = true;
+        this.pushSetter_(setter, state.variable_, value);
+        return;
+      }
+    }
+    state.doneSetter_ = false;
     if (node.body) {
       state.isLoop = true;
       this.stateStack.push({node: node.body});
     }
+    state.iterator_++;
   }
 };
 
@@ -3128,6 +3167,7 @@ Interpreter.prototype['stepIdentifier'] = function() {
   var nameStr = state.node.name;
   var name = this.createPrimitive(nameStr);
   var value = state.components ? name : this.getValueFromScope(name);
+  // An identifier could be a getter if it's a property on the global object.
   if (value.isGetter) {
     // Clear the getter flag and call the getter function.
     value.isGetter = false;
@@ -3135,14 +3175,7 @@ Interpreter.prototype['stepIdentifier'] = function() {
     while (!this.hasProperty(scope, nameStr)) {
       scope = scope.parentScope;
     }
-    this.stateStack.push({
-      node: {type: 'CallExpression'},
-      doneCallee_: true,
-      funcThis_: scope,
-      func_: value,
-      doneArgs_: true,
-      arguments_: []
-    });
+    this.pushGetter_(value, this.global);
   } else {
     this.stateStack[this.stateStack.length - 1].value = value;
   }
@@ -3219,14 +3252,7 @@ Interpreter.prototype['stepMemberExpression'] = function() {
       if (value.isGetter) {
         // Clear the getter flag and call the getter function.
         value.isGetter = false;
-        this.stateStack.push({
-          node: {type: 'CallExpression'},
-          doneCallee_: true,
-          funcThis_: state.object_,
-          func_: value,
-          doneArgs_: true,
-          arguments_: []
-        });
+        this.pushGetter_(value, state.object_);
       } else {
         this.stateStack[this.stateStack.length - 1].value = value;
       }
@@ -3492,14 +3518,7 @@ Interpreter.prototype['stepUpdateExpression'] = function() {
       // Clear the getter flag and call the getter function.
       state.leftValue_.isGetter = false;
       state.doneGetter_ = true;
-      this.stateStack.push({
-        node: {type: 'CallExpression'},
-        doneCallee_: true,
-        funcThis_: state.leftSide_[0],
-        func_: state.leftValue_,
-        doneArgs_: true,
-        arguments_: []
-      });
+      this.pushGetter_(state.leftValue_, state.leftSide_);
       return;
     }
   }
@@ -3524,14 +3543,7 @@ Interpreter.prototype['stepUpdateExpression'] = function() {
   var setter = this.setValue(state.leftSide_, changeValue);
   if (setter) {
     state.doneSetter_ = returnValue;
-    this.stateStack.push({
-      node: {type: 'CallExpression'},
-      doneCallee_: true,
-      funcThis_: state.leftSide_[0],
-      func_: setter,
-      doneArgs_: true,
-      arguments_: [changeValue]
-    });
+    this.pushSetter_(setter, state.leftSide_, changeValue);
     return;
   }
   // Return if no setter function.
