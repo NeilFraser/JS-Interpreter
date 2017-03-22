@@ -2347,7 +2347,14 @@ Interpreter.prototype.setValueToScope = function(name, value) {
   var nameStr = name.toString();
   while (scope) {
     if ((nameStr in scope.properties) || (!strict && !scope.parentScope)) {
-      if (!scope.notWritable[nameStr]) {
+      if (scope.notWritable[nameStr] || (nameStr in scope.getter)) {
+        // Properties on the global object are global variables and could be
+        // read-only or getter-only.  E.g. 'undefined'
+        if (strict) {
+          this.throwException(this.TYPE_ERROR,
+              'Cannot assign to read only variable \'' + name + '\'');
+        }
+      } else {
         scope.properties[nameStr] = value;
       }
       return;
