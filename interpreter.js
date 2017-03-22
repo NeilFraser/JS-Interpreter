@@ -49,7 +49,7 @@ var Interpreter = function(code, opt_initFunc) {
   this.NUMBER_ONE = new Interpreter.Primitive(1, this);
   this.STRING_EMPTY = new Interpreter.Primitive('', this);
   // Create and initialize the global scope.
-  var scope = this.createScope(this.ast, null);
+  this.global = this.createScope(this.ast, null);
   // Fix the parent properties now that the global scope exists.
   //this.UNDEFINED.parent = undefined;
   //this.NULL.parent = undefined;
@@ -65,8 +65,8 @@ var Interpreter = function(code, opt_initFunc) {
   this.stripLocations_(this.ast, undefined, undefined);
   this.stateStack = [{
     node: this.ast,
-    scope: scope,
-    thisExpression: scope,
+    scope: this.global,
+    thisExpression: this.global,
     done: false
   }];
   this.run();
@@ -75,8 +75,8 @@ var Interpreter = function(code, opt_initFunc) {
   this.ast = code;
   this.stateStack = [{
     node: this.ast,
-    scope: scope,
-    thisExpression: scope,
+    scope: this.global,
+    thisExpression: this.global,
     done: false
   }];
 };
@@ -319,7 +319,7 @@ Interpreter.prototype.initFunction = function(scope) {
     if (value.isPrimitive && !thisInterpreter.getScope().strict) {
       if (value == thisInterpreter.UNDEFINED || value == thisInterpreter.NULL) {
         // 'Undefined' and 'null' are changed to global object.
-        value = thisInterpreter.stateStack[0].thisExpression;
+        value = thisInterpreter.global;
       } else {
         // Primitives must be boxed in non-strict mode.
         var box = thisInterpreter.createObject(value.parent);
@@ -2321,11 +2321,16 @@ Interpreter.prototype.createSpecialScope = function(parentScope, opt_scope) {
 Interpreter.prototype.getValueFromScope = function(name) {
   var scope = this.getScope();
   var nameStr = name.toString();
-  while (scope) {
+  while (scope && scope != this.global) {
     if (nameStr in scope.properties) {
       return scope.properties[nameStr];
     }
     scope = scope.parentScope;
+  }
+  // The root scope is also an object which has inherited properties and
+  // could also have getters.
+  if (scope == this.global && this.hasProperty(scope, nameStr)) {
+    return this.getProperty(scope, nameStr);
   }
   this.throwException(this.REFERENCE_ERROR, nameStr + ' is not defined');
   return null;
@@ -2806,7 +2811,7 @@ Interpreter.prototype['stepCallExpression'] = function() {
     } else {
       // Global function, 'this' is global object (or 'undefined' if strict).
       state.funcThis_ = this.getScope().strict ?
-          this.UNDEFINED : this.stateStack[0].thisExpression;
+          this.UNDEFINED : this.global;
     }
     state.arguments_ = [];
     state.n_ = 0;
@@ -3117,9 +3122,27 @@ Interpreter.prototype['stepFunctionExpression'] = function() {
 
 Interpreter.prototype['stepIdentifier'] = function() {
   var state = this.stateStack.pop();
-  var name = this.createPrimitive(state.node.name);
-  this.stateStack[this.stateStack.length - 1].value =
-      state.components ? name : this.getValueFromScope(name);
+  var nameStr = state.node.name;
+  var name = this.createPrimitive(nameStr);
+  var value = state.components ? name : this.getValueFromScope(name);
+  if (value.isGetter) {
+    // Clear the getter flag and call the getter function.
+    value.isGetter = false;
+    var scope = this.getScope();
+    while (!this.hasProperty(scope, nameStr)) {
+      scope = scope.parentScope;
+    }
+    this.stateStack.push({
+      node: {type: 'CallExpression'},
+      doneCallee_: true,
+      funcThis_: scope,
+      func_: value,
+      doneArgs_: true,
+      arguments_: []
+    });
+  } else {
+    this.stateStack[this.stateStack.length - 1].value = value;
+  }
 };
 
 Interpreter.prototype['stepIfStatement'] =
