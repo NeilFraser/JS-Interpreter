@@ -1,4 +1,4 @@
 node_modules
 *.komodoproject
-tests/test-results-new.json
-tests/test-results-new.verbose.json
+tyrant/test-results-new.json
+tyrant/test-results-new.verbose.json

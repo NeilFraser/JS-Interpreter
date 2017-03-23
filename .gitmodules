@@ -1,4 +1,4 @@
-[submodule "tests/test262"]
-	path = tests/test262
+[submodule "tyrant/test262"]
+	path = tyrant/test262
 	url = https://github.com/tc39/test262.git
 	shallow = true
