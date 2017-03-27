@@ -15,6 +15,9 @@ dependencies:
   cache_directories:
     - ~/.cache/yarn
 test:
+  pre:
+    - yarn link
+    - yarn link @code-dot-org/js-interpreter
   override:
     - tests/test-on-circle.sh:
         parallel: true
