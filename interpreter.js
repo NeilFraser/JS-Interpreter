@@ -1486,8 +1486,6 @@ Interpreter.Object.prototype.valueOf = function() {
  */
 Interpreter.prototype.createObject = function(parent) {
   var obj = new Interpreter.Object(parent);
-  // Objects have constructors.
-  this.setProperty(obj, 'constructor', parent);
   // Functions have prototype objects.
   if (this.isa(obj, this.FUNCTION)) {
     obj.type = 'function';
@@ -1602,6 +1600,10 @@ Interpreter.prototype.getProperty = function(obj, name) {
   while (true) {
     if (obj.properties && name in obj.properties) {
       return obj.properties[name];
+    }
+    // Special case for magic constructor property
+    if (obj.parent && name == 'constructor') {
+      return obj.parent;
     }
     if (obj.parent && obj.parent.properties &&
         obj.parent.properties.prototype) {
