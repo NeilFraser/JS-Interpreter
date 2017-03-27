@@ -1,6 +1,6 @@
 {
   "name": "@code-dot-org/js-interpreter",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "Code.org fork of NeilFraser/JS-Interpreter for use within Code Studio learning environment.",
   "main": "interpreter.js",
   "repository": {
