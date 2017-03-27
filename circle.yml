@@ -8,6 +8,8 @@ checkout:
     - git submodule sync
     - git submodule update --init
 dependencies:
+  pre:
+    - curl -o- -L https://yarnpkg.com/install.sh | bash
   override:
     - yarn
   cache_directories:
