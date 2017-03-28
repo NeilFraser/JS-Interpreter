@@ -392,6 +392,13 @@ Interpreter.prototype.initArray = function(scope) {
     }
     return n;
   };
+  var strictComp = function(a, b) {
+    // Strict === comparison.
+    if (a.isPrimitive && b.isPrimitive) {
+      return a.data === b.data;
+    }
+    return a === b;
+  };
   var wrapper;
   // Array constructor.
   wrapper = function(var_args) {
@@ -587,10 +594,10 @@ Interpreter.prototype.initArray = function(scope) {
     if (fromIndex < 0) {
       fromIndex = this.length + fromIndex;
     }
-    fromIndex = Math.max(0, Math.min(fromIndex, this.length));
+    fromIndex = Math.max(0, fromIndex);
     for (var i = fromIndex; i < this.length; i++) {
       var element = thisInterpreter.getProperty(this, i);
-      if (thisInterpreter.comp(element, searchElement) == 0) {
+      if (strictComp(element, searchElement)) {
         return thisInterpreter.createPrimitive(i);
       }
     }
@@ -605,10 +612,10 @@ Interpreter.prototype.initArray = function(scope) {
     if (fromIndex < 0) {
       fromIndex = this.length + fromIndex;
     }
-    fromIndex = Math.max(0, Math.min(fromIndex, this.length));
+    fromIndex = Math.min(fromIndex, this.length - 1);
     for (var i = fromIndex; i >= 0; i--) {
       var element = thisInterpreter.getProperty(this, i);
-      if (thisInterpreter.comp(element, searchElement) == 0) {
+      if (strictComp(element, searchElement)) {
         return thisInterpreter.createPrimitive(i);
       }
     }
