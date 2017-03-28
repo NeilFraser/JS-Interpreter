@@ -1890,13 +1890,13 @@ Interpreter.prototype.populateRegExp_ = function(pseudoRegexp, nativeRegexp) {
 
 /**
  * Create a new function.
- * @param {Object} node AST node defining the function.
- * @param {Object=} opt_scope Optional parent scope.
+ * @param {!Object} node AST node defining the function.
+ * @param {!Object} scope Parent scope.
  * @return {!Interpreter.Object} New function.
  */
-Interpreter.prototype.createFunction = function(node, opt_scope) {
+Interpreter.prototype.createFunction = function(node, scope) {
   var func = this.createObject(this.FUNCTION);
-  func.parentScope = opt_scope || this.getScope();
+  func.parentScope = scope;
   func.node = node;
   this.setProperty(func, 'length',
       this.createPrimitive(func.node.params.length),
@@ -3165,7 +3165,7 @@ Interpreter.prototype['stepFunctionDeclaration'] = function() {
 Interpreter.prototype['stepFunctionExpression'] = function() {
   var state = this.stateStack.pop();
   this.stateStack[this.stateStack.length - 1].value =
-      this.createFunction(state.node);
+      this.createFunction(state.node, this.getScope());
 };
 
 Interpreter.prototype['stepIdentifier'] = function() {
@@ -3174,7 +3174,7 @@ Interpreter.prototype['stepIdentifier'] = function() {
   var name = this.createPrimitive(nameStr);
   var value = state.components ? name : this.getValueFromScope(name);
   // An identifier could be a getter if it's a property on the global object.
-  if (value.isGetter) {
+  if (value && value.isGetter) {
     // Clear the getter flag and call the getter function.
     value.isGetter = false;
     var scope = this.getScope();
@@ -3346,11 +3346,24 @@ Interpreter.prototype['stepReturnStatement'] = function() {
     var value = state.value || this.UNDEFINED;
     do {
       this.stateStack.pop();
-      if (this.stateStack.length == 0) {
+      if (!this.stateStack.length) {
         // Syntax error, do not allow this error to be trapped.
         throw SyntaxError('Illegal return statement');
       }
       state = this.stateStack[this.stateStack.length - 1];
+    } while (state.node.type != 'CallExpression' &&
+             state.node.type != 'NewExpression' &&
+             state.node.type != 'TryStatement');
+    // We might be stopped at a try/finally clause.  If so, peek ahead and set
+    // the return value for the function.
+    var i = this.stateStack.length;
+    do {
+      i--
+      if (i < 0) {
+        // Syntax error, do not allow this error to be trapped.
+        throw SyntaxError('Illegal return statement');
+      }
+      state = this.stateStack[i];
     } while (state.node.type != 'CallExpression' &&
              state.node.type != 'NewExpression');
     state.value = value;
