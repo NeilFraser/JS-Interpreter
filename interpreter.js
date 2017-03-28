@@ -3344,28 +3344,20 @@ Interpreter.prototype['stepReturnStatement'] = function() {
     this.stateStack.push({node: node.argument});
   } else {
     var value = state.value || this.UNDEFINED;
-    do {
-      this.stateStack.pop();
-      if (!this.stateStack.length) {
-        // Syntax error, do not allow this error to be trapped.
-        throw SyntaxError('Illegal return statement');
+    var i = this.stateStack.length - 1;
+    state = this.stateStack[i];
+    while (state.node.type != 'CallExpression' &&
+           state.node.type != 'NewExpression') {
+      if (state.node.type != 'TryStatement') {
+        this.stateStack.splice(i, 1);
       }
-      state = this.stateStack[this.stateStack.length - 1];
-    } while (state.node.type != 'CallExpression' &&
-             state.node.type != 'NewExpression' &&
-             state.node.type != 'TryStatement');
-    // We might be stopped at a try/finally clause.  If so, peek ahead and set
-    // the return value for the function.
-    var i = this.stateStack.length;
-    do {
       i--
       if (i < 0) {
         // Syntax error, do not allow this error to be trapped.
         throw SyntaxError('Illegal return statement');
       }
       state = this.stateStack[i];
-    } while (state.node.type != 'CallExpression' &&
-             state.node.type != 'NewExpression');
+    }
     state.value = value;
   }
 };
