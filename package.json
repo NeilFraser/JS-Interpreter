@@ -1,6 +1,6 @@
 {
   "name": "js-interpreter",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "description": "NPM package for https://github.com/NeilFraser/JS-Interpreter",
   "main": "lib/index.js",
   "module": "src/interpreter.js",
