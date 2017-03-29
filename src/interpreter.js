@@ -3626,4 +3626,15 @@ Interpreter.prototype['stepWithStatement'] = function() {
 Interpreter.prototype['stepWhileStatement'] =
     Interpreter.prototype['stepDoWhileStatement'];
 
-module.exports = Interpreter;
+// Preserve top-level API functions from being pruned by JS compilers.
+// Add others as needed.
+if (typeof window !== 'undefined') {
+  window.Interpreter = Interpreter
+}
+Interpreter.prototype['appendCode'] = Interpreter.prototype.appendCode;
+Interpreter.prototype['createAsyncFunction'] =
+    Interpreter.prototype.createAsyncFunction;
+Interpreter.prototype['step'] = Interpreter.prototype.step;
+Interpreter.prototype['run'] = Interpreter.prototype.run;
+
+module.exports = Interpreter
