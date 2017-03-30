@@ -1951,18 +1951,17 @@ Interpreter.prototype.nativeToPseudo = function(nativeObj) {
   }
 
   if (nativeObj instanceof Function) {
-    var wrapper = (function(interpreter, nativeObj){
-      return function() {
-        return interpreter.nativeToPseudo(
-          nativeObj.apply(interpreter,
-            Array.prototype.slice.call(arguments)
-              .map(function(i) {
-                return interpreter.pseudoToNative(i);
-              })
-          )
-        );
-      };
-    })(this, nativeObj);
+    var interpreter = this;
+    var wrapper = function() {
+      return interpreter.nativeToPseudo(
+        nativeObj.apply(interpreter,
+          Array.prototype.slice.call(arguments)
+          .map(function(i) {
+            return interpreter.pseudoToNative(i);
+          })
+        )
+      );
+    };
     return this.createNativeFunction(wrapper);
   }
 
