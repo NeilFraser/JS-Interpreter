@@ -1945,6 +1945,22 @@ Interpreter.prototype.nativeToPseudo = function(nativeObj) {
       nativeObj instanceof RegExp) {
     return this.createPrimitive(nativeObj);
   }
+
+  if (nativeObj instanceof Function) {
+    var interpreter = this;
+    var wrapper = function() {
+      return interpreter.nativeToPseudo(
+        nativeObj.apply(interpreter,
+          Array.prototype.slice.call(arguments)
+          .map(function(i) {
+            return interpreter.pseudoToNative(i);
+          })
+        )
+      );
+    };
+    return this.createNativeFunction(wrapper);
+  }
+
   var pseudoObj;
   if (nativeObj instanceof Array) {  // Array.
     pseudoObj = this.createObject(this.ARRAY);
