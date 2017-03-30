@@ -2859,6 +2859,11 @@ Interpreter.prototype['stepCallExpression'] = function() {
     }
     // Determine value of 'this' in function.
     if (state.node.type == 'NewExpression') {
+      if (!state.func_.node) {
+        // Illegal: new escape();
+        this.throwException(this.TYPE_ERROR, 'function is not a constructor');
+        return;
+      }
       // Constructor, 'this' is new object.
       state.funcThis_ = this.createObject(state.func_);
       state.isConstructor_ = true;
