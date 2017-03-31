@@ -572,6 +572,10 @@ Interpreter.prototype.initObject = function(scope) {
       Interpreter.NONENUMERABLE_DESCRIPTOR);
 
   wrapper = function(obj) {
+    if (obj == thisInterpreter.UNDEFINED || obj == thisInterpreter.NULL) {
+      thisInterpreter.throwException(thisInterpreter.TYPE_ERROR,
+          'Cannot convert undefined or null to object');
+    }
     return obj.proto || thisInterpreter.NULL;
   };
   this.setProperty(this.OBJECT, 'getPrototypeOf',
