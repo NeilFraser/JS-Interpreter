@@ -1339,7 +1339,7 @@ Interpreter.prototype.initDate = function(scope) {
   var thisInterpreter = this;
   var wrapper;
   // Date constructor.
-  wrapper = function(a, b, c, d, e, f, h) {
+  wrapper = function(value, var_args) {
     if (thisInterpreter.calledWithNew()) {
       // Called as new Date().
       var newDate = this;
@@ -1350,9 +1350,9 @@ Interpreter.prototype.initDate = function(scope) {
     }
     if (!arguments.length) {
       newDate.data = new Date();
-    } else if (arguments.length == 1 && (a.type == 'string' ||
-        thisInterpreter.isa(a, thisInterpreter.STRING))) {
-      newDate.data = new Date(a.toString());
+    } else if (arguments.length == 1 && (value.type == 'string' ||
+        thisInterpreter.isa(value, thisInterpreter.STRING))) {
+      newDate.data = new Date(value.toString());
     } else {
       var args = [null];
       for (var i = 0; i < arguments.length; i++) {
@@ -1379,7 +1379,7 @@ Interpreter.prototype.initDate = function(scope) {
   this.setProperty(this.DATE, 'parse', this.createNativeFunction(wrapper, false),
                    Interpreter.NONENUMERABLE_DESCRIPTOR);
 
-  wrapper = function(a, b, c, d, e, f, h) {
+  wrapper = function(var_args) {
     var args = [];
     for (var i = 0; i < arguments.length; i++) {
       args[i] = arguments[i] ? arguments[i].toNumber() : undefined;
@@ -3432,7 +3432,7 @@ Interpreter.prototype['stepReturnStatement'] = function() {
       if (state.node.type != 'TryStatement') {
         this.stateStack.splice(i, 1);
       }
-      i--
+      i--;
       if (i < 0) {
         // Syntax error, do not allow this error to be trapped.
         throw SyntaxError('Illegal return statement');
