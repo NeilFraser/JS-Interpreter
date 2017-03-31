@@ -2865,16 +2865,18 @@ Interpreter.prototype['stepBlockStatement'] = function() {
 
 Interpreter.prototype['stepBreakStatement'] = function() {
   var state = this.stateStack.pop();
-  var node = state.node;
   var label = null;
-  if (node.label) {
-    label = node.label.name;
+  if (state.node.label) {
+    label = state.node.label.name;
   }
-  state = this.stateStack.pop();
   while (state &&
          state.node.type != 'CallExpression' &&
          state.node.type != 'NewExpression') {
-    if (label ? label == state.label : (state.isLoop || state.isSwitch)) {
+    if (label) {
+      if (state.labels && state.labels.indexOf(label) != -1) {
+        return;
+      }
+    } else if (state.isLoop || state.isSwitch) {
       return;
     }
     state = this.stateStack.pop();
@@ -3067,16 +3069,17 @@ Interpreter.prototype['stepConditionalExpression'] = function() {
 };
 
 Interpreter.prototype['stepContinueStatement'] = function() {
-  var state = this.stateStack[this.stateStack.length - 1];
+  var state = this.stateStack.pop();
   var label = null;
   if (state.node.label) {
     label = state.node.label.name;
   }
+  state = this.stateStack[this.stateStack.length - 1];
   while (state &&
          state.node.type != 'CallExpression' &&
          state.node.type != 'NewExpression') {
     if (state.isLoop) {
-      if (!label || (label == state.label)) {
+      if (!label || (state.labels && state.labels.indexOf(label) != -1)) {
         return;
       }
     }
@@ -3267,14 +3270,13 @@ Interpreter.prototype['stepIfStatement'] =
     Interpreter.prototype['stepConditionalExpression'];
 
 Interpreter.prototype['stepLabeledStatement'] = function() {
-  var state = this.stateStack[this.stateStack.length - 1];
-  if (!state.label) {
-    // No need to hit this node again on the way back up the stack.
-    // Unless there are two or more labels on the same statement.
-    this.stateStack.pop();
-  }
+  // No need to hit this node again on the way back up the stack.
+  var state = this.stateStack.pop();
+  // Note that a statement might have multiple labels,
+  var labels = state.labels || [];
+  labels.push(state.node.label.name);
   this.stateStack.push({node: state.node.body,
-                        label: state.node.label.name});
+                        labels: labels});
 };
 
 Interpreter.prototype['stepLiteral'] = function() {
