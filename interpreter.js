@@ -3249,8 +3249,12 @@ Interpreter.prototype['stepIfStatement'] =
     Interpreter.prototype['stepConditionalExpression'];
 
 Interpreter.prototype['stepLabeledStatement'] = function() {
-  // No need to hit this node again on the way back up the stack.
-  var state = this.stateStack.pop();
+  var state = this.stateStack[this.stateStack.length - 1];
+  if (!state.label) {
+    // No need to hit this node again on the way back up the stack.
+    // Unless there are two or more labels on the same statement.
+    this.stateStack.pop();
+  }
   this.stateStack.push({node: state.node.body,
                         label: state.node.label.name});
 };
