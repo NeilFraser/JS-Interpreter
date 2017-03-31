@@ -268,10 +268,11 @@ Interpreter.prototype.initFunction = function(scope) {
   var identifierRegexp = /^[A-Za-z_$][\w$]*$/;
   // Function constructor.
   wrapper = function(var_args) {
-    if (this.parent == thisInterpreter.FUNCTION) {
-      // Called with new.
+    if (thisInterpreter.calledWithNew()) {
+      // Called as new Function().
       var newFunc = this;
     } else {
+      // Called as Function().
       var newFunc = thisInterpreter.createObject(thisInterpreter.FUNCTION);
     }
     if (arguments.length) {
@@ -432,10 +433,11 @@ Interpreter.prototype.initObject = function(scope) {
     if (!value || value == thisInterpreter.UNDEFINED ||
         value == thisInterpreter.NULL) {
       // Create a new object.
-      if (this.parent == thisInterpreter.OBJECT) {
-        // Called with new.
+      if (thisInterpreter.calledWithNew()) {
+        // Called as new Object().
         return this;
       } else {
+        // Called as Object().
         return thisInterpreter.createObject(thisInterpreter.OBJECT);
       }
     }
@@ -668,10 +670,11 @@ Interpreter.prototype.initArray = function(scope) {
   var wrapper;
   // Array constructor.
   wrapper = function(var_args) {
-    if (this.parent == thisInterpreter.ARRAY) {
-      // Called with new.
+    if (thisInterpreter.calledWithNew()) {
+      // Called as new Array().
       var newArray = this;
     } else {
+      // Called as Array().
       var newArray = thisInterpreter.createObject(thisInterpreter.ARRAY);
     }
     var first = arguments[0];
@@ -1065,13 +1068,14 @@ Interpreter.prototype.initNumber = function(scope) {
   // Number constructor.
   wrapper = function(value) {
     value = value ? value.toNumber() : 0;
-    if (this.parent != thisInterpreter.NUMBER) {
+    if (thisInterpreter.calledWithNew()) {
+      // Called as new Number().
+      this.data = value;
+      return this;
+    } else {
       // Called as Number().
       return thisInterpreter.createPrimitive(value);
     }
-    // Called as new Number().
-    this.data = value;
-    return this;
   };
   this.NUMBER = this.createNativeFunction(wrapper, true);
   this.setProperty(scope, 'Number', this.NUMBER);
@@ -1148,13 +1152,14 @@ Interpreter.prototype.initString = function(scope) {
   // String constructor.
   wrapper = function(value) {
     value = value ? value.toString() : '';
-    if (this.parent != thisInterpreter.STRING) {
+    if (thisInterpreter.calledWithNew()) {
+      // Called as new String().
+      this.data = value;
+      return this;
+    } else {
       // Called as String().
       return thisInterpreter.createPrimitive(value);
     }
-    // Called as new String().
-    this.data = value;
-    return this;
   };
   this.STRING = this.createNativeFunction(wrapper, true);
   this.setProperty(scope, 'String', this.STRING);
@@ -1313,13 +1318,14 @@ Interpreter.prototype.initBoolean = function(scope) {
   // Boolean constructor.
   wrapper = function(value) {
     value = value ? value.toBoolean() : false;
-    if (this.parent != thisInterpreter.BOOLEAN) {
+    if (thisInterpreter.calledWithNew()) {
+      // Called as new Boolean().
+      this.data = value;
+      return this;
+    } else {
       // Called as Boolean().
       return thisInterpreter.createPrimitive(value);
     }
-    // Called as new Boolean().
-    this.data = value;
-    return this;
   };
   this.BOOLEAN = this.createNativeFunction(wrapper, true);
   this.setProperty(scope, 'Boolean', this.BOOLEAN);
@@ -1334,10 +1340,11 @@ Interpreter.prototype.initDate = function(scope) {
   var wrapper;
   // Date constructor.
   wrapper = function(a, b, c, d, e, f, h) {
-    if (this.parent == thisInterpreter.DATE) {
-      // Called with new.
+    if (thisInterpreter.calledWithNew()) {
+      // Called as new Date().
       var newDate = this;
     } else {
+      // Called as Date().
       // Calling Date() as a function returns a string, no arguments are heeded.
       return thisInterpreter.createPrimitive(Date());
     }
@@ -1451,12 +1458,13 @@ Interpreter.prototype.initMath = function(scope) {
 Interpreter.prototype.initRegExp = function(scope) {
   var thisInterpreter = this;
   var wrapper;
-  // Regex constructor.
+  // RegExp constructor.
   wrapper = function(pattern, flags) {
-    if (this.parent == thisInterpreter.REGEXP) {
-      // Called with new.
+    if (thisInterpreter.calledWithNew()) {
+      // Called as new RegExp().
       var rgx = this;
     } else {
+      // Called as RegExp().
       var rgx = thisInterpreter.createObject(thisInterpreter.REGEXP);
     }
     pattern = pattern ? pattern.toString() : '';
@@ -1545,10 +1553,11 @@ Interpreter.prototype.initError = function(scope) {
   var thisInterpreter = this;
   // Error constructor.
   this.ERROR = this.createNativeFunction(function(opt_message) {
-    if (this.parent == thisInterpreter.ERROR) {
-      // Called with new.
+    if (thisInterpreter.calledWithNew()) {
+      // Called as new Error().
       var newError = this;
     } else {
+      // Called as Error().
       var newError = thisInterpreter.createObject(thisInterpreter.ERROR);
     }
     if (opt_message) {
@@ -1567,10 +1576,11 @@ Interpreter.prototype.initError = function(scope) {
   var createErrorSubclass = function(name) {
     var constructor = thisInterpreter.createNativeFunction(
         function(opt_message) {
-          if (thisInterpreter.isa(this.parent, thisInterpreter.ERROR)) {
-            // Called with new.
+          if (thisInterpreter.calledWithNew()) {
+            // Called as new XyzError().
             var newError = this;
           } else {
+            // Called as XyzError().
             var newError = thisInterpreter.createObject(constructor);
           }
           if (opt_message) {
@@ -1928,7 +1938,7 @@ Interpreter.prototype.createFunction = function(node, scope) {
 /**
  * Create a new native function.
  * @param {!Function} nativeFunc JavaScript function.
- * @param {boolean=} opt_constructor If present, the function's
+ * @param {boolean=} opt_constructor If true, the function's
  * prototype will have its constructor property set to the function.
  * If false, the function cannot be called as a constructor (e.g. escape).
  * Defaults to undefined.
@@ -2484,6 +2494,14 @@ Interpreter.prototype.stripLocations_ = function(node, start, end) {
 };
 
 /**
+ * Is the current state directly being called with as a construction with 'new'.
+ * @return {boolean} True if 'new foo()', false if 'foo()'.
+ */
+Interpreter.prototype.calledWithNew = function() {
+  return this.stateStack[this.stateStack.length - 1].isConstructor;
+};
+
+/**
  * Gets a value from the scope chain or from an object property.
  * @param {!Interpreter.Object|!Interpreter.Primitive|!Array} left
  *     Name of variable or object/propname tuple.
@@ -2899,7 +2917,7 @@ Interpreter.prototype['stepCallExpression'] = function() {
       }
       // Constructor, 'this' is new object.
       state.funcThis_ = this.createObject(state.func_);
-      state.isConstructor_ = true;
+      state.isConstructor = true;
     } else if (state.value.length) {
       // Method function, 'this' is object.
       state.funcThis_ = state.value[0];
@@ -2995,7 +3013,7 @@ Interpreter.prototype['stepCallExpression'] = function() {
   } else {
     // Execution complete.  Put the return value on the stack.
     this.stateStack.pop();
-    if (state.isConstructor_ && state.value.type !== 'object') {
+    if (state.isConstructor && state.value.type !== 'object') {
       this.stateStack[this.stateStack.length - 1].value = state.funcThis_;
     } else {
       this.stateStack[this.stateStack.length - 1].value = state.value;
