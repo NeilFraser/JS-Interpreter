@@ -39,6 +39,11 @@ var Interpreter = function(code, opt_initFunc) {
   this.initFunc_ = opt_initFunc;
   this.paused_ = false;
   this.polyfills_ = [];
+  // Declare some mock constructors to get the environment bootstrapped.
+  var mockObject = {properties: {prototype: null}};
+  this.NUMBER = mockObject;
+  this.BOOLEAN = mockObject;
+  this.STRING = mockObject;
   // Predefine some common primitives for performance.
   this.UNDEFINED = new Interpreter.Primitive(undefined, this);
   this.NULL = new Interpreter.Primitive(null, this);
@@ -50,15 +55,15 @@ var Interpreter = function(code, opt_initFunc) {
   this.STRING_EMPTY = new Interpreter.Primitive('', this);
   // Create and initialize the global scope.
   this.global = this.createScope(this.ast, null);
-  // Fix the parent properties now that the global scope exists.
-  //this.UNDEFINED.parent = undefined;
-  //this.NULL.parent = undefined;
-  this.NAN.parent = this.NUMBER;
-  this.TRUE.parent = this.BOOLEAN;
-  this.FALSE.parent = this.BOOLEAN;
-  this.NUMBER_ZERO.parent = this.NUMBER;
-  this.NUMBER_ONE.parent = this.NUMBER;
-  this.STRING_EMPTY.parent = this.STRING;
+  // Fix the proto properties now that the global scope exists.
+  //this.UNDEFINED.proto = undefined;
+  //this.NULL.proto = undefined;
+  this.NAN.proto = this.NUMBER.properties.prototype;
+  this.TRUE.proto = this.BOOLEAN.properties.prototype;
+  this.FALSE.proto = this.BOOLEAN.properties.prototype;
+  this.NUMBER_ZERO.proto = this.NUMBER.properties.prototype;
+  this.NUMBER_ONE.proto = this.NUMBER.properties.prototype;
+  this.STRING_EMPTY.proto = this.STRING.properties.prototype;
   // Run the polyfills.
   this.ast = acorn.parse(this.polyfills_.join('\n'), Interpreter.PARSE_OPTIONS);
   this.polyfills_ = undefined;  // Allow polyfill strings to garbage collect.
@@ -189,7 +194,7 @@ Interpreter.prototype.initGlobalScope = function(scope) {
   // Unable to set scope's parent prior (this.OBJECT did not exist).
   // Note that in a browser this would be 'Window', whereas in Node.js it would
   // be 'Object'.  This interpreter is closer to Node in that it has no DOM.
-  scope.parent = this.OBJECT;
+  scope.proto = this.OBJECT.properties.prototype;
   this.setProperty(scope, 'constructor', this.OBJECT);
   this.initArray(scope);
   this.initNumber(scope);
@@ -328,7 +333,7 @@ Interpreter.prototype.initFunction = function(scope) {
         value = thisInterpreter.global;
       } else {
         // Primitives must be boxed in non-strict mode.
-        var box = thisInterpreter.createObject(value.parent);
+        var box = thisInterpreter.createObject(value.properties.constructor);
         box.data = value.data;
         value = box;
       }
@@ -443,7 +448,7 @@ Interpreter.prototype.initObject = function(scope) {
     }
     if (value.isPrimitive) {
       // Wrap the value as an object.
-      var obj = thisInterpreter.createObject(value.parent);
+      var obj = thisInterpreter.createObject(value.properties.constructor);
       obj.data = value.data;
       return obj;
     }
@@ -567,11 +572,7 @@ Interpreter.prototype.initObject = function(scope) {
       Interpreter.NONENUMERABLE_DESCRIPTOR);
 
   wrapper = function(obj) {
-    if (obj.parent && obj.parent.properties &&
-        obj.parent.properties.prototype) {
-      return obj.parent.properties.prototype;
-    }
-    return thisInterpreter.NULL;
+    return obj.proto || thisInterpreter.NULL;
   };
   this.setProperty(this.OBJECT, 'getPrototypeOf',
       this.createNativeFunction(wrapper, false),
@@ -631,15 +632,15 @@ Interpreter.prototype.initObject = function(scope) {
 
   wrapper = function(obj) {
     while (true) {
-      if (obj.parent && obj.parent.properties &&
-          obj.parent.properties.prototype) {
-        obj = obj.parent.properties.prototype;
+      // Note, circular loops shouldn't be possible.
+      if (obj.proto && obj.proto != obj) {
+        obj = obj.proto;
         if (obj == this) {
-          return thisInterpreter.createPrimitive(true);
+          return thisInterpreter.TRUE;
         }
       } else {
-        // No parent, reached the top.
-        return thisInterpreter.createPrimitive(false);
+        // No parent or self-parent; reached the top.
+        return thisInterpreter.FALSE;
       }
     }
   };
@@ -1611,19 +1612,19 @@ Interpreter.prototype.initError = function(scope) {
 /**
  * Is an object of a certain class?
  * @param {Object} child Object to check.
- * @param {Object} parent Constructor of object.
+ * @param {Object} constructor Constructor of object.
  * @return {boolean} True if object is the class or inherits from it.
  *     False otherwise.
  */
-Interpreter.prototype.isa = function(child, parent) {
-  if (!child || !parent) {
+Interpreter.prototype.isa = function(child, constructor) {
+  if (!child || !constructor) {
     return false;
   }
-  while (child.parent != parent) {
-    if (!child.parent || !child.parent.properties.prototype) {
+  while (child.properties.constructor != constructor) {
+    if (!child.properties.constructor || !child.proto) {
       return false;
     }
-    child = child.parent.properties.prototype;
+    child = child.proto;
   }
   return true;
 };
@@ -1687,11 +1688,11 @@ Interpreter.Primitive = function(data, interpreter) {
   this.data = data;
   this.type = type;
   if (type == 'number') {
-    this.parent = interpreter.NUMBER;
+    this.proto = interpreter.NUMBER.properties.prototype;
   } else if (type == 'string') {
-    this.parent = interpreter.STRING;
+    this.proto = interpreter.STRING.properties.prototype;
   } else if (type == 'boolean') {
-    this.parent = interpreter.BOOLEAN;
+    this.proto = interpreter.BOOLEAN.properties.prototype;
   }
 };
 
@@ -1706,9 +1707,9 @@ Interpreter.Primitive.prototype.data = undefined;
 Interpreter.Primitive.prototype.type = 'undefined';
 
 /**
- * @type {Function}
+ * @type {Interpreter.Object}
  */
-Interpreter.Primitive.prototype.parent = null;
+Interpreter.Primitive.prototype.proto = null;
 
 /**
  * @type {boolean}
@@ -1779,7 +1780,7 @@ Interpreter.prototype.createPrimitive = function(data) {
 
 /**
  * Class for an object.
- * @param {Interpreter.Object} parent Parent constructor function.
+ * @param {Interpreter.Object} parent Parent constructor function or null.
  * @constructor
  */
 Interpreter.Object = function(parent) {
@@ -1789,7 +1790,7 @@ Interpreter.Object = function(parent) {
   this.getter = Object.create(null);
   this.setter = Object.create(null);
   this.properties = Object.create(null);
-  this.parent = parent;
+  this.proto = parent && parent.properties.prototype;
 };
 
 /**
@@ -1800,7 +1801,7 @@ Interpreter.Object.prototype.type = 'object';
 /**
  * @type {Interpreter.Object}
  */
-Interpreter.Object.prototype.parent = null;
+Interpreter.Object.prototype.proto = null;
 
 /**
  * @type {boolean}
@@ -1855,7 +1856,8 @@ Interpreter.Object.prototype.valueOf = function() {
 Interpreter.prototype.createObject = function(constructor) {
   var obj = new Interpreter.Object(constructor);
   if (constructor) {
-    this.setProperty(obj, 'constructor', constructor);
+    this.setProperty(obj, 'constructor', constructor,
+        Interpreter.NONENUMERABLE_DESCRIPTOR);
   }
   // Functions have prototype objects.
   if (this.isa(obj, this.FUNCTION)) {
@@ -2085,9 +2087,8 @@ Interpreter.prototype.getProperty = function(obj, name) {
       }
       return obj.properties[name];
     }
-    if (obj.parent && obj.parent.properties &&
-        obj.parent.properties.prototype) {
-      obj = obj.parent.properties.prototype;
+    if (obj.proto && obj != obj.proto) {
+      obj = obj.proto;
     } else {
       // No parent, reached the top.
       break;
@@ -2121,9 +2122,8 @@ Interpreter.prototype.hasProperty = function(obj, name) {
     if (obj.properties && name in obj.properties) {
       return true;
     }
-    if (obj.parent && obj.parent.properties &&
-        obj.parent.properties.prototype) {
-      obj = obj.parent.properties.prototype;
+    if (obj.proto && obj != obj.proto) {
+      obj = obj.proto;
     } else {
       // No parent, reached the top.
       break;
@@ -2252,11 +2252,10 @@ Interpreter.prototype.setProperty = function(obj, name, value, opt_descriptor) {
       if (parent.setter && parent.setter[name]) {
         return parent.setter[name];
       }
-      if (parent.parent && parent.parent.properties &&
-          parent.parent.properties.prototype) {
-        parent = parent.parent.properties.prototype;
+      if (parent.proto && parent != parent.proto) {
+        parent = parent.proto;
       } else {
-        // No parent, reached the top.
+        // No prototype, reached the top.
         break;
       }
     }
@@ -3178,8 +3177,7 @@ Interpreter.prototype['stepForInStatement'] = function() {
       }
       i--;
     }
-    state.object_ = state.object_.parent &&
-        state.object_.parent.properties.prototype;
+    state.object_ = state.object_.prototype;
     state.iterator_ = 0;
   } while (state.object_);
 
