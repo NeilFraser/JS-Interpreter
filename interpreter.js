@@ -460,31 +460,24 @@ Interpreter.prototype.initObject = function(scope) {
 
   // Static methods on Object.
   wrapper = function(obj) {
-    var pseudoList = thisInterpreter.createObject(thisInterpreter.ARRAY);
-    var i = 0;
-    for (var key in obj.properties) {
-      thisInterpreter.setProperty(pseudoList, i,
-          thisInterpreter.createPrimitive(key));
-      i++;
-    }
-    return pseudoList;
+    var props = obj.isPrimitive ? obj.data : obj.properties;
+    return thisInterpreter.nativeToPseudo(Object.getOwnPropertyNames(props));
   };
   this.setProperty(this.OBJECT, 'getOwnPropertyNames',
       this.createNativeFunction(wrapper, false),
       Interpreter.NONENUMERABLE_DESCRIPTOR);
 
   wrapper = function(obj) {
-    var pseudoList = thisInterpreter.createObject(thisInterpreter.ARRAY);
-    var i = 0;
-    for (var key in obj.properties) {
-      if (obj.notEnumerable[key]) {
-        continue;
-      }
-      thisInterpreter.setProperty(pseudoList, i,
-          thisInterpreter.createPrimitive(key));
-      i++;
+    if (obj.isPrimitive) {
+      return thisInterpreter.nativeToPseudo(Object.keys(obj.data));
     }
-    return pseudoList;
+    var list = [];
+    for (var key in obj.properties) {
+      if (!obj.notEnumerable[key]) {
+        list.push(key);
+      }
+    }
+    return thisInterpreter.nativeToPseudo(list);
   };
   this.setProperty(this.OBJECT, 'keys',
       this.createNativeFunction(wrapper, false),
@@ -3171,15 +3164,25 @@ Interpreter.prototype['stepForInStatement'] = function() {
   var name = null;
   done: do {
     var i = state.iterator_;
-    for (var prop in state.object_.properties) {
-      if (state.object_.notEnumerable[prop]) {
-        continue;
+    if (state.object_.isPrimitive) {
+      for (var prop in state.object_.data) {
+        if (i == 0) {  // Found the i'th enumerable property.
+          name = prop;
+          break done;
+        }
+        i--;
       }
-      if (i == 0) {  // Found the i'th enumerable property.
-        name = prop;
-        break done;
+    } else {
+      for (var prop in state.object_.properties) {
+        if (state.object_.notEnumerable[prop]) {
+          continue;
+        }
+        if (i == 0) {  // Found the i'th enumerable property.
+          name = prop;
+          break done;
+        }
+        i--;
       }
-      i--;
     }
     state.object_ = state.object_.prototype;
     state.iterator_ = 0;
