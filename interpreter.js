@@ -3145,14 +3145,23 @@ Interpreter.prototype['stepForInStatement'] = function() {
     var left = node.left;
     if (left.type == 'VariableDeclaration') {
       // Inline variable declaration: for (var x in y)
-      left = left.declarations[0].id;
+      state.variable_ = left.declarations[0].id.name;
+      if (left.declarations[0].init) {
+        // Variable initialization: for (var x = 4 in y)
+        this.stateStack.push({node: left});
+        return;
+      }
+    } else {
+      // Arbitrary left side: for (foo.bar in y)
+      this.stateStack.push({node: left, components: true});
+      return;
     }
-    this.stateStack.push({node: left, components: true});
-    return;
   }
   if (!state.doneObject_) {
     state.doneObject_ = true;
-    state.variable_ = state.value;
+    if (!state.variable_) {
+      state.variable_ = state.value;
+    }
     this.stateStack.push({node: node.right});
     return;
   }
