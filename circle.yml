@@ -3,10 +3,6 @@ machine:
     version: 6.9
   environment:
     PATH: "${PATH}:${HOME}/${CIRCLE_PROJECT_REPONAME}/node_modules/.bin"
-checkout:
-  post:
-    - git submodule sync
-    - git submodule update --init
 dependencies:
   pre:
     - curl -o- -L https://yarnpkg.com/install.sh | bash
