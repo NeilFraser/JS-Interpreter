@@ -938,7 +938,8 @@ Interpreter.prototype.initDate = function(scope) {
       // Called with new.
       var newDate = this;
     } else {
-      var newDate = thisInterpreter.createObject(thisInterpreter.DATE);
+      // Calling Date() as a function returns a string, no arguments are heeded.
+      return thisInterpreter.createPrimitive(Date());
     }
     if (!arguments.length) {
       newDate.data = new Date();
