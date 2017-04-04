@@ -3140,23 +3140,20 @@ Interpreter.prototype['stepExpressionStatement'] = function() {
 Interpreter.prototype['stepForInStatement'] = function() {
   var state = this.stateStack[this.stateStack.length - 1];
   var node = state.node;
-  if (!state.doneVariable_) {
-    state.doneVariable_ = true;
-    var left = node.left;
-    if (left.type == 'VariableDeclaration') {
-      // Inline variable declaration: for (var x in y)
-      state.variable_ = left.declarations[0].id.name;
-      if (left.declarations[0].init) {
-        // Variable initialization: for (var x = 4 in y)
-        this.stateStack.push({node: left});
-        return;
+  // First, initialize a variable if exists.  Only do so once, ever.
+  if (!state.doneInit_) {
+    state.doneInit_ = true;
+    if (node.left.declarations && node.left.declarations[0].init) {
+      if (this.getScope().strict) {
+        throw SyntaxError(
+            'for-in loop variable declaration may not have an initializer.');
       }
-    } else {
-      // Arbitrary left side: for (foo.bar in y)
-      this.stateStack.push({node: left, components: true});
+      // Variable initialization: for (var x = 4 in y)
+      this.stateStack.push({node: node.left});
       return;
     }
   }
+  // Second, look up the object.  Only do so once, ever.
   if (!state.doneObject_) {
     state.doneObject_ = true;
     if (!state.variable_) {
@@ -3165,57 +3162,83 @@ Interpreter.prototype['stepForInStatement'] = function() {
     this.stateStack.push({node: node.right});
     return;
   }
-  if (typeof state.iterator_ == 'undefined') {
+  if (!state.object_) {
     // First iteration.
+    state.isLoop = true;
     state.object_ = state.value;
     state.iterator_ = 0;
   }
-  var name = null;
-  done: do {
-    var i = state.iterator_;
-    if (state.object_.isPrimitive) {
-      for (var prop in state.object_.data) {
-        if (i == 0) {  // Found the i'th enumerable property.
-          name = prop;
-          break done;
+  // Third, find the property name for this iteration.
+  if (state.name_ === undefined) {
+    done: do {
+      var i = state.iterator_;
+      if (state.object_.isPrimitive) {
+        for (var prop in state.object_.data) {
+          if (i == 0) {  // Found the i'th enumerable property.
+            state.name_ = prop;
+            break done;
+          }
+          i--;
         }
-        i--;
-      }
-    } else {
-      for (var prop in state.object_.properties) {
-        if (state.object_.notEnumerable[prop]) {
-          continue;
+      } else {
+        for (var prop in state.object_.properties) {
+          if (state.object_.notEnumerable[prop]) {
+            continue;
+          }
+          if (i == 0) {  // Found the i'th enumerable property.
+            state.name_ = prop;
+            break done;
+          }
+          i--;
         }
-        if (i == 0) {  // Found the i'th enumerable property.
-          name = prop;
-          break done;
-        }
-        i--;
       }
+      state.object_ = state.object_.prototype;
+      state.iterator_ = 0;
+    } while (state.object_);
+    if (!state.object_) {
+      // Done, exit loop.
+      this.stateStack.pop();
+      return;
     }
-    state.object_ = state.object_.prototype;
-    state.iterator_ = 0;
-  } while (state.object_);
-
-  if (name === null) {  // Done, exit loop.
-    this.stateStack.pop();
-  } else {  // Execute the body.
-    if (!state.doneSetter_) {
-      var value = this.createPrimitive(name);
-      var setter = this.setValue(state.variable_, value);
-      if (setter) {
-        state.doneSetter_ = true;
-        this.pushSetter_(setter, state.variable_, value);
-        return;
-      }
-    }
-    state.doneSetter_ = false;
-    if (node.body) {
-      state.isLoop = true;
-      this.stateStack.push({node: node.body});
-    }
-    state.iterator_++;
   }
+  // Fourth, find the variable
+  if (!state.doneVariable_) {
+    state.doneVariable_ = true;
+    var left = node.left;
+    if (left.type == 'VariableDeclaration') {
+      // Inline variable declaration: for (var x in y)
+      state.variable_ = left.declarations[0].id.name;
+    } else {
+      // Arbitrary left side: for (foo().bar in y)
+      state.variable_ = null;
+      this.stateStack.push({node: left, components: true});
+      return;
+    }
+  }
+  if (!state.variable_) {
+    state.variable_ = state.value;
+  }
+  // Fifth, set the variable.
+  if (!state.doneSetter_) {
+    state.doneSetter_ = true;
+    var value = this.createPrimitive(state.name_);
+    var setter = this.setValue(state.variable_, value);
+    if (setter) {
+      this.pushSetter_(setter, state.variable_, value);
+      return;
+    }
+  }
+  // Sixth, execute the body.
+  if (node.body) {
+    this.stateStack.push({node: node.body});
+  }
+  // Reset back to step three.
+  state.iterator_++;
+  state.name_ = undefined;
+  if (state.variable_ instanceof Array) {
+    state.doneVariable_ = false;
+  }
+  state.doneSetter_ = false;
 };
 
 Interpreter.prototype['stepForStatement'] = function() {
