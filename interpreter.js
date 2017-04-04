@@ -174,9 +174,11 @@ Interpreter.prototype.initGlobalScope = function(scope) {
   this.setProperty(func, 'length', this.NUMBER_ONE, true);
   this.setProperty(scope, 'eval', func);
 
-  var strFunctions = ['escape', 'unescape',
-                      'decodeURI', 'decodeURIComponent',
-                      'encodeURI', 'encodeURIComponent'];
+  var strFunctions = [
+    [escape, 'escape'], [unescape, 'unescape'],
+    [decodeURI, 'decodeURI'], [decodeURIComponent, 'decodeURIComponent'],
+    [encodeURI, 'encodeURI'], [encodeURIComponent, 'encodeURIComponent']
+  ];
   for (var i = 0; i < strFunctions.length; i++) {
     wrapper = (function(nativeFunc) {
       return function(str) {
@@ -189,8 +191,8 @@ Interpreter.prototype.initGlobalScope = function(scope) {
         }
         return thisInterpreter.createPrimitive(str);
       };
-    })(window[strFunctions[i]]);
-    this.setProperty(scope, strFunctions[i],
+    })(strFunctions[i][0]);
+    this.setProperty(scope, strFunctions[i][1],
                      this.createNativeFunction(wrapper));
   }
 
@@ -2832,6 +2834,8 @@ Interpreter.prototype['stepWhileStatement'] =
 
 // Preserve top-level API functions from being pruned by JS compilers.
 // Add others as needed.
+// The global object ('window' in a browser, 'global' in node.js) is 'this'.
+this['Interpreter'] = Interpreter;
 Interpreter.prototype['appendCode'] = Interpreter.prototype.appendCode;
 Interpreter.prototype['step'] = Interpreter.prototype.step;
 Interpreter.prototype['run'] = Interpreter.prototype.run;
