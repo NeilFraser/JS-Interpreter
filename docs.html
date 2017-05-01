@@ -27,7 +27,7 @@
     &lt;script src="interpreter.js"&gt;&lt;/script&gt;
   </pre>
 
-  <p>Alternatively, use the compressed bundle (70kb):</p>
+  <p>Alternatively, use the compressed bundle (85kb):</p>
 
   <pre>
     &lt;script src="acorn_interpreter.js"&gt;&lt;/script&gt;
@@ -113,7 +113,7 @@
   <code>initFunc</code> like this:</p>
 
   <pre>
-    var wrapper = function getXhr(href, callback) {
+    var wrapper = function(href, callback) {
       href = href ? href.toString() : '';
       var req = new XMLHttpRequest();
       req.open('GET', href, true);
@@ -151,18 +151,11 @@
     sandbox.  If you need these, write your own interfaces.</dd>
     <dt>ES6</dt>
     <dd>More recent additions to JavaScript such as <code>let</code> or
-    <code>Set</code> aren't implemented.  Feel free to add them if you need them.</dd>
-    <dt>Wat</dt>
-    <dd>Some of the more obscure type conversions (e.g. <code>[] + {}</code>)
-    may return different results from JavaScript.  Patches are welcome.</dd>
-    <dt>Passed functions</dt>
-    <dd><code>Array.sort</code> does not support custom compare functions.
-    A workaround can be found in the <a href="demos/sort.html">sort demo</a>.
-    Likewise, <code>String.replace</code> does not support custom replacement
-    functions.  <code>Array.every/filter/map</code> does not exist.</dd>
+    <code>Set</code> aren't implemented.  Feel free to fork the project if you need more than ES5.</dd>
+    <dt>toString &amp; valueOf</dt>
+    <dd>User-created functions are not called when casting objects to primitives.</dd>
     <dt>Performance</dt>
-    <dd>No attempt has been made to make the interpreter particularly
-    efficient.</dd>
+    <dd>The interpreter is not particularly efficient.  It currently runs about 200 times slower than native JavaScript.</dd>
   </dl>
 
   <h2>Dependency</h2>
