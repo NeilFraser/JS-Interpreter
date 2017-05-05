@@ -1672,7 +1672,7 @@ Interpreter.prototype.comp = function(a, b) {
  */
 Interpreter.prototype.arrayIndex = function(n) {
   n = Number(n);
-  if (!isFinite(n) || n != Math.floor(n) || n < 0) {
+  if (!isFinite(n) || n != Math.floor(n) || n < 0 || n >= Math.pow(2, 32)) {
     return NaN;
   }
   return n;
@@ -2912,10 +2912,14 @@ Interpreter.prototype['stepCallExpression'] = function() {
     if (state.value.type == 'function') {
       state.func_ = state.value;
     } else {
-      if (state.value.length) {
-        state.member_ = state.value[0];
-      }
       state.func_ = this.getValue(state.value);
+      if (state.func_.isGetter) {
+        // Clear the getter flag and call the getter function.
+        state.func_.isGetter = false;
+        this.pushGetter_(state.func_, state.value);
+        state.func_ = null;
+        return;
+      }
       if (!state.func_) {
         return;  // Thrown error, but trapped.
       } else if (state.func_.type != 'function') {
