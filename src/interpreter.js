@@ -33,7 +33,7 @@
  */
 const acorn = require('acorn');
 
-const copy = require('./copy');
+const clone = require('clone');
 
 var Interpreter = function(code, opt_initFunc) {
   if (typeof code == 'string') {
@@ -2594,14 +2594,14 @@ Interpreter.prototype.pushSetter_ = function(func, left, value) {
  * Take a snapshot from current stateStack. Restore by restoreStateSnapshot
  */
 Interpreter.prototype.takeStateSnapshot = function() {
-  return copy(this.stateStack)
+  return clone.clonePrototype(this.stateStack)
 };
 
 /**
  * Restore a state snapshot
  */
 Interpreter.prototype.restoreStateSnapshot = function(snapshot) {
-  this.stateStack = copy(snapshot)
+  this.stateStack = clone.clonePrototype(snapshot)
 };
 
 ///////////////////////////////////////////////////////////////////////////////
