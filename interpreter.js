@@ -174,7 +174,7 @@ Interpreter.prototype.queueCall = function(func, args) {
     node: func.node.body,
     scope: scope,
     arguments: [this.createPrimitive('Hello !')],
-    value: undefined
+    value: this.getScope().strict ? this.UNDEFINED : this.global
   });
 };
 
