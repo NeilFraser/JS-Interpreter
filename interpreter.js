@@ -173,7 +173,6 @@ Interpreter.prototype.queueCall = function(func, args) {
   this.stateStack.splice(1, 0, {
     node: func.node.body,
     scope: scope,
-    arguments: [this.createPrimitive('Hello !')],
     value: this.getScope().strict ? this.UNDEFINED : this.global
   });
 };
