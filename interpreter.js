@@ -2113,17 +2113,22 @@ Interpreter.prototype.getProperty = function(obj, name) {
                         "Cannot read property '" + name + "' of " + obj);
     return null;
   }
-  // Special cases for magic length property.
-  if (this.isa(obj, this.STRING)) {
-    if (name == 'length') {
+  if (name == 'length') {
+    // Special cases for magic length property.
+    if (this.isa(obj, this.STRING)) {
       return this.createPrimitive(obj.data.length);
+    } else if (this.isa(obj, this.ARRAY)) {
+      return this.createPrimitive(obj.length);
     }
-    var n = this.arrayIndex(name);
-    if (!isNaN(n) && n < obj.data.length) {
-      return this.createPrimitive(obj.data[n]);
+  } else if (name.charCodeAt(0) < 0x40) {
+    // Might have numbers in there?
+    // Special cases for string array indexing
+    if (this.isa(obj, this.STRING)) {
+      var n = this.arrayIndex(name);
+      if (!isNaN(n) && n < obj.data.length) {
+        return this.createPrimitive(obj.data[n]);
+      }
     }
-  } else if (this.isa(obj, this.ARRAY) && name == 'length') {
-    return this.createPrimitive(obj.length);
   }
   while (true) {
     if (obj.properties && name in obj.properties) {
