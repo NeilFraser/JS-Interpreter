@@ -195,14 +195,19 @@ Interpreter.prototype.nodeTypes = [
  * @return {boolean} True if a step was executed, false if no more instructions.
  */
 Interpreter.prototype.step = function() {
-  var state = this.stateStack[this.stateStack.length - 1];
-  if (!state || state.node.type == 'Program' && state.done) {
+  var stack = this.stateStack;
+  var state = stack[stack.length - 1];
+  if (!state) {
+    return false;
+  }
+  var node = state.node, type = node.type;
+  if (type === 'Program' && state.done) {
     return false;
   } else if (this.paused_) {
     return true;
   }
-  this[this.stepMap[state.node.type]]();
-  if (!state.node.end) {
+  this[this.stepMap[type]]();
+  if (!node.end) {
     // This is polyfill code.  Keep executing until we arrive at user code.
     return this.step();
   }
