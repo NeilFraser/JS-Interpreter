@@ -39,6 +39,13 @@ var Interpreter = function(code, opt_initFunc) {
   this.initFunc_ = opt_initFunc;
   this.paused_ = false;
   this.polyfills_ = [];
+  // Map node types to our step function names; a property lookup is faster
+  // than string concatenation with "step" prefix.
+  this.stepMap = Object.create(null);
+  for (var i = 0; i < this.nodeTypes.length; i++) {
+    var nodeType = this.nodeTypes[i];
+    this.stepMap[nodeType] = 'step' + nodeType;
+  }
   // Declare some mock constructors to get the environment bootstrapped.
   var mockObject = {properties: {prototype: null}};
   this.NUMBER = mockObject;
@@ -143,19 +150,64 @@ Interpreter.prototype.appendCode = function(code) {
   state.done = false;
 };
 
+Interpreter.prototype.nodeTypes = [
+  'ArrayExpression',
+  'AssignmentExpression',
+  'BinaryExpression',
+  'BlockStatement',
+  'BreakStatement',
+  'CallExpression',
+  'CatchClause',
+  'ConditionalExpression',
+  'ContinueStatement',
+  'DoWhileStatement',
+  'EmptyStatement',
+  'EvalProgram_',
+  'ExpressionStatement',
+  'ForInStatement',
+  'ForStatement',
+  'FunctionDeclaration',
+  'FunctionExpression',
+  'Identifier',
+  'IfStatement',
+  'LabeledStatement',
+  'Literal',
+  'LogicalExpression',
+  'MemberExpression',
+  'NewExpression',
+  'ObjectExpression',
+  'Program',
+  'ReturnStatement',
+  'SequenceExpression',
+  'SwitchStatement',
+  'ThisExpression',
+  'ThrowStatement',
+  'TryStatement',
+  'UnaryExpression',
+  'UpdateExpression',
+  'VariableDeclaration',
+  'WithStatement',
+  'WhileStatement'
+];
+
 /**
  * Execute one step of the interpreter.
  * @return {boolean} True if a step was executed, false if no more instructions.
  */
 Interpreter.prototype.step = function() {
-  var state = this.stateStack[this.stateStack.length - 1];
-  if (!state || state.node.type == 'Program' && state.done) {
+  var stack = this.stateStack;
+  var state = stack[stack.length - 1];
+  if (!state) {
+    return false;
+  }
+  var node = state.node, type = node.type;
+  if (type === 'Program' && state.done) {
     return false;
   } else if (this.paused_) {
     return true;
   }
-  this['step' + state.node.type]();
-  if (!state.node.end) {
+  this[this.stepMap[type]]();
+  if (!node.end) {
     // This is polyfill code.  Keep executing until we arrive at user code.
     return this.step();
   }
@@ -2061,17 +2113,22 @@ Interpreter.prototype.getProperty = function(obj, name) {
                         "Cannot read property '" + name + "' of " + obj);
     return null;
   }
-  // Special cases for magic length property.
-  if (this.isa(obj, this.STRING)) {
-    if (name == 'length') {
+  if (name == 'length') {
+    // Special cases for magic length property.
+    if (this.isa(obj, this.STRING)) {
       return this.createPrimitive(obj.data.length);
+    } else if (this.isa(obj, this.ARRAY)) {
+      return this.createPrimitive(obj.length);
     }
-    var n = this.arrayIndex(name);
-    if (!isNaN(n) && n < obj.data.length) {
-      return this.createPrimitive(obj.data[n]);
+  } else if (name.charCodeAt(0) < 0x40) {
+    // Might have numbers in there?
+    // Special cases for string array indexing
+    if (this.isa(obj, this.STRING)) {
+      var n = this.arrayIndex(name);
+      if (!isNaN(n) && n < obj.data.length) {
+        return this.createPrimitive(obj.data[n]);
+      }
     }
-  } else if (this.isa(obj, this.ARRAY) && name == 'length') {
-    return this.createPrimitive(obj.length);
   }
   while (true) {
     if (obj.properties && name in obj.properties) {
