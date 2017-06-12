@@ -41,10 +41,13 @@ var Interpreter = function(code, opt_initFunc) {
   this.polyfills_ = [];
   // Map node types to our step function names; a property lookup is faster
   // than string concatenation with "step" prefix.
-  this.stepMap = Object.create(null);
-  for (var i = 0; i < this.nodeTypes.length; i++) {
-    var nodeType = this.nodeTypes[i];
-    this.stepMap[nodeType] = 'step' + nodeType;
+  this.functionMap_ = Object.create(null);
+  var stepMatch = /^step([A-Z]\w*)$/;
+  var m;
+  for (var methodName in this) {
+    if (m = methodName.match(stepMatch)) {
+      this.functionMap_[m[1]] = this[methodName].bind(this);
+    }
   }
   // Declare some mock constructors to get the environment bootstrapped.
   var mockObject = {properties: {prototype: null}};
@@ -150,46 +153,6 @@ Interpreter.prototype.appendCode = function(code) {
   state.done = false;
 };
 
-Interpreter.prototype.nodeTypes = [
-  'ArrayExpression',
-  'AssignmentExpression',
-  'BinaryExpression',
-  'BlockStatement',
-  'BreakStatement',
-  'CallExpression',
-  'CatchClause',
-  'ConditionalExpression',
-  'ContinueStatement',
-  'DoWhileStatement',
-  'EmptyStatement',
-  'EvalProgram_',
-  'ExpressionStatement',
-  'ForInStatement',
-  'ForStatement',
-  'FunctionDeclaration',
-  'FunctionExpression',
-  'Identifier',
-  'IfStatement',
-  'LabeledStatement',
-  'Literal',
-  'LogicalExpression',
-  'MemberExpression',
-  'NewExpression',
-  'ObjectExpression',
-  'Program',
-  'ReturnStatement',
-  'SequenceExpression',
-  'SwitchStatement',
-  'ThisExpression',
-  'ThrowStatement',
-  'TryStatement',
-  'UnaryExpression',
-  'UpdateExpression',
-  'VariableDeclaration',
-  'WithStatement',
-  'WhileStatement'
-];
-
 /**
  * Execute one step of the interpreter.
  * @return {boolean} True if a step was executed, false if no more instructions.
@@ -206,7 +169,7 @@ Interpreter.prototype.step = function() {
   } else if (this.paused_) {
     return true;
   }
-  this[this.stepMap[type]]();
+  this.functionMap_[type]();
   if (!node.end) {
     // This is polyfill code.  Keep executing until we arrive at user code.
     return this.step();
@@ -3145,6 +3108,10 @@ Interpreter.prototype['stepContinueStatement'] = function() {
   }
   // Syntax error, do not allow this error to be trapped.
   throw SyntaxError('Illegal continue statement');
+};
+
+Interpreter.prototype['stepDebugger'] = function() {
+  // Do nothing.  May be overridden by developers.
 };
 
 Interpreter.prototype['stepDoWhileStatement'] = function() {
