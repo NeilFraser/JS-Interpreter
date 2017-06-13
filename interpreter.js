@@ -2998,8 +2998,8 @@ Interpreter.prototype['stepCallExpression'] = function() {
         thisInterpreter.paused_ = false;
       };
       var argsWithCallback = state.arguments_.concat(callback);
-      state.func_.asyncFunc.apply(state.funcThis_, argsWithCallback);
       this.paused_ = true;
+      state.func_.asyncFunc.apply(state.funcThis_, argsWithCallback);
       return;
     } else if (state.func_.eval) {
       var code = state.arguments_[0];
