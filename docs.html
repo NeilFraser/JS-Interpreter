@@ -140,6 +140,28 @@
   <p>For a working example, see the
   <a href="demos/async.html">async demo</a>.</p>
 
+  <p>Alternatively, a callback can be provided to make asychronous calls. The
+  <code>getXhr(url)</code> function can therefore be written like this :</p>
+
+  <pre>
+    var wrapper = function(href, callback) {
+      href = href ? href.toString() : '';
+      var req = new XMLHttpRequest();
+      req.open('GET', href, true);
+      req.onreadystatechange = function() {
+        if (req.readyState == 4 && req.status == 200) {
+          interpreter.queueCall(callback, [interpreter.createPrimitive(req.responseText)]);
+          interpreter.run();
+        }
+      };
+      req.send(null);
+    };
+    interpreter.setProperty(scope, 'getXhr',
+        interpreter.createNativeFunction(wrapper));
+  </pre>
+
+  <p>See the <a href="demos/callback.html">callback demo</a>.</p>
+
   <h2>Limitations</h2>
 
   <p>The version of JavaScript implemented by the interpreter has a few

@@ -157,6 +157,40 @@ Interpreter.prototype.appendCode = function(code) {
 };
 
 /**
+* Shifts the given function at the bottom of the state stack, delaying the call.
+* @param {Interpreter.Object} func Pseudo function to call.
+* @param {Interpreter.Object[]} args Arguments to provide to the function.
+*/
+Interpreter.prototype.queueCall = function(func, args) {
+  var state = this.stateStack[0];
+  var interpreter = this;
+  if (!state || state.node.type != 'Program') {
+    throw Error('Expecting original AST to start with a Program node.');
+  }
+  state.done = false;
+  var scope = this.createScope(func.node.body, func.parentScope);
+  func.node.params.forEach(function(p, i) {
+    interpreter.setProperty(scope, interpreter.createPrimitive(p.name), args[i]);
+  })
+  var argsList = this.createObject(this.ARRAY);
+  args.forEach(function(arg, i) {
+    interpreter.setProperty(argsList, interpreter.createPrimitive(i), arg);
+  })
+  this.setProperty(scope, 'arguments', argsList);
+  var last = func.node.body.body[func.node.body.body.length - 1];
+  if(last.type == 'ReturnStatement') {
+    last.type = 'ExpressionStatement';
+    last.expression = last.argument;
+    delete last.argument;
+  }
+  this.stateStack.splice(1, 0, {
+    node: func.node.body,
+    scope: scope,
+    value: this.getScope().strict ? this.UNDEFINED : this.global
+  });
+};
+
+/**
  * Execute one step of the interpreter.
  * @return {boolean} True if a step was executed, false if no more instructions.
  */
@@ -3822,3 +3856,4 @@ Interpreter.prototype['createAsyncFunction'] =
     Interpreter.prototype.createAsyncFunction;
 Interpreter.prototype['step'] = Interpreter.prototype.step;
 Interpreter.prototype['run'] = Interpreter.prototype.run;
+Interpreter.prototype['queueCall'] = Interpreter.prototype.queueCall;

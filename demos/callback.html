@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>JS-Interpreter Callback Demo</title>
+  <link href="style.css" rel="stylesheet" type="text/css">
+  <script src="../acorn.js"></script>
+  <script src="../interpreter.js"></script>
+  <script>
+    var myInterpreter;
+    function initAlert(interpreter, scope) {
+      var wrapper = function(text) {
+        text = text ? text.toString() : '';
+        return interpreter.createPrimitive(alert(text));
+      };
+      interpreter.setProperty(scope, 'alert',
+          interpreter.createNativeFunction(wrapper));
+
+      var wrapper = function(href, callback) {
+        href = href ? href.toString() : '';
+        var req = new XMLHttpRequest();
+        req.open('GET', href, true);
+        req.onreadystatechange = function() {
+          if (req.readyState == 4 && req.status == 200) {
+            interpreter.queueCall(callback, [interpreter.createPrimitive(req.responseText)]);
+            interpreter.run();
+          }
+        };
+        req.send(null);
+      };
+      interpreter.setProperty(scope, 'getXhr',
+          interpreter.createNativeFunction(wrapper));
+    };
+
+    function parseButton() {
+      var code = document.getElementById('code').value
+      myInterpreter = new Interpreter(code, initAlert);
+      disable('');
+    }
+
+    function stepButton() {
+      if (myInterpreter.stateStack.length) {
+        var node =
+            myInterpreter.stateStack[myInterpreter.stateStack.length - 1].node;
+        var start = node.start;
+        var end = node.end;
+      } else {
+        var start = 0;
+        var end = 0;
+      }
+      createSelection(start, end);
+      try {
+        var ok = myInterpreter.step();
+      } finally {
+        if (!ok) {
+          disable('disabled');
+        }
+      }
+    }
+
+    function runButton() {
+      disable('disabled');
+      myInterpreter.run();
+    }
+
+    function disable(disabled) {
+      document.getElementById('stepButton').disabled = disabled;
+      document.getElementById('runButton').disabled = disabled;
+    }
+
+    function createSelection(start, end) {
+      var field = document.getElementById('code')
+      if (field.createTextRange) {
+        var selRange = field.createTextRange();
+        selRange.collapse(true);
+        selRange.moveStart('character', start);
+        selRange.moveEnd('character', end);
+        selRange.select();
+      } else if (field.setSelectionRange) {
+        field.setSelectionRange(start, end);
+      } else if (field.selectionStart) {
+        field.selectionStart = start;
+        field.selectionEnd = end;
+      }
+      field.focus();
+    }
+  </script>
+</head>
+<body>
+  <h1>JS-Interpreter Callback Demo</h1>
+
+  <p>A native function can take a callback as an argument, and call it later
+  to create real asynchronous scripts. The example below (see this page's
+  source) creates a <code>getXhr</code> function that fetches the URL and
+  calls the given callback, returning the content.</p>
+
+  <p>This function is defined using <code>createNativeFunction</code> during
+  initialization. When called, the interpreter passes the provided callback
+  function as a pseudo object representing all the data needed to execute
+  it later. The Xhr is then intialized and waits for the targeted URL's content.
+  The execution of the interpreter's program continues normally. When the
+  Xhr responds, the callback is loaded in the interpeter, and all it's arguments
+  are provided using <code>queueCall</code>. Then the interpreter is re-started
+  by calling <code>run</code>, and the callback function is executed within the
+  interpreter.</p>
+
+  <p>Click <em>Parse</em>, then either click <em>Step</em> repeatedly,
+  or click <em>Run</em> once.  Open your browser's console for errors.</p>
+
+  <p><textarea id="code">
+getXhr('async.txt', function(value) {
+  alert(value);
+});
+</textarea><br>
+  <button onclick="parseButton()">Parse</button>
+  <button onclick="stepButton()" id="stepButton" disabled="disabled">Step</button>
+  <button onclick="runButton()" id="runButton" disabled="disabled">Run</button>
+  </p>
+
+  <p>Back to the <a href="../docs.html">JS-Interpreter documentation</a>.</p>
+
+  <script>
+    disable('disabled');
+    if (location.protocol == 'file:' &&
+        navigator.userAgent.indexOf('Firefox') == -1) {
+      alert('Warning: This page is loaded with the "file:" protocol.\n' +
+            'Your browser might prevent XHR from working here.')
+    }
+  </script>
+</body>
+</html>
