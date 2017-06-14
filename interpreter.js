@@ -1552,7 +1552,13 @@ Interpreter.prototype.initJSON = function(scope) {
 
   wrapper = function(value) {
     var nativeObj = thisInterpreter.pseudoToNative(value);
-    return thisInterpreter.createPrimitive(JSON.stringify(nativeObj));
+    try {
+      var str = JSON.stringify(nativeObj);
+    } catch (e) {
+      thisInterpreter.throwException(thisInterpreter.TYPE_ERROR, e.message);
+      return;
+    }
+    return thisInterpreter.createPrimitive(str);
   };
   this.setProperty(myJSON, 'stringify',
       this.createNativeFunction(wrapper, false));
