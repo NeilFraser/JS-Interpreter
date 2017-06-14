@@ -2052,16 +2052,17 @@ Interpreter.prototype.nativeToPseudo = function(nativeObj) {
  * Can handle JSON-style values, plus cycles.
  * @param {!Interpreter.Object|!Interpreter.Primitive} pseudoObj The JS
  *     interpreter object to be converted.
+ * @param {Object?} opt_cycles Cycle detection (used in recursive calls).
  * @return {*} The equivalent native JS object or value.
  */
-Interpreter.prototype.pseudoToNative = function(pseudoObj, cycles) {
+Interpreter.prototype.pseudoToNative = function(pseudoObj, opt_cycles) {
   if (pseudoObj.isPrimitive ||
       this.isa(pseudoObj, this.NUMBER) ||
       this.isa(pseudoObj, this.STRING) ||
       this.isa(pseudoObj, this.BOOLEAN)) {
     return pseudoObj.data;
   }
-  cycles = cycles || {
+  var cycles = opt_cycles || {
     pseudo: [],
     native: []
   };
