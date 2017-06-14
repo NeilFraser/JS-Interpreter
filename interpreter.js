@@ -1632,8 +1632,8 @@ Interpreter.prototype.isa = function(child, constructor) {
   if (!child || !constructor) {
     return false;
   }
-  while (child.properties.constructor != constructor) {
-    if (!child.properties.constructor || !child.proto) {
+  while (!child.properties || child.properties.constructor != constructor) {
+    if (!child.proto) {
       return false;
     }
     child = child.proto;
