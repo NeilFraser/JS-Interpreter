@@ -49,6 +49,9 @@ var Interpreter = function(code, opt_initFunc) {
       this.functionMap_[m[1]] = this[methodName].bind(this);
     }
   }
+  // For cycle detection in array to string conversion;
+  // see spec bug https://github.com/tc39/ecma262/issues/289
+  this.arrayToStringCycles_ = [];
   // Declare some mock constructors to get the environment bootstrapped.
   var mockObject = {properties: {prototype: null}};
   this.NUMBER = mockObject;
@@ -834,6 +837,8 @@ Interpreter.prototype.initArray = function(scope) {
   this.setNativeFunctionPrototype(this.ARRAY, 'slice', wrapper);
 
   wrapper = function(opt_separator) {
+    var cycles = thisInterpreter.arrayToStringCycles_;
+    cycles.push(this);
     if (!opt_separator || opt_separator.data === undefined) {
       var sep = undefined;
     } else {
@@ -841,7 +846,7 @@ Interpreter.prototype.initArray = function(scope) {
     }
     var text = [];
     for (var i = 0; i < this.length; i++) {
-      text[i] = this.properties[i];
+      text[i] = this.properties[i].toString();
     }
     return thisInterpreter.createPrimitive(text.join(sep));
   };
@@ -1884,14 +1889,17 @@ Interpreter.prototype.createObject = function(constructor) {
   }
   // Arrays have length.
   if (this.isa(obj, this.ARRAY)) {
+    var cycles = this.arrayToStringCycles_;
     obj.length = 0;
     obj.toString = function() {
+      cycles.push(this);
       var strs = [];
       for (var i = 0; i < this.length; i++) {
         var value = this.properties[i];
         strs[i] = (!value || (value.isPrimitive && (value.data === null ||
-            value.data === undefined))) ? '' : value.toString();
+            value.data === undefined)) || cycles.indexOf(value) != -1) ? '' : value.toString();
       }
+      cycles.pop();
       return strs.join(',');
     };
   }
