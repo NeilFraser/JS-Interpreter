@@ -49,6 +49,9 @@ var Interpreter = function(code, opt_initFunc) {
       this.functionMap_[m[1]] = this[methodName].bind(this);
     }
   }
+  // For cycle detection in array to string conversion;
+  // see spec bug https://github.com/tc39/ecma262/issues/289
+  this.arrayToStringCycles_ = [];
   // Declare some mock constructors to get the environment bootstrapped.
   var mockObject = {properties: {prototype: null}};
   this.NUMBER = mockObject;
@@ -834,6 +837,8 @@ Interpreter.prototype.initArray = function(scope) {
   this.setNativeFunctionPrototype(this.ARRAY, 'slice', wrapper);
 
   wrapper = function(opt_separator) {
+    var cycles = thisInterpreter.arrayToStringCycles_;
+    cycles.push(this);
     if (!opt_separator || opt_separator.data === undefined) {
       var sep = undefined;
     } else {
@@ -841,7 +846,7 @@ Interpreter.prototype.initArray = function(scope) {
     }
     var text = [];
     for (var i = 0; i < this.length; i++) {
-      text[i] = this.properties[i];
+      text[i] = this.properties[i].toString();
     }
     return thisInterpreter.createPrimitive(text.join(sep));
   };
@@ -1552,7 +1557,13 @@ Interpreter.prototype.initJSON = function(scope) {
 
   wrapper = function(value) {
     var nativeObj = thisInterpreter.pseudoToNative(value);
-    return thisInterpreter.createPrimitive(JSON.stringify(nativeObj));
+    try {
+      var str = JSON.stringify(nativeObj);
+    } catch (e) {
+      thisInterpreter.throwException(thisInterpreter.TYPE_ERROR, e.message);
+      return;
+    }
+    return thisInterpreter.createPrimitive(str);
   };
   this.setProperty(myJSON, 'stringify',
       this.createNativeFunction(wrapper, false));
@@ -1632,8 +1643,8 @@ Interpreter.prototype.isa = function(child, constructor) {
   if (!child || !constructor) {
     return false;
   }
-  while (child.properties.constructor != constructor) {
-    if (!child.properties.constructor || !child.proto) {
+  while (!child.properties || child.properties.constructor != constructor) {
+    if (!child.proto) {
       return false;
     }
     child = child.proto;
@@ -1878,14 +1889,17 @@ Interpreter.prototype.createObject = function(constructor) {
   }
   // Arrays have length.
   if (this.isa(obj, this.ARRAY)) {
+    var cycles = this.arrayToStringCycles_;
     obj.length = 0;
     obj.toString = function() {
+      cycles.push(this);
       var strs = [];
       for (var i = 0; i < this.length; i++) {
         var value = this.properties[i];
         strs[i] = (!value || (value.isPrimitive && (value.data === null ||
-            value.data === undefined))) ? '' : value.toString();
+            value.data === undefined)) || cycles.indexOf(value) != -1) ? '' : value.toString();
       }
+      cycles.pop();
       return strs.join(',');
     };
   }
@@ -2035,30 +2049,48 @@ Interpreter.prototype.nativeToPseudo = function(nativeObj) {
 
 /**
  * Converts from a JS interpreter object to native JS object.
- * Can handle JSON-style values.
+ * Can handle JSON-style values, plus cycles.
  * @param {!Interpreter.Object|!Interpreter.Primitive} pseudoObj The JS
  *     interpreter object to be converted.
  * @return {*} The equivalent native JS object or value.
  */
-Interpreter.prototype.pseudoToNative = function(pseudoObj) {
+Interpreter.prototype.pseudoToNative = function(pseudoObj, cycles) {
   if (pseudoObj.isPrimitive ||
       this.isa(pseudoObj, this.NUMBER) ||
       this.isa(pseudoObj, this.STRING) ||
       this.isa(pseudoObj, this.BOOLEAN)) {
     return pseudoObj.data;
   }
+  cycles = cycles || {
+    pseudo: [],
+    native: []
+  };
+  var i = cycles.pseudo.indexOf(pseudoObj);
+  if (i != -1) {
+    return cycles.native[i];
+  }
+  cycles.pseudo.push(pseudoObj);
   var nativeObj;
   if (this.isa(pseudoObj, this.ARRAY)) {  // Array.
     nativeObj = [];
+    cycles.native.push(nativeObj);
     for (var i = 0; i < pseudoObj.length; i++) {
-      nativeObj[i] = this.pseudoToNative(pseudoObj.properties[i]);
+      nativeObj[i] = this.pseudoToNative(pseudoObj.properties[i], cycles);
     }
   } else {  // Object.
     nativeObj = {};
+    cycles.native.push(nativeObj);
+    var val;
     for (var key in pseudoObj.properties) {
-      nativeObj[key] = this.pseudoToNative(pseudoObj.properties[key]);
+      if (pseudoObj.notEnumerable[key]) {
+        continue;
+      }
+      val = pseudoObj.properties[key];
+      nativeObj[key] = this.pseudoToNative(val, cycles);
     }
   }
+  cycles.pseudo.pop();
+  cycles.native.pop();
   return nativeObj;
 };
 
@@ -2829,7 +2861,12 @@ Interpreter.prototype['stepBinaryExpression'] = function() {
         rightSide.isPrimitive ? rightSide.data : rightSide.toString();
     value = leftValue + rightValue;
   } else if (node.operator == 'in') {
-    value = this.hasProperty(rightSide, leftSide);
+    if (rightSide.isPrimitive) {
+      this.throwException(this.TYPE_ERROR,
+          'Expecting an object evaluating \'in\'');
+    } else {
+      value = this.hasProperty(rightSide, leftSide);
+    }
   } else if (node.operator == 'instanceof') {
     if (!this.isa(rightSide, this.FUNCTION)) {
       this.throwException(this.TYPE_ERROR,
@@ -3578,6 +3615,7 @@ Interpreter.prototype['stepSwitchStatement'] = function() {
 };
 
 Interpreter.prototype['stepThisExpression'] = function() {
+  var stack = this.stateStack;
   stack.pop();
   for (var i = stack.length - 1; i >= 0; i--) {
     if (stack[i].thisExpression) {
@@ -3601,6 +3639,7 @@ Interpreter.prototype['stepThrowStatement'] = function() {
 };
 
 Interpreter.prototype['stepTryStatement'] = function() {
+  var stack = this.stateStack;
   var state = stack[stack.length - 1];
   var node = state.node;
   if (!state.doneBlock_) {
