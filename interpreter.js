@@ -2861,7 +2861,12 @@ Interpreter.prototype['stepBinaryExpression'] = function() {
         rightSide.isPrimitive ? rightSide.data : rightSide.toString();
     value = leftValue + rightValue;
   } else if (node.operator == 'in') {
-    value = this.hasProperty(rightSide, leftSide);
+    if (rightSide.isPrimitive) {
+      this.throwException(this.TYPE_ERROR,
+          'Expecting an object evaluating \'in\'');
+    } else {
+      value = this.hasProperty(rightSide, leftSide);
+    }
   } else if (node.operator == 'instanceof') {
     if (!this.isa(rightSide, this.FUNCTION)) {
       this.throwException(this.TYPE_ERROR,
