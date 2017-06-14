@@ -2035,30 +2035,48 @@ Interpreter.prototype.nativeToPseudo = function(nativeObj) {
 
 /**
  * Converts from a JS interpreter object to native JS object.
- * Can handle JSON-style values.
+ * Can handle JSON-style values, plus cycles.
  * @param {!Interpreter.Object|!Interpreter.Primitive} pseudoObj The JS
  *     interpreter object to be converted.
  * @return {*} The equivalent native JS object or value.
  */
-Interpreter.prototype.pseudoToNative = function(pseudoObj) {
+Interpreter.prototype.pseudoToNative = function(pseudoObj, cycles) {
   if (pseudoObj.isPrimitive ||
       this.isa(pseudoObj, this.NUMBER) ||
       this.isa(pseudoObj, this.STRING) ||
       this.isa(pseudoObj, this.BOOLEAN)) {
     return pseudoObj.data;
   }
+  cycles = cycles || {
+    pseudo: [],
+    native: []
+  };
+  var i = cycles.pseudo.indexOf(pseudoObj);
+  if (i != -1) {
+    return cycles.native[i];
+  }
+  cycles.pseudo.push(pseudoObj);
   var nativeObj;
   if (this.isa(pseudoObj, this.ARRAY)) {  // Array.
     nativeObj = [];
+    cycles.native.push(nativeObj);
     for (var i = 0; i < pseudoObj.length; i++) {
-      nativeObj[i] = this.pseudoToNative(pseudoObj.properties[i]);
+      nativeObj[i] = this.pseudoToNative(pseudoObj.properties[i], cycles);
     }
   } else {  // Object.
     nativeObj = {};
+    cycles.native.push(nativeObj);
+    var val;
     for (var key in pseudoObj.properties) {
-      nativeObj[key] = this.pseudoToNative(pseudoObj.properties[key]);
+      if (pseudoObj.notEnumerable[key]) {
+        continue;
+      }
+      val = pseudoObj.properties[key];
+      nativeObj[key] = this.pseudoToNative(val, cycles);
     }
   }
+  cycles.pseudo.pop();
+  cycles.native.pop();
   return nativeObj;
 };
 
