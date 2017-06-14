@@ -848,6 +848,7 @@ Interpreter.prototype.initArray = function(scope) {
     for (var i = 0; i < this.length; i++) {
       text[i] = this.properties[i].toString();
     }
+    cycles.pop();
     return thisInterpreter.createPrimitive(text.join(sep));
   };
   this.setNativeFunctionPrototype(this.ARRAY, 'join', wrapper);
@@ -1897,7 +1898,8 @@ Interpreter.prototype.createObject = function(constructor) {
       for (var i = 0; i < this.length; i++) {
         var value = this.properties[i];
         strs[i] = (!value || (value.isPrimitive && (value.data === null ||
-            value.data === undefined)) || cycles.indexOf(value) != -1) ? '' : value.toString();
+            value.data === undefined)) ||
+            cycles.indexOf(value) != -1) ? '' : value.toString();
       }
       cycles.pop();
       return strs.join(',');
