@@ -490,6 +490,11 @@ Interpreter.prototype.initObject = function(scope) {
 
   // Static methods on Object.
   wrapper = function(obj) {
+    if (obj == thisInterpreter.UNDEFINED || obj == thisInterpreter.NULL) {
+      thisInterpreter.throwException(thisInterpreter.TYPE_ERROR,
+          'Cannot convert undefined or null to object');
+      return;
+    }
     var props = obj.isPrimitive ? obj.data : obj.properties;
     return thisInterpreter.nativeToPseudo(Object.getOwnPropertyNames(props));
   };
@@ -510,6 +515,22 @@ Interpreter.prototype.initObject = function(scope) {
     return thisInterpreter.nativeToPseudo(list);
   };
   this.setProperty(this.OBJECT, 'keys',
+      this.createNativeFunction(wrapper, false),
+      Interpreter.NONENUMERABLE_DESCRIPTOR);
+
+  wrapper = function(proto, propertiesObject) {
+    // TODO: Support propertiesObject argument.
+    if (proto == thisInterpreter.NULL) {
+      return thisInterpreter.createObject(null);
+    }
+    if (proto.isPrimitive) {
+      thisInterpreter.throwException(thisInterpreter.TYPE_ERROR,
+          'Object prototype may only be an Object or null');
+      return;
+    }
+    return thisInterpreter.createObject(proto);
+  };
+  this.setProperty(this.OBJECT, 'create',
       this.createNativeFunction(wrapper, false),
       Interpreter.NONENUMERABLE_DESCRIPTOR);
 
@@ -639,7 +660,7 @@ Interpreter.prototype.initObject = function(scope) {
   this.setNativeFunctionPrototype(this.OBJECT, 'valueOf', wrapper);
 
   wrapper = function(prop) {
-    if (this == thisInterpreter.NULL || this == thisInterpreter.UNDEFINED) {
+    if (this == thisInterpreter.UNDEFINED || this == thisInterpreter.NULL) {
       thisInterpreter.throwException(thisInterpreter.TYPE_ERROR,
           'Cannot convert undefined or null to object');
       return;
@@ -3182,7 +3203,7 @@ Interpreter.prototype['stepContinueStatement'] = function() {
         return;
       }
     }
-    tstack.pop();
+    stack.pop();
     state = stack[stack.length - 1];
   }
   // Syntax error, do not allow this error to be trapped.
