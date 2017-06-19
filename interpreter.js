@@ -3082,13 +3082,14 @@ Interpreter.prototype['stepCallExpression'] = function() {
   }
   if (!state.doneExec_) {
     state.doneExec_ = true;
-    if (state.func_.node) {
+    var funcNode = state.func_.node;
+    if (funcNode) {
       var scope =
-          this.createScope(state.func_.node['body'], state.func_.parentScope);
+          this.createScope(funcNode['body'], state.func_.parentScope);
       // Add all arguments.
-      for (var i = 0; i < state.func_.node['params'].length; i++) {
+      for (var i = 0; i < funcNode['params'].length; i++) {
         var paramName =
-            this.createPrimitive(state.func_.node['params'][i]['name']);
+            this.createPrimitive(funcNode['params'][i]['name']);
         var paramValue = state.arguments_.length > i ? state.arguments_[i] :
             this.UNDEFINED;
         this.setProperty(scope, paramName, paramValue);
@@ -3100,8 +3101,13 @@ Interpreter.prototype['stepCallExpression'] = function() {
                          state.arguments_[i]);
       }
       this.setProperty(scope, 'arguments', argsList);
+      // Add the function's name (var x = function foo(){};)
+      var name = funcNode['id'] && funcNode['id']['name'];
+      if (name) {
+        this.setProperty(scope, name, state.func_);
+      }
       var funcState = {
-        node: state.func_.node['body'],
+        node: funcNode['body'],
         scope: scope,
         thisExpression: state.funcThis_
       };
