@@ -70,12 +70,12 @@ var Interpreter = function(code, opt_initFunc) {
   // Fix the proto properties now that the global scope exists.
   //this.UNDEFINED.proto = undefined;
   //this.NULL.proto = undefined;
-  this.NAN.proto = this.NUMBER.properties.prototype;
-  this.TRUE.proto = this.BOOLEAN.properties.prototype;
-  this.FALSE.proto = this.BOOLEAN.properties.prototype;
-  this.NUMBER_ZERO.proto = this.NUMBER.properties.prototype;
-  this.NUMBER_ONE.proto = this.NUMBER.properties.prototype;
-  this.STRING_EMPTY.proto = this.STRING.properties.prototype;
+  this.NAN.proto = this.NUMBER.properties['prototype'];
+  this.TRUE.proto = this.BOOLEAN.properties['prototype'];
+  this.FALSE.proto = this.BOOLEAN.properties['prototype'];
+  this.NUMBER_ZERO.proto = this.NUMBER.properties['prototype'];
+  this.NUMBER_ONE.proto = this.NUMBER.properties['prototype'];
+  this.STRING_EMPTY.proto = this.STRING.properties['prototype'];
   // Run the polyfills.
   this.ast = acorn.parse(this.polyfills_.join('\n'), Interpreter.PARSE_OPTIONS);
   this.polyfills_ = undefined;  // Allow polyfill strings to garbage collect.
@@ -223,7 +223,7 @@ Interpreter.prototype.initGlobalScope = function(scope) {
   // Unable to set scope's parent prior (this.OBJECT did not exist).
   // Note that in a browser this would be 'Window', whereas in Node.js it would
   // be 'Object'.  This interpreter is closer to Node in that it has no DOM.
-  scope.proto = this.OBJECT.properties.prototype;
+  scope.proto = this.OBJECT.properties['prototype'];
   this.setProperty(scope, 'constructor', this.OBJECT);
   this.initArray(scope);
   this.initNumber(scope);
@@ -351,7 +351,7 @@ Interpreter.prototype.initFunction = function(scope) {
   // this object as a function (this.FUNCTION did not exist).
   this.FUNCTION.type = 'function';
   this.setProperty(this.FUNCTION, 'prototype', this.createObject(null));
-  this.setProperty(this.FUNCTION.properties.prototype, 'constructor',
+  this.setProperty(this.FUNCTION.properties['prototype'], 'constructor',
       this.FUNCTION, Interpreter.NONENUMERABLE_DESCRIPTOR);
   this.FUNCTION.nativeFunc = wrapper;
 
@@ -363,7 +363,7 @@ Interpreter.prototype.initFunction = function(scope) {
         value = thisInterpreter.global;
       } else {
         // Primitives must be boxed in non-strict mode.
-        var box = thisInterpreter.createObject(value.properties.constructor);
+        var box = thisInterpreter.createObject(value.properties['constructor']);
         box.data = value.data;
         value = box;
       }
@@ -478,7 +478,7 @@ Interpreter.prototype.initObject = function(scope) {
     }
     if (value.isPrimitive) {
       // Wrap the value as an object.
-      var obj = thisInterpreter.createObject(value.properties.constructor);
+      var obj = thisInterpreter.createObject(value.properties['constructor']);
       obj.data = value.data;
       return obj;
     }
@@ -518,8 +518,7 @@ Interpreter.prototype.initObject = function(scope) {
       this.createNativeFunction(wrapper, false),
       Interpreter.NONENUMERABLE_DESCRIPTOR);
 
-  wrapper = function(proto, propertiesObject) {
-    // TODO: Support propertiesObject argument.
+  wrapper = function(proto) {
     if (proto == thisInterpreter.NULL) {
       return thisInterpreter.createObject(null);
     }
@@ -528,11 +527,25 @@ Interpreter.prototype.initObject = function(scope) {
           'Object prototype may only be an Object or null');
       return;
     }
-    return thisInterpreter.createObject(proto);
+    return thisInterpreter.createObjectProto(proto);
   };
   this.setProperty(this.OBJECT, 'create',
       this.createNativeFunction(wrapper, false),
       Interpreter.NONENUMERABLE_DESCRIPTOR);
+
+  // Add a polyfill to handle create's second argument.
+  this.polyfills_.push(
+  "(function() {",
+    "var create_ = Object.create;",
+    "Object.defineProperty(Object, 'create', {configurable: true, value:",
+      "function(proto, props) {",
+        "var obj = create_(proto);",
+        "props && Object.defineProperties(obj, props);",
+        "return obj;",
+      "}",
+    "});",
+  "})();",
+  "");
 
   wrapper = function(obj, prop, descriptor) {
     prop = (prop || thisInterpreter.UNDEFINED).toString();
@@ -573,7 +586,7 @@ Interpreter.prototype.initObject = function(scope) {
       Interpreter.NONENUMERABLE_DESCRIPTOR);
 
   this.polyfills_.push(
-"Object.defineProperty(Object.prototype, 'defineProperties', {configurable: true, value:",
+"Object.defineProperty(Object, 'defineProperties', {configurable: true, value:",
   "function(obj, props) {",
     "var keys = Object.keys(props);",
     "for (var i = 0; i < keys.length; i++) {",
@@ -1530,13 +1543,13 @@ Interpreter.prototype.initRegExp = function(scope) {
   this.REGEXP = this.createNativeFunction(wrapper, true);
   this.setProperty(scope, 'RegExp', this.REGEXP);
 
-  this.setProperty(this.REGEXP.properties.prototype, 'global',
+  this.setProperty(this.REGEXP.properties['prototype'], 'global',
       this.UNDEFINED, Interpreter.READONLY_NONENUMERABLE_DESCRIPTOR);
-  this.setProperty(this.REGEXP.properties.prototype, 'ignoreCase',
+  this.setProperty(this.REGEXP.properties['prototype'], 'ignoreCase',
       this.UNDEFINED, Interpreter.READONLY_NONENUMERABLE_DESCRIPTOR);
-  this.setProperty(this.REGEXP.properties.prototype, 'multiline',
+  this.setProperty(this.REGEXP.properties['prototype'], 'multiline',
       this.UNDEFINED, Interpreter.READONLY_NONENUMERABLE_DESCRIPTOR);
-  this.setProperty(this.REGEXP.properties.prototype, 'source',
+  this.setProperty(this.REGEXP.properties['prototype'], 'source',
       this.createPrimitive('(?:)'),
       Interpreter.READONLY_NONENUMERABLE_DESCRIPTOR);
 
@@ -1630,9 +1643,9 @@ Interpreter.prototype.initError = function(scope) {
     return newError;
   }, true);
   this.setProperty(scope, 'Error', this.ERROR);
-  this.setProperty(this.ERROR.properties.prototype, 'message',
+  this.setProperty(this.ERROR.properties['prototype'], 'message',
       this.STRING_EMPTY, Interpreter.NONENUMERABLE_DESCRIPTOR);
-  this.setProperty(this.ERROR.properties.prototype, 'name',
+  this.setProperty(this.ERROR.properties['prototype'], 'name',
       this.createPrimitive('Error'), Interpreter.NONENUMERABLE_DESCRIPTOR);
 
   var createErrorSubclass = function(name) {
@@ -1654,7 +1667,7 @@ Interpreter.prototype.initError = function(scope) {
         }, true);
     thisInterpreter.setProperty(constructor, 'prototype',
         thisInterpreter.createObject(thisInterpreter.ERROR));
-    thisInterpreter.setProperty(constructor.properties.prototype, 'name',
+    thisInterpreter.setProperty(constructor.properties['prototype'], 'name',
         thisInterpreter.createPrimitive(name),
         Interpreter.NONENUMERABLE_DESCRIPTOR);
     thisInterpreter.setProperty(scope, name, constructor);
@@ -1681,13 +1694,13 @@ Interpreter.prototype.isa = function(child, constructor) {
   if (!child || !constructor) {
     return false;
   }
-  while (!child.properties || child.properties.constructor != constructor) {
-    if (!child.proto) {
-      return false;
+  var proto = constructor.properties['prototype'];
+  do {
+    if (child == proto) {
+      return true;
     }
-    child = child.proto;
-  }
-  return true;
+  } while ((child = child.proto));
+  return false;
 };
 
 /**
@@ -1747,11 +1760,11 @@ Interpreter.Primitive = function(data, interpreter) {
   this.data = data;
   this.type = type;
   if (type == 'number') {
-    this.proto = interpreter.NUMBER.properties.prototype;
+    this.proto = interpreter.NUMBER.properties['prototype'];
   } else if (type == 'string') {
-    this.proto = interpreter.STRING.properties.prototype;
+    this.proto = interpreter.STRING.properties['prototype'];
   } else if (type == 'boolean') {
-    this.proto = interpreter.BOOLEAN.properties.prototype;
+    this.proto = interpreter.BOOLEAN.properties['prototype'];
   }
 };
 
@@ -1839,17 +1852,17 @@ Interpreter.prototype.createPrimitive = function(data) {
 
 /**
  * Class for an object.
- * @param {Interpreter.Object} parent Parent constructor function or null.
+ * @param {Interpreter.Object} proto Prototype object or null.
  * @constructor
  */
-Interpreter.Object = function(parent) {
+Interpreter.Object = function(proto) {
   this.notConfigurable = Object.create(null);
   this.notEnumerable = Object.create(null);
   this.notWritable = Object.create(null);
   this.getter = Object.create(null);
   this.setter = Object.create(null);
   this.properties = Object.create(null);
-  this.proto = parent && parent.properties.prototype;
+  this.proto = proto;
 };
 
 /**
@@ -1963,11 +1976,17 @@ Interpreter.Object.prototype.valueOf = function() {
  * @return {!Interpreter.Object} New data object.
  */
 Interpreter.prototype.createObject = function(constructor) {
-  var obj = new Interpreter.Object(constructor);
-  if (constructor) {
-    this.setProperty(obj, 'constructor', constructor,
-        Interpreter.NONENUMERABLE_DESCRIPTOR);
-  }
+  return this.createObjectProto(constructor &&
+                                constructor.properties['prototype']);
+};
+
+/**
+ * Create a new data object.
+ * @param {Interpreter.Object} proto Prototype object.
+ * @return {!Interpreter.Object} New data object.
+ */
+Interpreter.prototype.createObjectProto = function(proto) {
+  var obj = new Interpreter.Object(proto);
   // Functions have prototype objects.
   if (this.isa(obj, this.FUNCTION)) {
     obj.type = 'function';
@@ -2048,7 +2067,7 @@ Interpreter.prototype.createNativeFunction =
   this.setProperty(func, 'length', this.createPrimitive(nativeFunc.length),
       Interpreter.READONLY_DESCRIPTOR);
   if (opt_constructor) {
-    this.setProperty(func.properties.prototype, 'constructor',
+    this.setProperty(func.properties['prototype'], 'constructor',
         func, Interpreter.NONENUMERABLE_DESCRIPTOR);
   } else if (opt_constructor === false) {
     func.illegalConstructor = true;
@@ -2387,7 +2406,7 @@ Interpreter.prototype.setProperty = function(obj, name, value, opt_descriptor) {
  */
 Interpreter.prototype.setNativeFunctionPrototype =
     function(obj, name, wrapper) {
-  this.setProperty(obj.properties.prototype, name,
+  this.setProperty(obj.properties['prototype'], name,
       this.createNativeFunction(wrapper, false),
       Interpreter.NONENUMERABLE_DESCRIPTOR);
 };
