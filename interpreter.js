@@ -3299,34 +3299,33 @@ Interpreter.prototype['stepForInStatement'] = function() {
     // First iteration.
     state.isLoop = true;
     state.object_ = state.value;
-    state.iterator_ = 0;
+    state.visited_ = [];
   }
   // Third, find the property name for this iteration.
   if (state.name_ === undefined) {
     done: do {
-      var i = state.iterator_;
       if (state.object_.isPrimitive) {
         for (var prop in state.object_.data) {
-          if (i == 0) {  // Found the i'th enumerable property.
+          if (state.visited_.indexOf(prop) == -1) {
+            state.visited_.push(prop);
             state.name_ = prop;
+            state.visited_.push(prop);
             break done;
           }
-          i--;
         }
       } else {
         for (var prop in state.object_.properties) {
-          if (state.object_.notEnumerable[prop]) {
-            continue;
+          if (state.visited_.indexOf(prop) == -1) {
+            state.visited_.push(prop);
+            if (!state.object_.notEnumerable[prop]) {
+              state.name_ = prop;
+              state.visited_.push(prop);
+              break done;
+            }
           }
-          if (i == 0) {  // Found the i'th enumerable property.
-            state.name_ = prop;
-            break done;
-          }
-          i--;
         }
       }
-      state.object_ = state.object_.prototype;
-      state.iterator_ = 0;
+      state.object_ = state.object_.proto;
     } while (state.object_);
     if (!state.object_) {
       // Done, exit loop.
