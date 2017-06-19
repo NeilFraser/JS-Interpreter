@@ -140,6 +140,25 @@
   <p>For a working example, see the
   <a href="demos/async.html">async demo</a>.</p>
 
+  <h2>Serialization</h2>
+
+  <p>A unique feature of the JS-Interpreter is its ability to pause execution,
+  serialize the current state, then resume the execution at that point at a
+  later time.  Loops, variables, closures, and all other state is preserved.</p>
+
+  <p>Uses of this feature include continuously executing programs that survive
+  a server reboot, loading a stack image that has been computed up to a certain
+  point, forking execution, or rolling back to a stored state.</p>
+
+  <p>One drawback is that the serialized format is not human-readable, and it is
+  also not guaranteed that future versions of the JS-Interpreter will be able to
+  parse the serialization from older versions.  Another drawback is that the
+  serialization format is rather large; it has a 200 kb overhead due to the
+  standard polyfills.</p>
+
+  <p>For a working example, see the
+  <a href="demos/serialize.html">serialization demo</a>.</p>
+
   <h2>Limitations</h2>
 
   <p>The version of JavaScript implemented by the interpreter has a few

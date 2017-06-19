@@ -29,10 +29,10 @@
       };
       interpreter.setProperty(scope, 'setOutput',
           interpreter.createNativeFunction(wrapper));
-    };
+    }
 
     function parseButton() {
-      var code = document.getElementById('code').value
+      var code = document.getElementById('code').value;
       myInterpreter = new Interpreter(code, initAlert);
       disable('');
     }
@@ -59,7 +59,7 @@
 
     function runButton() {
       disable('disabled');
-      myInterpreter.run()
+      myInterpreter.run();
     }
 
     function disable(disabled) {
@@ -68,7 +68,7 @@
     }
 
     function createSelection(start, end) {
-      var field = document.getElementById('code')
+      var field = document.getElementById('code');
       if (field.createTextRange) {
         var selRange = field.createTextRange();
         selRange.collapse(true);

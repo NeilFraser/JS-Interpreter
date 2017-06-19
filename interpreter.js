@@ -39,6 +39,8 @@ var Interpreter = function(code, opt_initFunc) {
   this.initFunc_ = opt_initFunc;
   this.paused_ = false;
   this.polyfills_ = [];
+  // Unique identifier for native functions.  Used in serialization.
+  this.functionCounter_ = 0;
   // Map node types to our step function names; a property lookup is faster
   // than string concatenation with "step" prefix.
   this.functionMap_ = Object.create(null);
@@ -342,6 +344,7 @@ Interpreter.prototype.initFunction = function(scope) {
         Interpreter.READONLY_DESCRIPTOR);
     return newFunc;
   };
+  wrapper.id = this.functionCounter_++;
   this.FUNCTION = this.createObject(null);
   this.setProperty(scope, 'Function', this.FUNCTION);
   // Manually setup type and prototype because createObj doesn't recognize
@@ -2020,6 +2023,7 @@ Interpreter.prototype.createNativeFunction =
     function(nativeFunc, opt_constructor) {
   var func = this.createObject(this.FUNCTION);
   func.nativeFunc = nativeFunc;
+  nativeFunc.id = this.functionCounter_++;
   this.setProperty(func, 'length', this.createPrimitive(nativeFunc.length),
       Interpreter.READONLY_DESCRIPTOR);
   if (opt_constructor) {
@@ -2040,6 +2044,7 @@ Interpreter.prototype.createNativeFunction =
 Interpreter.prototype.createAsyncFunction = function(asyncFunc) {
   var func = this.createObject(this.FUNCTION);
   func.asyncFunc = asyncFunc;
+  asyncFunc.id = this.functionCounter_++;
   this.setProperty(func, 'length', this.createPrimitive(asyncFunc.length),
       Interpreter.READONLY_DESCRIPTOR);
   return func;

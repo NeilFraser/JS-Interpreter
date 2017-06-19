@@ -2,10 +2,11 @@
 <html>
 <head>
   <meta charset="utf-8">
-  <title>JS-Interpreter Async Demo</title>
+  <title>JS-Interpreter Serialization Demo</title>
   <link href="style.css" rel="stylesheet" type="text/css">
   <script src="../acorn.js"></script>
   <script src="../interpreter.js"></script>
+  <script src="serialize.js"></script>
   <script>
     var myInterpreter;
     function initAlert(interpreter, scope) {
@@ -15,26 +16,30 @@
       };
       interpreter.setProperty(scope, 'alert',
           interpreter.createNativeFunction(wrapper));
-
-      var wrapper = function getXhr(href, callback) {
-        href = href ? href.toString() : '';
-        var req = new XMLHttpRequest();
-        req.open('GET', href, true);
-        req.onreadystatechange = function() {
-          if (req.readyState == 4 && req.status == 200) {
-            callback(interpreter.createPrimitive(req.responseText));
-          }
-        };
-        req.send(null);
-      };
-      interpreter.setProperty(scope, 'getXhr',
-          interpreter.createAsyncFunction(wrapper));
     }
 
     function parseButton() {
       var code = document.getElementById('code').value;
       myInterpreter = new Interpreter(code, initAlert);
       disable('');
+    }
+
+    function serializeButton() {
+      var json = serialize(myInterpreter);
+      document.getElementById('serializeTextarea').value = JSON.stringify(json);
+    }
+
+    function deserializeButton() {
+      var text = document.getElementById('serializeTextarea').value;
+      try {
+        var json = JSON.parse(text);
+      } catch (e) {
+        alert('Invalid JSON\n' + e);
+        return;
+      }
+      // Create a clean interpreter with the same initalization functions.
+      parseButton();
+      deserialize(json, myInterpreter);
     }
 
     function stepButton() {
@@ -59,17 +64,13 @@
 
     function runButton() {
       disable('disabled');
-      if (myInterpreter.run()) {
-        // Ran until an async call.  Give this call a chance to run.
-        // Then start running again later.
-        // 1000ms is waaay too long, but is used here to demo the pause.
-        setTimeout(runButton, 1000);
-      }
+      myInterpreter.run();
     }
 
     function disable(disabled) {
       document.getElementById('stepButton').disabled = disabled;
       document.getElementById('runButton').disabled = disabled;
+      document.getElementById('serializeButton').disabled = disabled;
     }
 
     function createSelection(start, end) {
@@ -91,39 +92,44 @@
   </script>
 </head>
 <body>
-  <h1>JS-Interpreter Async Demo</h1>
+  <h1>JS-Interpreter Serialization Demo</h1>
 
-  <p>Asynchronous function calls in the real world can be wrapped to appear
-  synchronous to code running in the JS-Interpreter.  The example below
-  (see this page's source) creates a <code>getXhr</code> function that
-  fetches a URL and returns the content.</p>
+  <p>The intepreter may be stopped at any time, the state serialized, then
+  deserialized at a later time, and the interpreter resumed.  The functions
+  for this are in <a href="serialize.js">serialize.js</a>.</p>
 
-  <p>This function is defined using <code>createAsyncFunction</code> during
-  initialization.  When called, the interpreter is paused until the callback
-  occurs.  During this paused state, <code>step</code> and <code>run</code>
-  will both do nothing, returning <code>true</code> to indicate that the program
-  still has code to execute.</p>
+  <ol>
+    <li>Click <em>Parse</em>, then click <em>Step</em> repeatedly.</li>
+    <li>At some point click <em>Serialize</em>.</li>
+    <li>Copy the serialized data structure to the clipboad, reload this page,
+    then paste the data structure back in its text area.</li>
+    <li>Click <em>Deserialize</em>.</li>
+    <li>Continue clicking <em>Step</em> repeatedly, or press <em>Run</em>.</li>
+  </ol>
+  <p>Open your browser's console for errors.</p>
 
-  <p>Click <em>Parse</em>, then either click <em>Step</em> repeatedly,
-  or click <em>Run</em> once.  Open your browser's console for errors.</p>
-
-  <p><textarea id="code">
-alert(getXhr('async.txt'));
+  <p><textarea id="code" style="height: 10em;">
+var numbers = [];
+for (var i = 0; i < 3; i++) {
+  numbers.push(i);
+}
+alert(numbers.join('-'));
 </textarea><br>
   <button onclick="parseButton()">Parse</button>
   <button onclick="stepButton()" id="stepButton" disabled="disabled">Step</button>
   <button onclick="runButton()" id="runButton" disabled="disabled">Run</button>
   </p>
 
+  <p>
+    <button onclick="serializeButton()" id="serializeButton" disabled="disabled">Serialize &darr;</button>
+    <button onclick="deserializeButton()" id="deserializeButton">Deserialize &uarr;</button><br>
+    <textarea id="serializeTextarea" style="height: 10ex; width: 80ex;"></textarea>
+  </p>
+
   <p>Back to the <a href="../docs.html">JS-Interpreter documentation</a>.</p>
 
   <script>
     disable('disabled');
-    if (location.protocol == 'file:' &&
-        navigator.userAgent.indexOf('Firefox') == -1) {
-      alert('Warning: This page is loaded with the "file:" protocol.\n' +
-            'Your browser might prevent XHR from working here.')
-    }
   </script>
 </body>
 </html>
