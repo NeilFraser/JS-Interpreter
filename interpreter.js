@@ -3390,7 +3390,6 @@ Interpreter.prototype['stepForInStatement'] = function() {
     stack.push({node: node['body']});
   }
   // Reset back to step three.
-  state.iterator_++;
   state.name_ = undefined;
   if (state.variable_ instanceof Array) {
     state.doneVariable_ = false;
@@ -3671,7 +3670,7 @@ Interpreter.prototype['stepSwitchStatement'] = function() {
   while (true) {
     var index = state.index_ || 0;
     var switchCase = state.node['cases'][index];
-    if (!state.matched_ && switchCase && !switchCase.test) {
+    if (!state.matched_ && switchCase && !switchCase['test']) {
       // Test on the default case is null.
       // Bypass (but store) the default case, and get back to it later.
       state.defaultCase_ = index;
@@ -3685,17 +3684,17 @@ Interpreter.prototype['stepSwitchStatement'] = function() {
       continue;
     }
     if (switchCase) {
-      if (!state.matched_ && !stack.tested_ && switchCase.test) {
+      if (!state.matched_ && !stack.tested_ && switchCase['test']) {
         stack.tested_ = true;
-        stack.push({node: switchCase.test});
+        stack.push({node: switchCase['test']});
         return;
       }
       if (state.matched_ || this.comp(state.value, state.switchValue_) == 0) {
         state.matched_ = true;
         var n = state.n_ || 0;
-        if (switchCase.consequent[n]) {
+        if (switchCase['consequent'][n]) {
           state.isSwitch = true;
-          stack.push({node: switchCase.consequent[n]});
+          stack.push({node: switchCase['consequent'][n]});
           state.n_ = n + 1;
           return;
         }
