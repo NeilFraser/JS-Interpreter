@@ -3633,7 +3633,6 @@ Interpreter.prototype['stepSequenceExpression'] = function() {
 Interpreter.prototype['stepSwitchStatement'] = function() {
   var stack = this.stateStack;
   var state = stack[stack.length - 1];
-
   if (!state.test_) {
     state.test_ = true;
     stack.push({node: state.node['discriminant']});
@@ -3642,33 +3641,48 @@ Interpreter.prototype['stepSwitchStatement'] = function() {
   if (!state.switchValue_) {
     // Preserve switch value between case tests.
     state.switchValue_ = state.value;
-    state.checked_ = [];
   }
 
-  var index = state.index_ || 0;
-  var switchCase = state.node['cases'][index];
-  if (switchCase) {
-    if (!state.done_ && !state.checked_[index] && switchCase.test) {
-      state.checked_[index] = true;
-      stack.push({node: switchCase.test});
-      return;
+  while (true) {
+    var index = state.index_ || 0;
+    var switchCase = state.node['cases'][index];
+    if (!state.matched_ && switchCase && !switchCase.test) {
+      // Test on the default case is null.
+      // Bypass (but store) the default case, and get back to it later.
+      state.defaultCase_ = index;
+      state.index_ = index + 1;
+      continue;
     }
-    // Test on the default case will be null.
-    if (state.done_ || !switchCase.test ||
-        this.comp(state.value, state.switchValue_) == 0) {
-      state.done_ = true;
-      var n = state.n_ || 0;
-      if (switchCase.consequent[n]) {
-        state.isSwitch = true;
-        stack.push({node: switchCase.consequent[n]});
-        state.n_ = n + 1;
+    if (!switchCase && !state.matched_ && state.defaultCase_) {
+      // Ran through all cases, no match.  Jump to the default.
+      state.matched_ = true;
+      state.index_ = state.defaultCase_;
+      continue;
+    }
+    if (switchCase) {
+      if (!state.matched_ && !stack.tested_ && switchCase.test) {
+        stack.tested_ = true;
+        stack.push({node: switchCase.test});
         return;
       }
+      if (state.matched_ || this.comp(state.value, state.switchValue_) == 0) {
+        state.matched_ = true;
+        var n = state.n_ || 0;
+        if (switchCase.consequent[n]) {
+          state.isSwitch = true;
+          stack.push({node: switchCase.consequent[n]});
+          state.n_ = n + 1;
+          return;
+        }
+      }
+      // Move on to next case.
+      stack.tested_ = false;
+      state.n_ = 0;
+      state.index_ = index + 1;
+    } else {
+      stack.pop();
+      return;
     }
-    state.n_ = 0;
-    state.index_ = index + 1;
-  } else {
-    stack.pop();
   }
 };
 
