@@ -49,9 +49,6 @@ var Interpreter = function(code, opt_initFunc) {
       this.functionMap_[m[1]] = this[methodName].bind(this);
     }
   }
-  // For cycle detection in array to string conversion;
-  // see spec bug https://github.com/tc39/ecma262/issues/289
-  this.arrayToStringCycles_ = [];
   // Declare some mock constructors to get the environment bootstrapped.
   var mockObject = {properties: {prototype: null}};
   this.NUMBER = mockObject;
@@ -139,6 +136,11 @@ Interpreter.READONLY_NONENUMERABLE_DESCRIPTOR = {
   enumerable: false,
   writable: false
 };
+
+// For cycle detection in array to string and error conversion;
+// see spec bug https://github.com/tc39/ecma262/issues/289
+// Since this is for atomic actions only, it can be a class property.
+Interpreter.toStringCycles_ = [];
 
 /**
  * Add more code to the interpreter.
@@ -844,18 +846,21 @@ Interpreter.prototype.initArray = function(scope) {
   this.setNativeFunctionPrototype(this.ARRAY, 'slice', wrapper);
 
   wrapper = function(opt_separator) {
-    var cycles = thisInterpreter.arrayToStringCycles_;
+    var cycles = Interpreter.toStringCycles_;
     cycles.push(this);
-    if (!opt_separator || opt_separator.data === undefined) {
-      var sep = undefined;
-    } else {
-      var sep = opt_separator.toString();
+    try {
+      if (!opt_separator || opt_separator.data === undefined) {
+        var sep = undefined;
+      } else {
+        var sep = opt_separator.toString();
+      }
+      var text = [];
+      for (var i = 0; i < this.length; i++) {
+        text[i] = this.properties[i].toString();
+      }
+    } finally {
+      cycles.pop();
     }
-    var text = [];
-    for (var i = 0; i < this.length; i++) {
-      text[i] = this.properties[i].toString();
-    }
-    cycles.pop();
     return thisInterpreter.createPrimitive(text.join(sep));
   };
   this.setNativeFunctionPrototype(this.ARRAY, 'join', wrapper);
@@ -1865,7 +1870,57 @@ Interpreter.Object.prototype.toNumber = function() {
  * @override
  */
 Interpreter.Object.prototype.toString = function() {
-  return this.data === undefined ? ('[' + this.type + ']') : String(this.data);
+  if (this.length >= 0) {
+    // Array
+    var cycles = Interpreter.toStringCycles_;
+    cycles.push(this);
+    try {
+      var strs = [];
+      for (var i = 0; i < this.length; i++) {
+        var value = this.properties[i];
+        strs[i] = (!value || (value.isPrimitive && (value.data === null ||
+            value.data === undefined)) ||
+            cycles.indexOf(value) != -1) ? '' : value.toString();
+      }
+    } finally {
+      cycles.pop();
+    }
+    return strs.join(',');
+  }
+  if (this.error) {
+    var cycles = Interpreter.toStringCycles_;
+    if (cycles.indexOf(this) != -1) {
+      return '[Error]';
+    }
+    var name, message;
+    // Bug: Does not support getters and setters for name or message.
+    var obj = this;
+    do {
+      if ('name' in obj.properties) {
+        name = obj.properties['name'];
+        break;
+      }
+    } while (obj.proto != obj && (obj = obj.proto));
+    var obj = this;
+    do {
+      if ('message' in obj.properties) {
+        message = obj.properties['message'];
+        break;
+      }
+    } while ((obj = obj.proto));
+    cycles.push(this);
+    try {
+      name = name && name.toString();
+      message = message && message.toString();
+    } finally {
+      cycles.pop();
+    }
+    return message ? name + ': ' + message : name + '';
+  }
+  if (this.data !== undefined) {
+    return String(this.data);
+  }
+  return '[' + this.type + ']';
 };
 
 /**
@@ -1896,29 +1951,10 @@ Interpreter.prototype.createObject = function(constructor) {
   }
   // Arrays have length.
   if (this.isa(obj, this.ARRAY)) {
-    var cycles = this.arrayToStringCycles_;
     obj.length = 0;
-    obj.toString = function() {
-      cycles.push(this);
-      var strs = [];
-      for (var i = 0; i < this.length; i++) {
-        var value = this.properties[i];
-        strs[i] = (!value || (value.isPrimitive && (value.data === null ||
-            value.data === undefined)) ||
-            cycles.indexOf(value) != -1) ? '' : value.toString();
-      }
-      cycles.pop();
-      return strs.join(',');
-    };
   }
-  // Errors have a custom toString method.
   if (this.isa(obj, this.ERROR)) {
-    var thisInterpreter = this;
-    obj.toString = function() {
-      var name = thisInterpreter.getProperty(this, 'name').toString();
-      var message = thisInterpreter.getProperty(this, 'message').toString();
-      return message ? name + ': ' + message : name;
-    };
+    obj.error = true;
   }
   return obj;
 };
@@ -2134,7 +2170,7 @@ Interpreter.prototype.getProperty = function(obj, name) {
       }
     }
   }
-  while (true) {
+  do {
     if (obj.properties && name in obj.properties) {
       var getter = obj.getter[name];
       if (getter) {
@@ -2145,13 +2181,7 @@ Interpreter.prototype.getProperty = function(obj, name) {
       }
       return obj.properties[name];
     }
-    if (obj.proto && obj != obj.proto) {
-      obj = obj.proto;
-    } else {
-      // No parent, reached the top.
-      break;
-    }
-  }
+  } while ((obj = obj.proto));
   return this.UNDEFINED;
 };
 
@@ -2176,17 +2206,11 @@ Interpreter.prototype.hasProperty = function(obj, name) {
       return true;
     }
   }
-  while (true) {
+  do {
     if (obj.properties && name in obj.properties) {
       return true;
     }
-    if (obj.proto && obj != obj.proto) {
-      obj = obj.proto;
-    } else {
-      // No parent, reached the top.
-      break;
-    }
-  }
+  } while ((obj = obj.proto));
   return false;
 };
 
@@ -2306,17 +2330,11 @@ Interpreter.prototype.setProperty = function(obj, name, value, opt_descriptor) {
     // Set the property.
     // Determine if there is a setter anywhere in the parent chain.
     var parent = obj;
-    while (true) {
+    do {
       if (parent.setter && parent.setter[name]) {
         return parent.setter[name];
       }
-      if (parent.proto && parent != parent.proto) {
-        parent = parent.proto;
-      } else {
-        // No prototype, reached the top.
-        break;
-      }
-    }
+    } while ((parent = parent.proto));
     if (obj.getter && obj.getter[name]) {
       if (strict) {
         this.throwException(this.TYPE_ERROR, 'Cannot set property \'' + name +
