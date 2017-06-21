@@ -2594,14 +2594,14 @@ Interpreter.prototype.pushSetter_ = function(func, left, value) {
  * Take a snapshot from current stateStack. Restore by restoreStateSnapshot
  */
 Interpreter.prototype.takeStateSnapshot = function() {
-  return clone.clonePrototype(this.stateStack)
+  return clone(this.stateStack, undefined, undefined, undefined, true)
 };
 
 /**
  * Restore a state snapshot
  */
 Interpreter.prototype.restoreStateSnapshot = function(snapshot) {
-  this.stateStack = clone.clonePrototype(snapshot)
+  this.stateStack = clone(snapshot, undefined, undefined, undefined, true)
 };
 
 ///////////////////////////////////////////////////////////////////////////////
