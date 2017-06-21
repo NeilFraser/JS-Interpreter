@@ -1,6 +1,6 @@
 {
   "name": "js-interpreter",
-  "version": "1.4.4",
+  "version": "1.4.5",
   "description": "NPM package for https://github.com/NeilFraser/JS-Interpreter",
   "main": "lib/index.js",
   "module": "src/interpreter.js",
@@ -20,11 +20,13 @@
   },
   "homepage": "https://github.com/aminmarashi/JS-Interpreter#readme",
   "devDependencies": {
-    "acorn": "^4.0.11",
     "babel-core": "^6.24.0",
     "babel-loader": "^6.4.1",
     "babel-preset-es2015": "^6.24.0",
-    "clone": "aminmarashi/clone#d97b4f",
     "webpack": "^2.2.1"
+  },
+  "dependencies": {
+    "acorn": "^4.0.11",
+    "clone": "aminmarashi/clone#d97b4f"
   }
 }
