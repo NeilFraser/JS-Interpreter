@@ -2594,7 +2594,9 @@ Interpreter.prototype.pushSetter_ = function(func, left, value) {
  * Take a snapshot from current stateStack. Restore by restoreStateSnapshot
  */
 Interpreter.prototype.takeStateSnapshot = function() {
-  return clone(this.stateStack, undefined, undefined, undefined, true)
+  var newStateStack = clone(this.stateStack, undefined, undefined, undefined, true)
+  this.global = newStateStack[0].scope
+  return newStateStack
 };
 
 /**
@@ -2602,6 +2604,8 @@ Interpreter.prototype.takeStateSnapshot = function() {
  */
 Interpreter.prototype.restoreStateSnapshot = function(snapshot) {
   this.stateStack = clone(snapshot, undefined, undefined, undefined, true)
+  this.global = this.stateStack[0].scope
+  this.initFunc_(this, this.global)
 };
 
 ///////////////////////////////////////////////////////////////////////////////
