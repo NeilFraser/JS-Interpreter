@@ -140,7 +140,7 @@ Interpreter.READONLY_NONENUMERABLE_DESCRIPTOR = {
 };
 
 // For cycle detection in array to string and error conversion;
-// see spec bug https://github.com/tc39/ecma262/issues/289
+// see spec bug github.com/tc39/ecma262/issues/289
 // Since this is for atomic actions only, it can be a class property.
 Interpreter.toStringCycles_ = [];
 
@@ -161,7 +161,7 @@ Interpreter.prototype.appendCode = function(code) {
   }
   this.populateScope_(code, state.scope);
   // Append the new program to the old one.
-  for (var i = 0, node; node = code['body'][i]; i++) {
+  for (var i = 0, node; (node = code['body'][i]); i++) {
     state.node['body'].push(node);
   }
   state.done = false;
@@ -414,11 +414,11 @@ Interpreter.prototype.initFunction = function(scope) {
 
   this.polyfills_.push(
 // Polyfill copied from:
-// https://developer.mozilla.org/en/docs/Web/JavaScript/Reference/Global_objects/Function/bind
+// developer.mozilla.org/en/docs/Web/JavaScript/Reference/Global_objects/Function/bind
 "Object.defineProperty(Function.prototype, 'bind', {configurable: true, value:",
   "function(oThis) {",
     "if (typeof this !== 'function') {",
-      "throw new TypeError('Function.prototype.bind - what is trying to be bound is not callable');",
+      "throw TypeError('What is trying to be bound is not callable');",
     "}",
     "var aArgs   = Array.prototype.slice.call(arguments, 1),",
         "fToBind = this,",
@@ -490,9 +490,10 @@ Interpreter.prototype.initObject = function(scope) {
 
   // Static methods on Object.
   wrapper = function(obj) {
-    if (obj == thisInterpreter.UNDEFINED || obj == thisInterpreter.NULL) {
+    if (!obj || obj == thisInterpreter.UNDEFINED ||
+                obj == thisInterpreter.NULL) {
       thisInterpreter.throwException(thisInterpreter.TYPE_ERROR,
-          'Cannot convert undefined or null to object');
+          "Cannot convert '" + obj + "' to object");
       return;
     }
     var props = obj.isPrimitive ? obj.data : obj.properties;
@@ -556,7 +557,7 @@ Interpreter.prototype.initObject = function(scope) {
     }
     if (!obj.properties[prop] && obj.preventExtensions) {
       thisInterpreter.throwException(thisInterpreter.TYPE_ERROR,
-          'Can\'t define property ' + prop + ', object is not extensible');
+          "Can't define property '" + prop + "', object is not extensible");
       return;
     }
     var value = thisInterpreter.getProperty(descriptor, 'value');
@@ -598,6 +599,12 @@ Interpreter.prototype.initObject = function(scope) {
 "");
 
   wrapper = function(obj, prop) {
+    if (!obj || obj == thisInterpreter.UNDEFINED ||
+                obj == thisInterpreter.NULL) {
+      thisInterpreter.throwException(thisInterpreter.TYPE_ERROR,
+          "Cannot convert '" + obj + "' to object");
+      return;
+    }
     prop = (prop || thisInterpreter.UNDEFINED).toString();
     if (!(prop in obj.properties)) {
       return thisInterpreter.UNDEFINED;
@@ -629,9 +636,11 @@ Interpreter.prototype.initObject = function(scope) {
       Interpreter.NONENUMERABLE_DESCRIPTOR);
 
   wrapper = function(obj) {
-    if (obj == thisInterpreter.UNDEFINED || obj == thisInterpreter.NULL) {
+    if (!obj || obj == thisInterpreter.UNDEFINED ||
+                obj == thisInterpreter.NULL) {
       thisInterpreter.throwException(thisInterpreter.TYPE_ERROR,
-          'Cannot convert undefined or null to object');
+          "Cannot convert '" + obj + "' to object");
+      return;
     }
     return obj.proto || thisInterpreter.NULL;
   };
@@ -675,7 +684,7 @@ Interpreter.prototype.initObject = function(scope) {
   wrapper = function(prop) {
     if (this == thisInterpreter.UNDEFINED || this == thisInterpreter.NULL) {
       thisInterpreter.throwException(thisInterpreter.TYPE_ERROR,
-          'Cannot convert undefined or null to object');
+          "Cannot convert '" + this + "' to object");
       return;
     }
     prop = (prop || thisInterpreter.UNDEFINED).toString();
@@ -685,6 +694,11 @@ Interpreter.prototype.initObject = function(scope) {
   this.setNativeFunctionPrototype(this.OBJECT, 'hasOwnProperty', wrapper);
 
   wrapper = function(prop) {
+    if (this == thisInterpreter.UNDEFINED || this == thisInterpreter.NULL) {
+      thisInterpreter.throwException(thisInterpreter.TYPE_ERROR,
+          "Cannot convert '" + this + "' to object");
+      return;
+    }
     prop = (prop || thisInterpreter.UNDEFINED).toString();
     var enumerable = prop in this.properties && !this.notEnumerable[prop];
     return thisInterpreter.createPrimitive(enumerable);
@@ -741,7 +755,7 @@ Interpreter.prototype.initArray = function(scope) {
     }
     var first = arguments[0];
     if (arguments.length == 1 && first.type == 'number') {
-      if (isNaN(thisInterpreter.arrayIndex(first))) {
+      if (isNaN(thisInterpreter.legalArrayLength(first))) {
         thisInterpreter.throwException(thisInterpreter.RANGE_ERROR,
                                        'Invalid array length');
       }
@@ -965,7 +979,7 @@ Interpreter.prototype.initArray = function(scope) {
 // developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Array/every
 "Object.defineProperty(Array.prototype, 'every', {configurable: true, value:",
   "function(callbackfn, thisArg) {",
-    "if (this == null || typeof callbackfn !== 'function') throw new TypeError;",
+    "if (this == null || typeof callbackfn !== 'function') throw TypeError();",
     "var T, k;",
     "var O = Object(this);",
     "var len = O.length >>> 0;",
@@ -983,7 +997,7 @@ Interpreter.prototype.initArray = function(scope) {
 // developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Array/filter
 "Object.defineProperty(Array.prototype, 'filter', {configurable: true, value:",
   "function(fun/*, thisArg*/) {",
-    "if (this === void 0 || this === null || typeof fun !== 'function') throw new TypeError;",
+    "if (this === void 0 || this === null || typeof fun !== 'function') throw TypeError();",
     "var t = Object(this);",
     "var len = t.length >>> 0;",
     "var res = [];",
@@ -1002,7 +1016,7 @@ Interpreter.prototype.initArray = function(scope) {
 // developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Array/forEach
 "Object.defineProperty(Array.prototype, 'forEach', {configurable: true, value:",
   "function(callback, thisArg) {",
-    "if (this == null || typeof callback !== 'function') throw new TypeError;",
+    "if (this == null || typeof callback !== 'function') throw TypeError();",
     "var T, k;",
     "var O = Object(this);",
     "var len = O.length >>> 0;",
@@ -1038,14 +1052,14 @@ Interpreter.prototype.initArray = function(scope) {
 // developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Array/Reduce
 "Object.defineProperty(Array.prototype, 'reduce', {configurable: true, value:",
   "function(callback /*, initialValue*/) {",
-    "if (this == null || typeof callback !== 'function') throw new TypeError;",
+    "if (this == null || typeof callback !== 'function') throw TypeError();",
     "var t = Object(this), len = t.length >>> 0, k = 0, value;",
     "if (arguments.length == 2) {",
       "value = arguments[1];",
     "} else {",
       "while (k < len && !(k in t)) k++;",
       "if (k >= len) {",
-        "throw new TypeError('Reduce of empty array with no initial value');",
+        "throw TypeError('Reduce of empty array with no initial value');",
       "}",
       "value = t[k++];",
     "}",
@@ -1060,14 +1074,14 @@ Interpreter.prototype.initArray = function(scope) {
 // developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Array/ReduceRight
 "Object.defineProperty(Array.prototype, 'reduceRight', {configurable: true, value:",
   "function(callback /*, initialValue*/) {",
-    "if (null === this || 'undefined' === typeof this || 'function' !== typeof callback) throw new TypeError;",
+    "if (null === this || 'undefined' === typeof this || 'function' !== typeof callback) throw TypeError();",
     "var t = Object(this), len = t.length >>> 0, k = len - 1, value;",
     "if (arguments.length >= 2) {",
       "value = arguments[1];",
     "} else {",
       "while (k >= 0 && !(k in t)) k--;",
       "if (k < 0) {",
-        "throw new TypeError('Reduce of empty array with no initial value');",
+        "throw TypeError('Reduce of empty array with no initial value');",
       "}",
       "value = t[k--];",
     "}",
@@ -1082,7 +1096,7 @@ Interpreter.prototype.initArray = function(scope) {
 // developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Array/some
 "Object.defineProperty(Array.prototype, 'some', {configurable: true, value:",
   "function(fun/*, thisArg*/) {",
-    "if (this == null || typeof fun !== 'function') throw new TypeError;",
+    "if (this == null || typeof fun !== 'function') throw TypeError();",
     "var t = Object(this);",
     "var len = t.length >>> 0;",
     "var thisArg = arguments.length >= 2 ? arguments[1] : void 0;",
@@ -1736,17 +1750,28 @@ Interpreter.prototype.comp = function(a, b) {
 };
 
 /**
- * Is a value a legal integer for an array?
+ * Is a value a legal integer for an array length?
  * @param {*} n Value to check.
  * @return {number} Zero, or a positive integer if the value can be
  *     converted to such.  NaN otherwise.
  */
-Interpreter.prototype.arrayIndex = function(n) {
+Interpreter.prototype.legalArrayLength = function(n) {
   n = Number(n);
-  if (!isFinite(n) || n != Math.floor(n) || n < 0 || n >= Math.pow(2, 32)) {
-    return NaN;
-  }
-  return n;
+  // Array length must be between 0 and 2^32-1 (inclusive).
+  return (n == n >>> 0) ? n : NaN;
+};
+
+/**
+ * Is a value a legal integer for an array index?
+ * @param {*} n Value to check.
+ * @return {number} Zero, or a positive integer if the value can be
+ *     converted to such.  NaN otherwise.
+ */
+Interpreter.prototype.legalArrayIndex = function(n) {
+  n = Number(n);
+  // Array index cannot be 2^32-1, otherwise length would be 2^32.
+  // 4294967295 is 2^32-1.
+  return (n == n >>> 0 && n != 4294967295) ? n : NaN;
 };
 
 /**
@@ -2209,7 +2234,7 @@ Interpreter.prototype.getProperty = function(obj, name) {
     // Might have numbers in there?
     // Special cases for string array indexing
     if (this.isa(obj, this.STRING)) {
-      var n = this.arrayIndex(name);
+      var n = this.legalArrayIndex(name);
       if (!isNaN(n) && n < obj.data.length) {
         return this.createPrimitive(obj.data[n]);
       }
@@ -2246,7 +2271,7 @@ Interpreter.prototype.hasProperty = function(obj, name) {
     return true;
   }
   if (this.isa(obj, this.STRING)) {
-    var n = this.arrayIndex(name);
+    var n = this.legalArrayIndex(name);
     if (!isNaN(n) && n < obj.data.length) {
       return true;
     }
@@ -2289,18 +2314,18 @@ Interpreter.prototype.setProperty = function(obj, name, value, opt_descriptor) {
   var strict = !this.stateStack || this.getScope().strict;
   if (obj.isPrimitive) {
     if (strict) {
-      this.throwException(this.TYPE_ERROR, 'Can\'t create property \'' + name +
-                          '\' on \'' + obj.data + '\'');
+      this.throwException(this.TYPE_ERROR, "Can't create property '" + name +
+                          "' on '" + obj.data + "'");
     }
     return;
   }
   if (this.isa(obj, this.STRING)) {
-    var n = this.arrayIndex(name);
+    var n = this.legalArrayIndex(name);
     if (name == 'length' || (!isNaN(n) && n < obj.data.length)) {
       // Can't set length or letters on String objects.
       if (strict) {
-        this.throwException(this.TYPE_ERROR, 'Cannot assign to read only ' +
-            'property \'' + name + '\' of String \'' + obj.data + '\'');
+        this.throwException(this.TYPE_ERROR, "Cannot assign to read only " +
+            "property '" + name + "' of String '" + obj.data + "'");
       }
       return;
     }
@@ -2310,13 +2335,13 @@ Interpreter.prototype.setProperty = function(obj, name, value, opt_descriptor) {
     var i;
     if (name == 'length') {
       // Delete elements if length is smaller.
-      var newLength = this.arrayIndex(value.toNumber());
+      var newLength = this.legalArrayLength(value.toNumber());
       if (isNaN(newLength)) {
         this.throwException(this.RANGE_ERROR, 'Invalid array length');
       }
       if (newLength < obj.length) {
         for (i in obj.properties) {
-          i = this.arrayIndex(i);
+          i = this.legalArrayIndex(i);
           if (!isNaN(i) && newLength <= i) {
             delete obj.properties[i];
           }
@@ -2324,15 +2349,15 @@ Interpreter.prototype.setProperty = function(obj, name, value, opt_descriptor) {
       }
       obj.length = newLength;
       return;  // Don't set a real length property.
-    } else if (!isNaN(i = this.arrayIndex(name))) {
+    } else if (!isNaN(i = this.legalArrayIndex(name))) {
       // Increase length if this index is larger.
       obj.length = Math.max(obj.length, i + 1);
     }
   }
   if (!obj.properties[name] && obj.preventExtensions) {
     if (strict) {
-      this.throwException(this.TYPE_ERROR, 'Can\'t add property ' + name +
-                          ', object is not extensible');
+      this.throwException(this.TYPE_ERROR, "Can't add property '" + name +
+                          "', object is not extensible");
     }
     return;
   }
@@ -2382,16 +2407,16 @@ Interpreter.prototype.setProperty = function(obj, name, value, opt_descriptor) {
     } while ((parent = parent.proto));
     if (obj.getter && obj.getter[name]) {
       if (strict) {
-        this.throwException(this.TYPE_ERROR, 'Cannot set property \'' + name +
-            '\' of object \'' + obj + '\' which only has a getter');
+        this.throwException(this.TYPE_ERROR, "Cannot set property '" + name +
+            "' of object '" + obj + "' which only has a getter");
       }
     } else {
       // No setter, simple assignment.
       if (!obj.notWritable[name]) {
         obj.properties[name] = value;
       } else if (strict) {
-        this.throwException(this.TYPE_ERROR, 'Cannot assign to read only ' +
-            'property \'' + name + '\' of object \'' + obj + '\'');
+        this.throwException(this.TYPE_ERROR, "Cannot assign to read only " +
+            "property '" + name + "' of object '" + obj + "'");
       }
     }
   }
@@ -2473,8 +2498,8 @@ Interpreter.prototype.createScope = function(node, parentScope) {
 
 /**
  * Create a new special scope dictionary. Similar to createScope(), but
- * doesn't assume that the scope is for a function body. This is used for
- * the catch clause and with statement.
+ * doesn't assume that the scope is for a function body.
+ * This is used for 'catch' clauses and 'with' statements.
  * @param {!Interpreter.Object} parentScope Scope to link to.
  * @param {Interpreter.Object=} opt_scope Optional object to transform into
  *     scope.
@@ -2767,17 +2792,17 @@ Interpreter.prototype.pushSetter_ = function(func, left, value) {
 Interpreter.prototype['stepArrayExpression'] = function() {
   var stack = this.stateStack;
   var state = stack[stack.length - 1];
-  var node = state.node;
+  var elements = state.node['elements'];
   var n = state.n_ || 0;
   if (!state.array_) {
     state.array_ = this.createObject(this.ARRAY);
   } else if (state.value) {
     this.setProperty(state.array_, n - 1, state.value);
   }
-  if (n < node['elements'].length) {
+  if (n < elements.length) {
     state.n_ = n + 1;
-    if (node['elements'][n]) {
-      stack.push({node: node['elements'][n]});
+    if (elements[n]) {
+      stack.push({node: elements[n]});
     } else {
       // [0, 1, , 3][2] -> undefined
       // Missing elements are not defined, they aren't undefined.
@@ -2938,7 +2963,7 @@ Interpreter.prototype['stepBinaryExpression'] = function() {
   } else if (node['operator'] == 'in') {
     if (rightSide.isPrimitive) {
       this.throwException(this.TYPE_ERROR,
-          'Expecting an object evaluating \'in\'');
+          "Expecting an object evaluating 'in'");
     } else {
       value = this.hasProperty(rightSide, leftSide);
     }
@@ -2984,11 +3009,11 @@ Interpreter.prototype['stepBinaryExpression'] = function() {
 Interpreter.prototype['stepBlockStatement'] = function() {
   var stack = this.stateStack;
   var state = stack[stack.length - 1];
-  var node = state.node;
   var n = state.n_ || 0;
-  if (node['body'][n]) {
+  var expression = state.node['body'][n];
+  if (expression) {
     state.n_ = n + 1;
-    stack.push({node: node['body'][n]});
+    stack.push({node: expression});
   } else {
     stack.pop();
   }
@@ -3268,11 +3293,11 @@ Interpreter.prototype['stepEmptyStatement'] = function() {
 Interpreter.prototype['stepEvalProgram_'] = function() {
   var stack = this.stateStack;
   var state = stack[stack.length - 1];
-  var node = state.node;
   var n = state.n_ || 0;
-  if (node['body'][n]) {
+  var expression = state.node['body'][n];
+  if (expression) {
     state.n_ = n + 1;
-    stack.push({node: node['body'][n]});
+    stack.push({node: expression});
   } else {
     stack.pop();
     stack[stack.length - 1].value = this.value;
@@ -3549,11 +3574,10 @@ Interpreter.prototype['stepNewExpression'] =
 Interpreter.prototype['stepObjectExpression'] = function() {
   var stack = this.stateStack;
   var state = stack[stack.length - 1];
-  var node = state.node;
   var valueToggle = state.valueToggle_;
   var n = state.n_ || 0;
-  if (!state.object) {
-    state.object = this.createObject(this.OBJECT);
+  if (!state.object_) {
+    state.object_ = this.createObject(this.OBJECT);
     state.properties = Object.create(null);
   } else {
     if (valueToggle) {
@@ -3566,13 +3590,14 @@ Interpreter.prototype['stepObjectExpression'] = function() {
       state.properties[state.key_][state.kind_] = state.value;
     }
   }
-  if (node['properties'][n]) {
+  var property = state.node['properties'][n];
+  if (property) {
     if (valueToggle) {
       state.n_ = n + 1;
-      stack.push({node: node['properties'][n]['value']});
+      stack.push({node: property['value']});
     } else {
-      state.kind_ = node['properties'][n]['kind'];
-      stack.push({node: node['properties'][n]['key'], components: true});
+      state.kind_ = property['kind'];
+      stack.push({node: property['key'], components: true});
     }
     state.valueToggle_ = !valueToggle;
   } else {
@@ -3586,26 +3611,26 @@ Interpreter.prototype['stepObjectExpression'] = function() {
           get: kinds['get'],
           set: kinds['set']
         };
-        this.setProperty(state.object, key, null, descriptor);
+        this.setProperty(state.object_, key, null, descriptor);
       } else {
         // Set a normal property with a value.
-        this.setProperty(state.object, key, kinds['init']);
+        this.setProperty(state.object_, key, kinds['init']);
       }
     }
     stack.pop();
-    stack[stack.length - 1].value = state.object;
+    stack[stack.length - 1].value = state.object_;
   }
 };
 
 Interpreter.prototype['stepProgram'] = function() {
   var stack = this.stateStack;
   var state = stack[stack.length - 1];
-  var node = state.node;
   var n = state.n_ || 0;
-  if (node['body'][n]) {
+  var expression = state.node['body'][n];
+  if (expression) {
     state.done = false;
     state.n_ = n + 1;
-    stack.push({node: node['body'][n]});
+    stack.push({node: expression});
   } else {
     state.done = true;
     // Don't pop the stateStack.
@@ -3643,11 +3668,11 @@ Interpreter.prototype['stepReturnStatement'] = function() {
 Interpreter.prototype['stepSequenceExpression'] = function() {
   var stack = this.stateStack;
   var state = stack[stack.length - 1];
-  var node = state.node;
   var n = state.n_ || 0;
-  if (node['expressions'][n]) {
+  var expression = state.node['expressions'][n];
+  if (expression) {
     state.n_ = n + 1;
-    stack.push({node: node['expressions'][n]});
+    stack.push({node: expression});
   } else {
     stack.pop();
     stack[stack.length - 1].value = state.value;
@@ -3725,10 +3750,9 @@ Interpreter.prototype['stepThisExpression'] = function() {
 Interpreter.prototype['stepThrowStatement'] = function() {
   var stack = this.stateStack;
   var state = stack[stack.length - 1];
-  var node = state.node;
   if (!state.done_) {
     state.done_ = true;
-    stack.push({node: node['argument']});
+    stack.push({node: state.node['argument']});
   } else {
     this.throwException(state.value);
   }
@@ -3790,8 +3814,8 @@ Interpreter.prototype['stepUnaryExpression'] = function() {
     }
     value = this.deleteProperty(obj, name);
     if (!value && this.getScope().strict) {
-      this.throwException(this.TYPE_ERROR, 'Cannot delete property \'' +
-                          name + '\' of \'' + obj + '\'');
+      this.throwException(this.TYPE_ERROR, "Cannot delete property '" +
+                          name + "' of '" + obj + "'");
       return;
     }
   } else if (node['operator'] == 'typeof') {
@@ -3866,15 +3890,17 @@ Interpreter.prototype['stepUpdateExpression'] = function() {
 Interpreter.prototype['stepVariableDeclaration'] = function() {
   var stack = this.stateStack;
   var state = stack[stack.length - 1];
-  var node = state.node;
+  var declarations = state.node['declarations'];
   var n = state.n_ || 0;
-  var declarationNode = node['declarations'][n];
+  var declarationNode = declarations[n];
   if (state.value && declarationNode) {
     // This setValue call never needs to deal with calling a setter function.
+    // Note that this is setting the init value, not defining the variable.
+    // Variable definition is done when scope is populated.
     this.setValue(this.createPrimitive(declarationNode['id']['name']),
                   state.value);
     state.value = null;
-    declarationNode = node['declarations'][++n];
+    declarationNode = declarations[++n];
   }
   while (declarationNode) {
     // Skip any declarations that are not initialized.  They have already
@@ -3884,7 +3910,7 @@ Interpreter.prototype['stepVariableDeclaration'] = function() {
       stack.push({node: declarationNode['init']});
       return;
     }
-    declarationNode = node['declarations'][++n];
+    declarationNode = declarations[++n];
   }
   stack.pop();
 };
