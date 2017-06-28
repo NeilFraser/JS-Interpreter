@@ -39,6 +39,12 @@ function deserialize(json, interpreter) {
         // Special number: {'Number': 'Infinity'}
         return Number(data);
       }
+      if ((data = value['Value'])) {
+        // Special value: {'Value': 'undefined'}
+        if (value['Value'] == 'undefined') {
+          return undefined;
+        }
+      }
     }
     return value;
   }
@@ -144,6 +150,9 @@ function serialize(interpreter) {
       }
       return {'#': ref};
     }
+    if (value === undefined) {
+      return {'Value': 'undefined'};
+    }
     if (typeof value == 'number') {
       if (value == Infinity) {
         return {'Number': 'Infinity'};
@@ -231,10 +240,12 @@ function objectHunt_(node, objectList) {
     if (objectList.indexOf(node) != -1) {
       return;
     }
-    var names = Object.getOwnPropertyNames(node);
     objectList.push(node);
-    for (var i = 0; i < names.length; i++) {
-      objectHunt_(node[names[i]], objectList);
+    if (typeof node == 'object') {  // Recurse.
+      var names = Object.getOwnPropertyNames(node);
+      for (var i = 0; i < names.length; i++) {
+        objectHunt_(node[names[i]], objectList);
+      }
     }
   }
 }
