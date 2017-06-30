@@ -10,19 +10,17 @@
     var myInterpreter;
     function initAlert(interpreter, scope) {
       var wrapper = function(text) {
-        text = text ? text.toString() : '';
-        return interpreter.createPrimitive(alert(text));
+        return alert(text);
       };
       interpreter.setProperty(scope, 'alert',
           interpreter.createNativeFunction(wrapper));
 
       var wrapper = function getXhr(href, callback) {
-        href = href ? href.toString() : '';
         var req = new XMLHttpRequest();
         req.open('GET', href, true);
         req.onreadystatechange = function() {
           if (req.readyState == 4 && req.status == 200) {
-            callback(interpreter.createPrimitive(req.responseText));
+            callback(req.responseText);
           }
         };
         req.send(null);

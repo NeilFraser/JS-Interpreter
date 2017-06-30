@@ -10,21 +10,18 @@
     var myInterpreter;
     function initAlert(interpreter, scope) {
       var wrapper = function(text) {
-        text = text ? text.toString() : '';
-        return interpreter.createPrimitive(alert(text));
+        return alert(text);
       };
       interpreter.setProperty(scope, 'alert',
           interpreter.createNativeFunction(wrapper));
 
       var wrapper = function() {
-        var text = document.getElementById('JSON_input').value;
-        return interpreter.createPrimitive(text);
+        return document.getElementById('JSON_input').value;
       };
       interpreter.setProperty(scope, 'getInput',
           interpreter.createNativeFunction(wrapper));
 
       var wrapper = function(text) {
-        text = text ? text.toString() : '';
         document.getElementById('JSON_output').value = text;
       };
       interpreter.setProperty(scope, 'setOutput',
@@ -89,19 +86,13 @@
   <h1>JS-Interpreter JSON Demo</h1>
 
   <p>Moving primitive values (numbers, strings, booleans, etc) in and out of the
-  interpreter is easy, just use <code>interpreter.createPrimitive(value)</code>
-  to wrap a JS primitive into an interpreter's primitive, and
-  <code>value.valueOf()</code> to extract a JS primitive from an interpreter's
-  primitive (or use <code>value.toString()</code>,
-  <code>value.toNumber()</code>, or <code>value.toBoolean()</code> to coerce
-  specific types).</p>
-
-  <p>By contrast, moving objects in and out of the interpreter is not advised.
+  interpreter is easy, they may be passed back and forth in function calls.
+  By contrast, moving objects in and out of the interpreter is not advised.
   Having two JavaScript environments with handles to the same mutable JS object
   would be problematic.  As a result, the best way to move objects (including
   arrays) in and out of the interpreter is to serialize and deserialize them
   as JSON.  Below is a minimal example of round-tripping a JSON object though
-  the interperter and back.</p>
+  the interpreter and back.</p>
 
   <p>Click <em>Parse</em>, then either click <em>Step</em> repeatedly,
   or click <em>Run</em> once.  Open your browser's console for errors.</p>
