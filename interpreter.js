@@ -368,7 +368,6 @@ Interpreter.prototype.initFunction = function(scope) {
             'CreateListFromArrayLike called on non-object');
       }
     }
-    state.doneArgs_ = true;
     state.doneExec_ = false;
   };
   this.setNativeFunctionPrototype(this.FUNCTION, 'apply', wrapper);
@@ -385,7 +384,6 @@ Interpreter.prototype.initFunction = function(scope) {
     for (var i = 1; i < arguments.length; i++) {
       state.arguments_.push(arguments[i]);
     }
-    state.doneArgs_ = true;
     state.doneExec_ = false;
   };
   this.setNativeFunctionPrototype(this.FUNCTION, 'call', wrapper);
@@ -552,14 +550,11 @@ Interpreter.prototype.initObject = function(scope) {
     var set = thisInterpreter.getProperty(descriptor, 'set');
     var nativeDescriptor = {
       configurable: thisInterpreter.pseudoToNative(
-          /** @type !Interpreter.Primitive */
-          (thisInterpreter.getProperty(descriptor, 'configurable'))),
+          thisInterpreter.getProperty(descriptor, 'configurable')),
       enumerable: thisInterpreter.pseudoToNative(
-          /** @type !Interpreter.Primitive */
-          (thisInterpreter.getProperty(descriptor, 'enumerable'))),
+          thisInterpreter.getProperty(descriptor, 'enumerable')),
       writable: thisInterpreter.pseudoToNative(
-          /** @type !Interpreter.Primitive */
-          (thisInterpreter.getProperty(descriptor, 'writable'))),
+          thisInterpreter.getProperty(descriptor, 'writable')),
       get: get === undefined ? undefined : get,
       set: set === undefined ? undefined : set
     };
@@ -1136,7 +1131,7 @@ Interpreter.prototype.initNumber = function(scope) {
   // Instance methods on Number.
   wrapper = function(fractionDigits) {
     try {
-      return this.toExponential(fractionDigits);
+      return Number(this).toExponential(fractionDigits);
     } catch (e) {
       // Throws if fractionDigits isn't within 0-20.
       thisInterpreter.throwException(thisInterpreter.ERROR, e.message);
@@ -1146,7 +1141,7 @@ Interpreter.prototype.initNumber = function(scope) {
 
   wrapper = function(digits) {
     try {
-      return this.toFixed(digits);
+      return Number(this).toFixed(digits);
     } catch (e) {
       // Throws if digits isn't within 0-20.
       thisInterpreter.throwException(thisInterpreter.ERROR, e.message);
@@ -1156,7 +1151,7 @@ Interpreter.prototype.initNumber = function(scope) {
 
   wrapper = function(precision) {
     try {
-      return this.toPrecision(precision);
+      return Number(this).toPrecision(precision);
     } catch (e) {
       // Throws if precision isn't within range (depends on implementation).
       thisInterpreter.throwException(thisInterpreter.ERROR, e.message);
@@ -1166,7 +1161,7 @@ Interpreter.prototype.initNumber = function(scope) {
 
   wrapper = function(radix) {
     try {
-      return this.toString(radix);
+      return Number(this).toString(radix);
     } catch (e) {
       // Throws if radix isn't within 2-36.
       thisInterpreter.throwException(thisInterpreter.ERROR, e.message);
@@ -1177,7 +1172,7 @@ Interpreter.prototype.initNumber = function(scope) {
   wrapper = function(locales, options) {
     locales = locales ? thisInterpreter.pseudoToNative(locales) : undefined;
     options = options ? thisInterpreter.pseudoToNative(options) : undefined;
-    return this.toNumber().toLocaleString(locales, options);
+    return Number(this).toLocaleString(locales, options);
   };
   this.setNativeFunctionPrototype(this.NUMBER, 'toLocaleString', wrapper);
 };
@@ -1222,7 +1217,7 @@ Interpreter.prototype.initString = function(scope) {
   wrapper = function(compareString, locales, options) {
     locales = locales ? thisInterpreter.pseudoToNative(locales) : undefined;
     options = options ? thisInterpreter.pseudoToNative(options) : undefined;
-    return this.localeCompare(compareString, locales, options);
+    return String(this).localeCompare(compareString, locales, options);
   };
   this.setNativeFunctionPrototype(this.STRING, 'localeCompare', wrapper);
 
@@ -1230,14 +1225,14 @@ Interpreter.prototype.initString = function(scope) {
     if (thisInterpreter.isa(separator, thisInterpreter.REGEXP)) {
       separator = separator.data;
     }
-    var jsList = this.split(separator, limit);
-    return thisInterpreter.pseudoToNative(jsList);
+    var jsList = String(this).split(separator, limit);
+    return thisInterpreter.nativeToPseudo(jsList);
   };
   this.setNativeFunctionPrototype(this.STRING, 'split', wrapper);
 
   wrapper = function(regexp) {
     regexp = regexp ? regexp.data : undefined;
-    var match = this.match(regexp);
+    var match = String(this).match(regexp);
     if (!match) {
       return null;
     }
@@ -1247,13 +1242,13 @@ Interpreter.prototype.initString = function(scope) {
 
   wrapper = function(regexp) {
     regexp = regexp ? regexp.data : undefined;
-    return this.search(regexp);
+    return String(this).search(regexp);
   };
   this.setNativeFunctionPrototype(this.STRING, 'search', wrapper);
 
   wrapper = function(substr, newSubStr) {
     // TODO: Rewrite as a polyfill to support function replacements.
-    return this.replace(substr, newSubStr);
+    return String(this).replace(substr, newSubStr);
   };
   this.setNativeFunctionPrototype(this.STRING, 'replace', wrapper);
 };
@@ -1633,7 +1628,7 @@ Interpreter.Object.prototype.isObject = true;
 Interpreter.Object.prototype.class = 'Object';
 
 /**
- * @type {number|string|boolean|undefined|!RegExp}
+ * @type {*}
  */
 Interpreter.Object.prototype.data = null;
 
@@ -1985,7 +1980,7 @@ Interpreter.prototype.getProperty = function(obj, name) {
 
 /**
  * Does the named property exist on a data object.
- * @param {!Interpreter.Object|!Interpreter.Primitive} obj Data object.
+ * @param {*} obj Data object.
  * @param {*} name Name of property.
  * @return {boolean} True if property exists.
  */
@@ -2491,7 +2486,7 @@ Interpreter.prototype.pushGetter_ = function(func, left) {
  * @param {!Interpreter.Object} func Function to execute.
  * @param {!Interpreter.Object|!Array} left
  *     Name of variable or object/propname tuple.
- * @param {!Interpreter.Object|Interpreter.Primitive} value Value to set.
+ * @param {*} value Value to set.
  * @private
  */
 Interpreter.prototype.pushSetter_ = function(func, left, value) {
@@ -2800,14 +2795,6 @@ Interpreter.prototype['stepCallExpression'] = function() {
       state.n_++;
       return;
     }
-    state.doneArgs_ = true;
-  }
-  if (!state.doneExec_) {
-    state.doneExec_ = true;
-    var func = state.func_;
-    if (!func || !func.isObject) {
-      this.throwException(this.TYPE_ERROR, func + ' is not a function');
-    }
     // Determine value of 'this' in function.
     if (state.node['type'] === 'NewExpression') {
       if (func.illegalConstructor) {
@@ -2823,6 +2810,14 @@ Interpreter.prototype['stepCallExpression'] = function() {
     } else {
       // Global function, 'this' is global object (or 'undefined' if strict).
       state.funcThis_ = this.getScope().strict ? undefined : this.global;
+    }
+    state.doneArgs_ = true;
+  }
+  if (!state.doneExec_) {
+    state.doneExec_ = true;
+    var func = state.func_;
+    if (!func || !func.isObject) {
+      this.throwException(this.TYPE_ERROR, func + ' is not a function');
     }
     var funcNode = func.node;
     if (funcNode) {
@@ -3416,7 +3411,7 @@ Interpreter.prototype['stepSwitchStatement'] = function() {
     stack.push({node: state.node['discriminant']});
     return;
   }
-  if (!state.test_ === 1) {
+  if (state.test_ === 1) {
     state.test_ = 2;
     // Preserve switch value between case tests.
     state.switchValue_ = state.value;
