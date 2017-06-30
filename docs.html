@@ -89,12 +89,10 @@
   <pre>
     var myCode = 'alert(url);';
     var initFunc = function(interpreter, scope) {
-      interpreter.setProperty(scope, 'url',
-          interpreter.createPrimitive(location.toString()));
+      interpreter.setProperty(scope, 'url', String(location));
 
       var wrapper = function(text) {
-        text = text ? text.toString() : '';
-        return interpreter.createPrimitive(alert(text));
+        return alert(text);
       };
       interpreter.setProperty(scope, 'alert',
           interpreter.createNativeFunction(wrapper));
@@ -114,12 +112,11 @@
 
   <pre>
     var wrapper = function(href, callback) {
-      href = href ? href.toString() : '';
       var req = new XMLHttpRequest();
       req.open('GET', href, true);
       req.onreadystatechange = function() {
         if (req.readyState == 4 && req.status == 200) {
-          callback(interpreter.createPrimitive(req.responseText));
+          callback(req.responseText);
         }
       };
       req.send(null);
