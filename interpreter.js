@@ -121,6 +121,12 @@ Interpreter.READONLY_NONENUMERABLE_DESCRIPTOR = {
  */
 Interpreter.STEP_ERROR = {};
 
+/**
+ * Unique symbol for indicating that a reference is a variable on the scope,
+ * not an object property.
+ */
+Interpreter.SCOPE_REFERENCE = {};
+
 // For cycle detection in array to string and error conversion;
 // see spec bug github.com/tc39/ecma262/issues/289
 // Since this is for atomic actions only, it can be a class property.
@@ -254,7 +260,6 @@ Interpreter.prototype.initGlobalScope = function(scope) {
   for (var i = 0; i < strFunctions.length; i++) {
     var wrapper = (function(nativeFunc) {
       return function(str) {
-        str = (str || undefined).toString();
         try {
           return nativeFunc(str);
         } catch (e) {
@@ -291,13 +296,13 @@ Interpreter.prototype.initFunction = function(scope) {
       var newFunc = thisInterpreter.createObject(thisInterpreter.FUNCTION);
     }
     if (arguments.length) {
-      var code = arguments[arguments.length - 1].toString();
+      var code = String(arguments[arguments.length - 1]);
     } else {
       var code = '';
     }
     var args = [];
     for (var i = 0; i < arguments.length - 1; i++) {
-      var name = arguments[i].toString();
+      var name = String(arguments[i]);
       if (!name.match(identifierRegexp)) {
         thisInterpreter.throwException(thisInterpreter.SYNTAX_ERROR,
             'Invalid function argument: ' + name);
@@ -467,7 +472,7 @@ Interpreter.prototype.initObject = function(scope) {
   /**
    * Checks if the provided value is null or undefined.
    * If so, then throw an error in the call stack.
-   * @param {*} value Value to check.
+   * @param {Interpreter.Value} value Value to check.
    */
   var throwIfNullUndefined = function(value) {
     if (value === undefined || value === null) {
@@ -850,7 +855,7 @@ Interpreter.prototype.initArray = function(scope) {
     try {
       var text = [];
       for (var i = 0; i < this.length; i++) {
-        text[i] = this.properties[i].toString();
+        text[i] = String(this.properties[i]);
       }
     } finally {
       cycles.pop();
@@ -1229,7 +1234,7 @@ Interpreter.prototype.initString = function(scope) {
     if (!match) {
       return null;
     }
-    return thisInterpreter.pseudoToNative(match);
+    return thisInterpreter.nativeToPseudo(match);
   };
   this.setNativeFunctionPrototype(this.STRING, 'match', wrapper);
 
@@ -1508,7 +1513,7 @@ Interpreter.prototype.initError = function(scope) {
 
 /**
  * Is an object of a certain class?
- * @param {*} child Object to check.
+ * @param {Interpreter.Value} child Object to check.
  * @param {Interpreter.Object} constructor Constructor of object.
  * @return {boolean} True if object is the class or inherits from it.
  *     False otherwise.
@@ -1535,7 +1540,7 @@ Interpreter.prototype.isa = function(child, constructor) {
 
 /**
  * Is a value a legal integer for an array length?
- * @param {*} n Value to check.
+ * @param {Interpreter.Value} n Value to check.
  * @return {number} Zero, or a positive integer if the value can be
  *     converted to such.  NaN otherwise.
  */
@@ -1547,7 +1552,7 @@ Interpreter.prototype.legalArrayLength = function(n) {
 
 /**
  * Is a value a legal integer for an array index?
- * @param {*} n Value to check.
+ * @param {Interpreter.Value} n Value to check.
  * @return {number} Zero, or a positive integer if the value can be
  *     converted to such.  NaN otherwise.
  */
@@ -1557,6 +1562,12 @@ Interpreter.prototype.legalArrayIndex = function(n) {
   // 0xffffffff is 2^32-1.
   return (n === n >>> 0 && n !== 0xffffffff) ? n : NaN;
 };
+
+/**
+ * Typedef for JS values.
+ * @typedef {!Interpreter.Object|boolean|number|string|undefined|null}
+ */
+Interpreter.Value;
 
 /**
  * Class for an object.
@@ -1573,24 +1584,16 @@ Interpreter.Object = function(proto) {
   this.proto = proto;
 };
 
-/**
- * @type {Interpreter.Object}
- */
+/** @type {Interpreter.Object} */
 Interpreter.Object.prototype.proto = null;
 
-/**
- * @type {boolean}
- */
+/** @type {boolean} */
 Interpreter.Object.prototype.isObject = true;
 
-/**
- * @type {string}
- */
+/** @type {string} */
 Interpreter.Object.prototype.class = 'Object';
 
-/**
- * @type {*}
- */
+/** @type {Date|RegExp|boolean|number|string|undefined|null} */
 Interpreter.Object.prototype.data = null;
 
 /**
@@ -1656,7 +1659,7 @@ Interpreter.Object.prototype.toString = function() {
 
 /**
  * Return the object's value.
- * @return {*} Value.
+ * @return {Interpreter.Value} Value.
  * @override
  */
 Interpreter.Object.prototype.valueOf = function() {
@@ -1667,7 +1670,7 @@ Interpreter.Object.prototype.valueOf = function() {
   if (this.data instanceof Date) {
     return this.data.valueOf();  // Milliseconds.
   }
-  return this.data;  // Boxed primitive.
+  return /** @type {(boolean|number|string)} */ (this.data);  // Boxed primitive.
 };
 
 /**
@@ -1784,7 +1787,7 @@ Interpreter.prototype.createAsyncFunction = function(asyncFunc) {
  * Converts from a native JS object or value to a JS interpreter object.
  * Can handle JSON-style values.
  * @param {*} nativeObj The native JS object to be converted.
- * @return {*} The equivalent JS interpreter object.
+ * @return {Interpreter.Value} The equivalent JS interpreter object.
  */
 Interpreter.prototype.nativeToPseudo = function(nativeObj) {
   if (typeof nativeObj === 'boolean' ||
@@ -1833,7 +1836,8 @@ Interpreter.prototype.nativeToPseudo = function(nativeObj) {
 /**
  * Converts from a JS interpreter object to native JS object.
  * Can handle JSON-style values, plus cycles.
- * @param {*} pseudoObj The JS interpreter object to be converted.
+ * @param {Interpreter.Value} pseudoObj The JS interpreter object to be
+ * converted.
  * @param {Object=} opt_cycles Cycle detection (used in recursive calls).
  * @return {*} The equivalent native JS object or value.
  */
@@ -1884,7 +1888,7 @@ Interpreter.prototype.pseudoToNative = function(pseudoObj, opt_cycles) {
 
 /**
  * Look up the prototype for this value.
- * @param {*} value Data object.
+ * @param {Interpreter.Value} value Data object.
  * @return {Interpreter.Object} Prototype object, null if none.
  */
 Interpreter.prototype.getPrototype = function(value) {
@@ -1904,9 +1908,9 @@ Interpreter.prototype.getPrototype = function(value) {
 
 /**
  * Fetch a property value from a data object.
- * @param {*} obj Data object.
- * @param {*} name Name of property.
- * @return {*} Property value (may be undefined).
+ * @param {Interpreter.Value} obj Data object.
+ * @param {Interpreter.Value} name Name of property.
+ * @return {Interpreter.Value} Property value (may be undefined).
  */
 Interpreter.prototype.getProperty = function(obj, name) {
   name = String(name);
@@ -1948,8 +1952,8 @@ Interpreter.prototype.getProperty = function(obj, name) {
 
 /**
  * Does the named property exist on a data object.
- * @param {*} obj Data object.
- * @param {*} name Name of property.
+ * @param {Interpreter.Value} obj Data object.
+ * @param {Interpreter.Value} name Name of property.
  * @return {boolean} True if property exists.
  */
 Interpreter.prototype.hasProperty = function(obj, name) {
@@ -1978,8 +1982,9 @@ Interpreter.prototype.hasProperty = function(obj, name) {
 /**
  * Set a property value on a data object.
  * @param {!Interpreter.Object} obj Data object.
- * @param {*} name Name of property.
- * @param {*} value New property value or null if getter/setter is described.
+ * @param {Interpreter.Value} name Name of property.
+ * @param {Interpreter.Value} value New property value
+ *     or null if getter/setter is described.
  * @param {Object=} opt_descriptor Optional descriptor object.
  * @return {!Interpreter.Object|undefined} Returns a setter function if one
  *     needs to be called, otherwise undefined.
@@ -2112,7 +2117,7 @@ Interpreter.prototype.setProperty = function(obj, name, value, opt_descriptor) {
 /**
  * Delete a property value on a data object.
  * @param {!Interpreter.Object} obj Data object.
- * @param {*} name Name of property.
+ * @param {Interpreter.Value} name Name of property.
  * @return {boolean} True if deleted, false if undeletable.
  */
 Interpreter.prototype.deleteProperty = function(obj, name) {
@@ -2130,7 +2135,7 @@ Interpreter.prototype.deleteProperty = function(obj, name) {
  * Convenience method for adding a native function as a non-enumerable property
  * onto an object's prototype.
  * @param {!Interpreter.Object} obj Data object.
- * @param {*} name Name of property.
+ * @param {Interpreter.Value} name Name of property.
  * @param {!Function} wrapper Function object.
  */
 Interpreter.prototype.setNativeFunctionPrototype =
@@ -2204,8 +2209,9 @@ Interpreter.prototype.createSpecialScope = function(parentScope, opt_scope) {
 /**
  * Retrieves a value from the scope chain.
  * @param {string} name Name of variable.
- * @return {*} Any value.  May be flagged as being a getter and thus needing
- *   immediate execution (rather than being the value of the property).
+ * @return {Interpreter.Value} Any value.
+ *   May be flagged as being a getter and thus needing immediate execution
+ *   (rather than being the value of the property).
  */
 Interpreter.prototype.getValueFromScope = function(name) {
   var scope = this.getScope();
@@ -2231,8 +2237,8 @@ Interpreter.prototype.getValueFromScope = function(name) {
 
 /**
  * Sets a value to the current scope.
- * @param {srting} name Name of variable.
- * @param {*} value Value.
+ * @param {string} name Name of variable.
+ * @param {Interpreter.Value} value Value.
  * @return {!Interpreter.Object|undefined} Returns a setter function if one
  *     needs to be called, otherwise undefined.
  */
@@ -2335,33 +2341,34 @@ Interpreter.prototype.calledWithNew = function() {
 /**
  * Gets a value from the scope chain or from an object property.
  * @param {!Array} left Name of variable or object/propname tuple.
- * @return {*} Any value.  May be flagged as being a getter and thus needing
- *   immediate execution (rather than being the value of the property).
+ * @return {Interpreter.Value} Any value.
+ *   May be flagged as being a getter and thus needing immediate execution
+ *   (rather than being the value of the property).
  */
 Interpreter.prototype.getValue = function(left) {
-  if (left[0]) {
-    // An obj/prop components tuple (foo.bar).
-    return this.getProperty(left[0], left[1]);
-  } else {
+  if (left[0] === Interpreter.SCOPE_REFERENCE) {
     // A null/varname variable lookup.
     return this.getValueFromScope(left[1]);
+  } else {
+    // An obj/prop components tuple (foo.bar).
+    return this.getProperty(left[0], left[1]);
   }
 };
 
 /**
  * Sets a value to the scope chain or to an object property.
  * @param {!Array} left Name of variable or object/propname tuple.
- * @param {*} value Value.
+ * @param {Interpreter.Value} value Value.
  * @return {!Interpreter.Object|undefined} Returns a setter function if one
  *     needs to be called, otherwise undefined.
  */
 Interpreter.prototype.setValue = function(left, value) {
-  if (left[0]) {
-    // An obj/prop components tuple (foo.bar).
-    return this.setProperty(left[0], left[1], value);
-  } else {
+  if (left[0] === Interpreter.SCOPE_REFERENCE) {
     // A null/varname variable lookup.
     return this.setValueToScope(left[1], value);
+  } else {
+    // An obj/prop components tuple (foo.bar).
+    return this.setProperty(left[0], left[1], value);
   }
 };
 
@@ -2452,7 +2459,7 @@ Interpreter.prototype.pushGetter_ = function(func, left) {
  * @param {!Interpreter.Object} func Function to execute.
  * @param {!Interpreter.Object|!Array} left
  *     Name of variable or object/propname tuple.
- * @param {*} value Value to set.
+ * @param {Interpreter.Value} value Value to set.
  * @private
  */
 Interpreter.prototype.pushSetter_ = function(func, left, value) {
@@ -2495,23 +2502,22 @@ Interpreter.prototype['stepArrayExpression'] = function() {
   var n = state.n_ || 0;
   if (!state.array_) {
     state.array_ = this.createObject(this.ARRAY);
-  } else if (state.value) {
-    this.setProperty(state.array_, n - 1, state.value);
+    state.array_.length = elements.length;
+  } else {
+    this.setProperty(state.array_, n, state.value);
+    n++;
   }
-  if (n < elements.length) {
-    state.n_ = n + 1;
+  while (n < elements.length) {
+    // Skip missing elements - they're not defined, not undefined.
     if (elements[n]) {
       this.pushNode_(elements[n]);
-    } else {
-      // [0, 1, , 3][2] -> undefined
-      // Missing elements are not defined, they aren't undefined.
-      state.value = undefined;
+      state.n_ = n;
+      return;
     }
-  } else {
-    state.array_.length = state.n_ || 0;
-    stack.pop();
-    stack[stack.length - 1].value = state.array_;
+    n++;
   }
+  stack.pop();
+  stack[stack.length - 1].value = state.array_;
 };
 
 Interpreter.prototype['stepAssignmentExpression'] = function() {
@@ -2524,20 +2530,21 @@ Interpreter.prototype['stepAssignmentExpression'] = function() {
     return;
   }
   if (!state.doneRight_) {
-    if (!state.leftSide_) {
-      state.leftSide_ = state.value;
+    if (!state.leftReference_) {
+      state.leftReference_ = state.value;
     }
     if (state.doneGetter_) {
       state.leftValue_ = state.value;
     }
     if (!state.doneGetter_ && node['operator'] !== '=') {
-      state.leftValue_ = this.getValue(state.leftSide_);
-      if (typeof state.leftValue_ === 'object' && state.leftValue_.isGetter) {
+      var leftValue = this.getValue(state.leftReference_);
+      state.leftValue_ = leftValue;
+      if (leftValue && typeof leftValue === 'object' && leftValue.isGetter) {
         // Clear the getter flag and call the getter function.
-        state.leftValue_.isGetter = false;
+        leftValue.isGetter = false;
         state.doneGetter_ = true;
-        var func = /** @type {!Interpreter.Object} */ (state.leftValue_);
-        this.pushGetter_(func, state.leftSide_);
+        var func = /** @type {!Interpreter.Object} */ (leftValue);
+        this.pushGetter_(func, state.leftReference_);
         return;
       }
     }
@@ -2553,53 +2560,28 @@ Interpreter.prototype['stepAssignmentExpression'] = function() {
     stack[stack.length - 1].value = state.doneSetter_;
     return;
   }
-  var leftSide = state.leftValue_;
-  var rightSide = state.value;
-  var value = leftSide;
+  var value = state.leftValue_;
+  var rightValue = state.value;
   switch (node['operator']) {
-    case '=':
-      value = rightSide;
-      break;
-    case '+=':
-      value += rightSide;
-      break;
-    case '-=':
-      value -= rightSide;
-      break;
-    case '*=':
-      value *= rightSide;
-      break;
-    case '/=':
-      value /= rightSide;
-      break;
-    case '%=':
-      value %= rightSide;
-      break;
-    case '<<=':
-      value <<= rightSide;
-      break;
-    case '>>=':
-      value >>= rightSide;
-      break;
-    case '>>>=':
-      value >>>= rightSide;
-      break;
-    case '&=':
-      value &= rightSide;
-      break;
-    case '^=':
-      value ^= rightSide;
-      break;
-    case '|=':
-      value |= rightSide;
-      break;
+    case '=':    value =    rightValue; break;
+    case '+=':   value +=   rightValue; break;
+    case '-=':   value -=   rightValue; break;
+    case '*=':   value *=   rightValue; break;
+    case '/=':   value /=   rightValue; break;
+    case '%=':   value %=   rightValue; break;
+    case '<<=':  value <<=  rightValue; break;
+    case '>>=':  value >>=  rightValue; break;
+    case '>>>=': value >>>= rightValue; break;
+    case '&=':   value &=   rightValue; break;
+    case '^=':   value ^=   rightValue; break;
+    case '|=':   value |=   rightValue; break;
     default:
       throw SyntaxError('Unknown assignment expression: ' + node['operator']);
   }
-  var setter = this.setValue(state.leftSide_, value);
+  var setter = this.setValue(state.leftReference_, value);
   if (setter) {
     state.doneSetter_ = value;
-    this.pushSetter_(setter, state.leftSide_, value);
+    this.pushSetter_(setter, state.leftReference_, value);
     return;
   }
   // Return if no setter function.
@@ -2623,80 +2605,42 @@ Interpreter.prototype['stepBinaryExpression'] = function() {
     return;
   }
   stack.pop();
-  var leftSide = state.leftValue_;
-  var rightSide = state.value;
+  var leftValue = state.leftValue_;
+  var rightValue = state.value;
   var value;
   switch (node['operator']) {
-    case '==':
-      value = leftSide == rightSide;
-      break;
-    case '!=':
-      value = leftSide != rightSide;
-      break;
-    case '===':
-      value = leftSide === rightSide;
-      break;
-    case '!==':
-      value = leftSide !== rightSide;
-      break;
-    case '>':
-      value = leftSide > rightSide;
-      break;
-    case '>=':
-      value = leftSide >= rightSide;
-      break;
-    case '<':
-      value = leftSide < rightSide;
-      break;
-    case '<=':
-      value = leftSide <= rightSide;
-      break;
-    case '+':
-      value = leftSide + rightSide;
-      break;
-    case '-':
-      value = leftSide - rightSide;
-      break;
-    case '*':
-      value = leftSide * rightSide;
-      break;
-    case '/':
-      value = leftSide / rightSide;
-      break;
-    case '%':
-      value = leftSide % rightSide;
-      break;
-    case '&':
-      value = leftSide & rightSide;
-      break;
-    case '|':
-      value = leftSide | rightSide;
-      break;
-    case '^':
-      value = leftSide ^ rightSide;
-      break;
-    case '<<':
-      value = leftSide << rightSide;
-      break;
-    case '>>':
-      value = leftSide >> rightSide;
-      break;
-    case '>>>':
-      value = leftSide >>> rightSide;
-      break;
+    case '==':  value = leftValue ==  rightValue; break;
+    case '!=':  value = leftValue !=  rightValue; break;
+    case '===': value = leftValue === rightValue; break;
+    case '!==': value = leftValue !== rightValue; break;
+    case '>':   value = leftValue >   rightValue; break;
+    case '>=':  value = leftValue >=  rightValue; break;
+    case '<':   value = leftValue <   rightValue; break;
+    case '<=':  value = leftValue <=  rightValue; break;
+    case '+':   value = leftValue +   rightValue; break;
+    case '-':   value = leftValue -   rightValue; break;
+    case '*':   value = leftValue *   rightValue; break;
+    case '/':   value = leftValue /   rightValue; break;
+    case '%':   value = leftValue %   rightValue; break;
+    case '&':   value = leftValue &   rightValue; break;
+    case '|':   value = leftValue |   rightValue; break;
+    case '^':   value = leftValue ^   rightValue; break;
+    case '<<':  value = leftValue <<  rightValue; break;
+    case '>>':  value = leftValue >>  rightValue; break;
+    case '>>>': value = leftValue >>> rightValue; break;
     case 'in':
-      if (!rightSide || !rightSide.isObject) {
+      if (!rightValue || !rightValue.isObject) {
         this.throwException(this.TYPE_ERROR,
-            "'in' expects an object, not '" + rightSide + "'");
+            "'in' expects an object, not '" + rightValue + "'");
       }
-      value = this.hasProperty(rightSide, leftSide);
+      value = this.hasProperty(rightValue, leftValue);
       break;
     case 'instanceof':
-      if (!this.isa(rightSide, this.FUNCTION)) {
+      if (!this.isa(rightValue, this.FUNCTION)) {
         this.throwException(this.TYPE_ERROR,
-            'Expecting a function in instanceof check');
+            'Right-hand side of instanceof is not an object');
       }
-      value = leftSide.isObject ? this.isa(leftSide, rightSide) : false;
+      value = leftValue.isObject ? this.isa(leftValue, rightValue) : false;
       break;
     default:
       throw SyntaxError('Unknown binary operator: ' + node['operator']);
@@ -2758,7 +2702,7 @@ Interpreter.prototype['stepCallExpression'] = function() {
       state.func_ = this.getValue(func);
       state.components_ = func;
       func = state.func_;
-      if (typeof func === 'object' && func.isGetter) {
+      if (func && typeof func === 'object' && func.isGetter) {
         // Clear the getter flag and call the getter function.
         func.isGetter = false;
         this.pushGetter_(/** @type {!Interpreter.Object} */ (func),
@@ -3069,7 +3013,7 @@ Interpreter.prototype['stepForInStatement'] = function() {
       }
       state.object_ = this.getPrototype(state.object_);
     } while (state.object_ !== null);
-    if (!state.object_ === null) {
+    if (state.object_ === null) {
       // Done, exit loop.
       stack.pop();
       return;
@@ -3081,7 +3025,8 @@ Interpreter.prototype['stepForInStatement'] = function() {
     var left = node['left'];
     if (left['type'] === 'VariableDeclaration') {
       // Inline variable declaration: for (var x in y)
-      state.variable_ = [null, left['declarations'][0]['id']['name']];
+      state.variable_ =
+          [Interpreter.SCOPE_REFERENCE, left['declarations'][0]['id']['name']];
     } else {
       // Arbitrary left side: for (foo().bar in y)
       state.variable_ = null;
@@ -3163,7 +3108,7 @@ Interpreter.prototype['stepIdentifier'] = function() {
   var state = stack.pop();
   var name = state.node['name'];
   if (state.components) {
-    stack[stack.length - 1].value = [null, name];
+    stack[stack.length - 1].value = [Interpreter.SCOPE_REFERENCE, name];
     return;
   }
   var value = this.getValueFromScope(name);
@@ -3261,7 +3206,7 @@ Interpreter.prototype['stepMemberExpression'] = function() {
     stack[stack.length - 1].value = [state.object_, propName];
   } else {
     var value = this.getProperty(state.object_, propName);
-    if (typeof value === 'object' && value.isGetter) {
+    if (value && typeof value === 'object' && value.isGetter) {
       // Clear the getter flag and call the getter function.
       value.isGetter = false;
       var func = /** @type {!Interpreter.Object} */ (value);
@@ -3539,12 +3484,13 @@ Interpreter.prototype['stepUpdateExpression'] = function() {
     state.leftValue_ = state.value;
   }
   if (!state.doneGetter_) {
-    state.leftValue_ = this.getValue(state.leftSide_);
-    if (typeof state.leftValue_ === 'object' && state.leftValue_.isGetter) {
+    var leftValue = this.getValue(state.leftSide_);
+    state.leftValue_ = leftValue;
+    if (leftValue && typeof leftValue === 'object' && leftValue.isGetter) {
       // Clear the getter flag and call the getter function.
-      state.leftValue_.isGetter = false;
+      leftValue.isGetter = false;
       state.doneGetter_ = true;
-      var func = /** @type {!Interpreter.Object} */ (state.leftValue_);
+      var func = /** @type {!Interpreter.Object} */ (leftValue);
       this.pushGetter_(func, state.leftSide_);
       return;
     }
