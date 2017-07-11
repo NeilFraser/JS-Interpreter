@@ -131,9 +131,11 @@ Interpreter.STEP_ERROR = {};
  */
 Interpreter.SCOPE_REFERENCE = {};
 
-// For cycle detection in array to string and error conversion;
-// see spec bug github.com/tc39/ecma262/issues/289
-// Since this is for atomic actions only, it can be a class property.
+/**
+ * For cycle detection in array to string and error conversion;
+ * see spec bug github.com/tc39/ecma262/issues/289
+ * Since this is for atomic actions only, it can be a class property.
+ */
 Interpreter.toStringCycles_ = [];
 
 /**
@@ -277,7 +279,8 @@ Interpreter.prototype.initGlobalScope = function(scope) {
       };
     })(strFunctions[i][0]);
     this.setProperty(scope, strFunctions[i][1],
-        this.createNativeFunction(wrapper, false));
+        this.createNativeFunction(wrapper, false),
+        Interpreter.NONENUMERABLE_DESCRIPTOR);
   }
 
   // Run any user-provided initialization.
@@ -324,8 +327,14 @@ Interpreter.prototype.initFunction = function(scope) {
     newFunc.parentScope = thisInterpreter.stateStack[0].scope;
     // Acorn needs to parse code in the context of a function or else 'return'
     // statements will be syntax errors.
+    try {
     var ast = acorn.parse('$ = function(' + args + ') {' + code + '};',
         Interpreter.PARSE_OPTIONS);
+    } catch (e) {
+      // Acorn threw a SyntaxError.  Rethrow as a trappable error.
+      thisInterpreter.throwException(thisInterpreter.SYNTAX_ERROR,
+          'Invalid code: ' + e.message);
+    }
     if (ast['body'].length !== 1) {
       // Function('a', 'return a + 6;}; {alert(1);');
       thisInterpreter.throwException(thisInterpreter.SYNTAX_ERROR,
@@ -628,8 +637,8 @@ Interpreter.prototype.initObject = function(scope) {
     thisInterpreter.setProperty(descriptor, 'configurable', configurable);
     thisInterpreter.setProperty(descriptor, 'enumerable', enumerable);
     if (getter || setter) {
-      thisInterpreter.setProperty(descriptor, 'getter', getter);
-      thisInterpreter.setProperty(descriptor, 'setter', setter);
+      thisInterpreter.setProperty(descriptor, 'get', getter);
+      thisInterpreter.setProperty(descriptor, 'set', setter);
     } else {
       thisInterpreter.setProperty(descriptor, 'writable', writable);
       thisInterpreter.setProperty(descriptor, 'value',
@@ -732,7 +741,7 @@ Interpreter.prototype.initArray = function(scope) {
     }
     var first = arguments[0];
     if (arguments.length === 1 && typeof first === 'number') {
-      if (isNaN(thisInterpreter.legalArrayLength(first))) {
+      if (isNaN(Interpreter.legalArrayLength(first))) {
         thisInterpreter.throwException(thisInterpreter.RANGE_ERROR,
                                        'Invalid array length');
       }
@@ -1566,27 +1575,27 @@ Interpreter.prototype.isa = function(child, constructor) {
 
 /**
  * Is a value a legal integer for an array length?
- * @param {Interpreter.Value} n Value to check.
+ * @param {Interpreter.Value} x Value to check.
  * @return {number} Zero, or a positive integer if the value can be
  *     converted to such.  NaN otherwise.
  */
-Interpreter.prototype.legalArrayLength = function(n) {
-  n = Number(n);
+Interpreter.legalArrayLength = function(x) {
+  var n = x >>> 0;
   // Array length must be between 0 and 2^32-1 (inclusive).
-  return (n === n >>> 0) ? n : NaN;
+  return (n === Number(x)) ? n : NaN;
 };
 
 /**
  * Is a value a legal integer for an array index?
- * @param {Interpreter.Value} n Value to check.
+ * @param {Interpreter.Value} x Value to check.
  * @return {number} Zero, or a positive integer if the value can be
  *     converted to such.  NaN otherwise.
  */
-Interpreter.prototype.legalArrayIndex = function(n) {
-  n = Number(n);
+Interpreter.legalArrayIndex = function(x) {
+  var n = x >>> 0;
   // Array index cannot be 2^32-1, otherwise length would be 2^32.
   // 0xffffffff is 2^32-1.
-  return (n === n >>> 0 && n !== 0xffffffff) ? n : NaN;
+  return (String(n) === String(x) && n !== 0xffffffff) ? n : NaN;
 };
 
 /**
@@ -1956,7 +1965,7 @@ Interpreter.prototype.getProperty = function(obj, name) {
     // Might have numbers in there?
     // Special cases for string array indexing
     if (this.isa(obj, this.STRING)) {
-      var n = this.legalArrayIndex(name);
+      var n = Interpreter.legalArrayIndex(name);
       if (!isNaN(n) && n < String(obj).length) {
         return String(obj)[n];
       }
@@ -1993,7 +2002,7 @@ Interpreter.prototype.hasProperty = function(obj, name) {
     return true;
   }
   if (this.isa(obj, this.STRING)) {
-    var n = this.legalArrayIndex(name);
+    var n = Interpreter.legalArrayIndex(name);
     if (!isNaN(n) && n < String(obj).length) {
       return true;
     }
@@ -2039,7 +2048,7 @@ Interpreter.prototype.setProperty = function(obj, name, value, opt_descriptor) {
     return;
   }
   if (this.isa(obj, this.STRING)) {
-    var n = this.legalArrayIndex(name);
+    var n = Interpreter.legalArrayIndex(name);
     if (name === 'length' || (!isNaN(n) && n < String(obj).length)) {
       // Can't set length or letters on String objects.
       if (strict) {
@@ -2054,13 +2063,13 @@ Interpreter.prototype.setProperty = function(obj, name, value, opt_descriptor) {
     var i;
     if (name === 'length') {
       // Delete elements if length is smaller.
-      var newLength = this.legalArrayLength(value);
+      var newLength = Interpreter.legalArrayLength(value);
       if (isNaN(newLength)) {
         this.throwException(this.RANGE_ERROR, 'Invalid array length');
       }
       if (newLength < obj.length) {
         for (i in obj.properties) {
-          i = this.legalArrayIndex(i);
+          i = Interpreter.legalArrayIndex(i);
           if (!isNaN(i) && newLength <= i) {
             delete obj.properties[i];
           }
@@ -2068,7 +2077,7 @@ Interpreter.prototype.setProperty = function(obj, name, value, opt_descriptor) {
       }
       obj.length = newLength;
       return;  // Don't set a real length property.
-    } else if (!isNaN(i = this.legalArrayIndex(name))) {
+    } else if (!isNaN(i = Interpreter.legalArrayIndex(name))) {
       // Increase length if this index is larger.
       obj.length = Math.max(obj.length, i + 1);
     }
@@ -2081,9 +2090,11 @@ Interpreter.prototype.setProperty = function(obj, name, value, opt_descriptor) {
     return;
   }
   if (opt_descriptor) {
+    var previouslyDefined = name in obj.properties;
     // Define the property.
     obj.properties[name] = value;
-    if (!opt_descriptor.configurable) {
+    if ((!previouslyDefined || opt_descriptor.configurable !== undefined) &&
+        !opt_descriptor.configurable) {
       obj.notConfigurable[name] = true;
     }
     var getter = opt_descriptor.get;
@@ -2098,18 +2109,18 @@ Interpreter.prototype.setProperty = function(obj, name, value, opt_descriptor) {
     } else {
       delete obj.setter[name];
     }
-    var enumerable = opt_descriptor.enumerable || false;
-    if (enumerable) {
-      delete obj.notEnumerable[name];
-    } else {
-      obj.notEnumerable[name] = true;
+    if (!previouslyDefined || opt_descriptor.enumerable !== undefined) {
+      if (opt_descriptor.enumerable) {
+        delete obj.notEnumerable[name];
+      } else {
+        obj.notEnumerable[name] = true;
+      }
     }
     if (getter || setter) {
       delete obj.notWritable[name];
       obj.properties[name] = undefined;
-    } else {
-      var writable = opt_descriptor.writable || false;
-      if (writable) {
+    } else if (!previouslyDefined || opt_descriptor.writable !== undefined) {
+      if (opt_descriptor.writable) {
         delete obj.notWritable[name];
       } else {
         obj.notWritable[name] = true;
@@ -2117,21 +2128,27 @@ Interpreter.prototype.setProperty = function(obj, name, value, opt_descriptor) {
     }
   } else {
     // Set the property.
-    // Determine if there is a setter anywhere in the parent chain.
-    var parent = obj;
-    do {
-      if (parent.setter && parent.setter[name]) {
-        return parent.setter[name];
+    // Determine the parent (possibly self) where the property is defined.
+    var defObj = obj;
+    while (!(name in defObj.properties)) {
+      defObj = this.getPrototype(defObj);
+      if (!defObj) {
+        // This is a new property.
+        defObj = obj;
+        break;
       }
-    } while ((parent = this.getPrototype(parent)));
-    if (obj.getter && obj.getter[name]) {
+    }
+    if (defObj.setter && defObj.setter[name]) {
+      return defObj.setter[name];
+    }
+    if (defObj.getter && defObj.getter[name]) {
       if (strict) {
         this.throwException(this.TYPE_ERROR, "Cannot set property '" + name +
             "' of object '" + obj + "' which only has a getter");
       }
     } else {
       // No setter, simple assignment.
-      if (!obj.notWritable[name]) {
+      if (!defObj.notWritable[name]) {
         obj.properties[name] = value;
       } else if (strict) {
         this.throwException(this.TYPE_ERROR, "Cannot assign to read only " +
@@ -2271,6 +2288,7 @@ Interpreter.prototype.getValueFromScope = function(name) {
  */
 Interpreter.prototype.setValueToScope = function(name, value) {
   var scope = this.getScope();
+  var strict = scope.strict;
   while (scope && scope !== this.global) {
     if (name in scope.properties) {
       scope.properties[name] = value;
@@ -2280,8 +2298,7 @@ Interpreter.prototype.setValueToScope = function(name, value) {
   }
   // The root scope is also an object which has readonly properties and
   // could also have setters.
-  if (scope === this.global &&
-      (!scope.strict || this.hasProperty(scope, name))) {
+  if (scope === this.global && (!strict || this.hasProperty(scope, name))) {
     return this.setProperty(scope, name, value);
   }
   this.throwException(this.REFERENCE_ERROR, name + ' is not defined');
@@ -2727,7 +2744,10 @@ Interpreter.prototype['stepCallExpression'] = function() {
     var func = state.value;
     if (Array.isArray(func)) {
       state.func_ = this.getValue(func);
-      state.components_ = func;
+      if (func[0] !== Interpreter.SCOPE_REFERENCE) {
+        // Method function, 'this' is object (ignored if invoked as 'new').
+        state.funcThis_ = func[0];
+      }
       func = state.func_;
       if (func && typeof func === 'object' && func.isGetter) {
         // Clear the getter flag and call the getter function.
@@ -2763,10 +2783,7 @@ Interpreter.prototype['stepCallExpression'] = function() {
       // Constructor, 'this' is new object.
       state.funcThis_ = this.createObject(func);
       state.isConstructor = true;
-    } else if (state.components_) {
-      // Method function, 'this' is object.
-      state.funcThis_ = state.components_[0];
-    } else {
+    } else if (state.funcThis_ === undefined) {
       // Global function, 'this' is global object (or 'undefined' if strict).
       state.funcThis_ = this.getScope().strict ? undefined : this.global;
     }
@@ -2821,7 +2838,12 @@ Interpreter.prototype['stepCallExpression'] = function() {
         // eval(new String('1 + 1')) -> '1 + 1'
         state.value = code;
       } else {
-        var ast = acorn.parse(code.toString(), Interpreter.PARSE_OPTIONS);
+        try {
+          var ast = acorn.parse(code.toString(), Interpreter.PARSE_OPTIONS);
+        } catch (e) {
+          // Acorn threw a SyntaxError.  Rethrow as a trappable error.
+          this.throwException(this.SYNTAX_ERROR, 'Invalid code: ' + e.message);
+        }
         var evalNode = {type: 'EvalProgram_', body: ast['body']};
         this.stripLocations_(evalNode, node['start'], node['end']);
         // Update current scope with definitions in eval().
