@@ -31,7 +31,7 @@ function deserialize(json, interpreter) {
        // Object reference: {'#': 42}
        value = objectList[data];
         if (!value) {
-          throw 'Object reference not found: ' + data;
+          throw ReferenceError('Object reference not found: ' + data);
         }
         return value;
       }
@@ -50,11 +50,11 @@ function deserialize(json, interpreter) {
   }
   var stack = interpreter.stateStack;
   if (!Array.isArray(json)) {
-    throw 'Top-level JSON is not a list.';
+    throw TypeError('Top-level JSON is not a list.');
   }
   if (!stack.length) {
     // Require native functions to be present.
-    throw 'Interpreter must be initialized prior to deserialization.';
+    throw Error('Interpreter must be initialized prior to deserialization.');
   }
   // Find all native functions in existing interpreter.
   var objectList = [];
@@ -79,10 +79,13 @@ function deserialize(json, interpreter) {
       case 'Object':
         obj = {};
         break;
+      case 'ScopeReference':
+        obj = Interpreter.SCOPE_REFERENCE;
+        break;
       case 'Function':
         obj = functionHash[jsonObj['id']];
         if (!obj) {
-          throw 'Function ID not found: ' + jsonObj['id'];
+          throw RangeError('Function ID not found: ' + jsonObj['id']);
         }
         break;
       case 'Array':
@@ -92,7 +95,7 @@ function deserialize(json, interpreter) {
       case 'Date':
         obj = new Date(jsonObj['data']);
         if (isNaN(obj)) {
-          throw 'Invalid date: ' + jsonObj['data'];
+          throw TypeError('Invalid date: ' + jsonObj['data']);
         }
         break;
       case 'RegExp':
@@ -105,7 +108,7 @@ function deserialize(json, interpreter) {
         obj = Object.create(nodeProto);
         break;
       default:
-        throw 'Unknown type: ' + jsonObj['type'];
+        throw TypeError('Unknown type: ' + jsonObj['type']);
     }
     objectList[i] = obj;
   }
@@ -140,8 +143,8 @@ function serialize(interpreter) {
   function encodeValue(value) {
     if (value && (typeof value == 'object' || typeof value == 'function')) {
       var ref = objectList.indexOf(value);
-      if (ref == -1) {
-        throw 'Object not found in table.';
+      if (ref === -1) {
+        throw RangeError('Object not found in table.');
       }
       return {'#': ref};
     }
@@ -149,7 +152,7 @@ function serialize(interpreter) {
       return {'Value': 'undefined'};
     }
     if (typeof value == 'number') {
-      if (value == Infinity) {
+      if (value === Infinity) {
         return {'Number': 'Infinity'};
       } else if (value == -Infinity) {
         return {'Number': '-Infinity'};
@@ -178,13 +181,17 @@ function serialize(interpreter) {
         jsonObj['type'] = 'Map';
         break;
       case Object.prototype:
-        jsonObj['type'] = 'Object';
+        if (obj === Interpreter.SCOPE_REFERENCE) {
+          jsonObj['type'] = 'ScopeReference';
+        } else {
+          jsonObj['type'] = 'Object';
+        }
         break;
       case Function.prototype:
         jsonObj['type'] = 'Function';
         jsonObj['id'] = obj.id;
         if (obj.id === undefined) {
-          throw 'Native function has no ID: ' + obj;
+          throw Error('Native function has no ID: ' + obj);
         }
         continue;  // No need to index properties.
       case Array.prototype:
@@ -210,7 +217,7 @@ function serialize(interpreter) {
         jsonObj['type'] = 'Node';
         break;
       default:
-        throw 'Unknown type: ' + obj;
+        throw TypeError('Unknown type: ' + obj);
     }
     var props = Object.create(null);
     var names = Object.getOwnPropertyNames(obj);
