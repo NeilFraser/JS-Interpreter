@@ -65,7 +65,7 @@ function deserialize(json, interpreter) {
       functionHash[objectList[i].id] = objectList[i];
     }
   }
-  // Get a handle on Acorn's node_t object.
+  // Get a handle on Acorn's node_t object.  It's tricky to access.
   var nodeProto = stack[0].node.constructor.prototype;
   // First pass: Create object stubs for every object.
   objectList = [];
@@ -105,7 +105,7 @@ function deserialize(json, interpreter) {
         obj = new Interpreter.Object(null);
         break;
       case 'Node':
-        obj = Object.create(nodeProto);
+        obj = new nodeProto.constructor();
         break;
       default:
         throw TypeError('Unknown type: ' + jsonObj['type']);
@@ -135,8 +135,11 @@ function deserialize(json, interpreter) {
       }
     }
   }
-  // First object is the stack.
-  interpreter.stateStack = objectList[0];
+  // First object is the interpreter.
+  var root = objectList[0];
+  for (var prop in root) {
+    interpreter[prop] = root[prop];
+  }
 }
 
 function serialize(interpreter) {
@@ -164,12 +167,36 @@ function serialize(interpreter) {
     }
     return value;
   }
-  var stack = interpreter.stateStack;
+  // Shallow-copy all properties of interest onto a root object.
+  var properties = [
+    'OBJECT', 'OBJECT_PROTO',
+    'FUNCTION', 'FUNCTION_PROTO',
+    'ARRAY', 'ARRAY_PROTO',
+    'REGEXP', 'REGEXP_PROTO',
+    'BOOLEAN',
+    'DATE',
+    'NUMBER',
+    'STRING',
+    'ERROR',
+    'EVAL_ERROR',
+    'RANGE_ERROR',
+    'REFERENCE_ERROR',
+    'SYNTAX_ERROR',
+    'TYPE_ERROR',
+    'URI_ERROR',
+    'global',
+    'stateStack'
+  ];
+  var root = Object.create(null);
+  for (var i = 0; i < properties.length; i++) {
+    root[properties[i]] = interpreter[properties[i]];
+  }
+
   // Find all objects.
   var objectList = [];
-  objectHunt_(stack, objectList);
-  // Get a handle on Acorn's node_t object.
-  var nodeProto = stack[0].node.constructor.prototype;
+  objectHunt_(root, objectList);
+  // Get a handle on Acorn's node_t object.  It's tricky to access.
+  var nodeProto = interpreter.stateStack[0].node.constructor.prototype;
   // Serialize every object.
   var json = [];
   for (var i = 0; i < objectList.length; i++) {
