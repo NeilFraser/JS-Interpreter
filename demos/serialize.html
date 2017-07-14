@@ -11,8 +11,7 @@
     var myInterpreter;
     function initAlert(interpreter, scope) {
       var wrapper = function(text) {
-        text = text ? text.toString() : '';
-        return interpreter.createPrimitive(alert(text));
+        return alert(text);
       };
       interpreter.setProperty(scope, 'alert',
           interpreter.createNativeFunction(wrapper));
