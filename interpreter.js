@@ -324,7 +324,7 @@ Interpreter.prototype.initFunction = function(scope) {
     args = args.join(', ');
     // Interestingly, the scope for constructed functions is the global scope,
     // even if they were constructed in some other scope.
-    newFunc.parentScope = thisInterpreter.stateStack[0].scope;
+    newFunc.parentScope = thisInterpreter.global;
     // Acorn needs to parse code in the context of a function or else 'return'
     // statements will be syntax errors.
     try {
@@ -525,13 +525,7 @@ Interpreter.prototype.initObject = function(scope) {
     if (!obj.isObject) {
       return thisInterpreter.nativeToPseudo(Object.keys(obj));
     }
-    var list = [];
-    for (var key in obj.properties) {
-      if (!obj.notEnumerable[key]) {
-        list.push(key);
-      }
-    }
-    return thisInterpreter.nativeToPseudo(list);
+    return thisInterpreter.nativeToPseudo(Object.keys(obj.properties));
   };
   this.setProperty(this.OBJECT, 'keys',
       this.createNativeFunction(wrapper, false),
@@ -627,7 +621,7 @@ Interpreter.prototype.initObject = function(scope) {
       return undefined;
     }
     var configurable = !obj.notConfigurable[prop];
-    var enumerable = !obj.notEnumerable[prop];
+    var enumerable = obj.propertyIsEnumerable(prop);
     var writable = !obj.notWritable[prop];
     var getter = obj.getter[prop];
     var setter = obj.setter[prop];
@@ -694,7 +688,7 @@ Interpreter.prototype.initObject = function(scope) {
 
   wrapper = function(prop) {
     throwIfNullUndefined(this);
-    return String(prop) in this.properties && !this.notEnumerable.has(prop);
+    return Object.prototype.propertyIsEnumerable.call(this.properties, prop);
   };
   this.setNativeFunctionPrototype(this.OBJECT, 'propertyIsEnumerable', wrapper);
 
@@ -1611,7 +1605,6 @@ Interpreter.Value;
  */
 Interpreter.Object = function(proto) {
   this.notConfigurable = Object.create(null);
-  this.notEnumerable = Object.create(null);
   this.notWritable = Object.create(null);
   this.getter = Object.create(null);
   this.setter = Object.create(null);
@@ -1910,9 +1903,6 @@ Interpreter.prototype.pseudoToNative = function(pseudoObj, opt_cycles) {
     cycles.native.push(nativeObj);
     var val;
     for (var key in pseudoObj.properties) {
-      if (pseudoObj.notEnumerable[key]) {
-        continue;
-      }
       val = pseudoObj.properties[key];
       nativeObj[key] = this.pseudoToNative(val, cycles);
     }
@@ -2092,7 +2082,6 @@ Interpreter.prototype.setProperty = function(obj, name, value, opt_descriptor) {
   if (opt_descriptor) {
     var previouslyDefined = name in obj.properties;
     // Define the property.
-    obj.properties[name] = value;
     if ((!previouslyDefined || opt_descriptor.configurable !== undefined) &&
         !opt_descriptor.configurable) {
       obj.notConfigurable[name] = true;
@@ -2109,13 +2098,6 @@ Interpreter.prototype.setProperty = function(obj, name, value, opt_descriptor) {
     } else {
       delete obj.setter[name];
     }
-    if (!previouslyDefined || opt_descriptor.enumerable !== undefined) {
-      if (opt_descriptor.enumerable) {
-        delete obj.notEnumerable[name];
-      } else {
-        obj.notEnumerable[name] = true;
-      }
-    }
     if (getter || setter) {
       delete obj.notWritable[name];
       obj.properties[name] = undefined;
@@ -2126,6 +2108,14 @@ Interpreter.prototype.setProperty = function(obj, name, value, opt_descriptor) {
         obj.notWritable[name] = true;
       }
     }
+    var descriptor = {configurable: true, value: value};
+    if (opt_descriptor.enumerable !== undefined) {
+      descriptor.enumerable = opt_descriptor.enumerable;
+    }
+    if (!getter && !setter) {
+      descriptor.writable = true;
+    }
+    Object.defineProperty(obj.properties, name, descriptor);
   } else {
     // Set the property.
     // Determine the parent (possibly self) where the property is defined.
@@ -2772,7 +2762,7 @@ Interpreter.prototype['stepCallExpression'] = function(stack, state, node) {
       state.isConstructor = true;
     } else if (state.funcThis_ === undefined) {
       // Global function, 'this' is global object (or 'undefined' if strict).
-      state.funcThis_ = this.getScope().strict ? undefined : this.global;
+      state.funcThis_ = state.scope.strict ? undefined : this.global;
     }
     state.doneArgs_ = true;
   }
@@ -2834,9 +2824,16 @@ Interpreter.prototype['stepCallExpression'] = function(stack, state, node) {
         var evalNode = {type: 'EvalProgram_', body: ast['body']};
         this.stripLocations_(evalNode, node['start'], node['end']);
         // Update current scope with definitions in eval().
-        var scope = this.getScope();
-        this.populateScope_(ast, scope);
-        this.pushNode_(evalNode).scope = scope;
+        var scope = state.scope;
+        if (scope.strict) {
+          // Strict mode get its own scope in eval.
+          scope = this.createScope(ast, scope);
+          this.pushNode_(evalNode).scope = scope;
+        } else {
+          // Non-strict mode pollutes the current scope.
+          this.populateScope_(ast, scope);
+          this.pushNode_(evalNode);
+        }
       }
     } else {
       /* A child of a function is a function but is not callable.  For example:
@@ -2864,7 +2861,7 @@ Interpreter.prototype['stepCatchClause'] = function(stack, state, node) {
     var scope;
     if (node['param']) {
       // Create an empty scope.
-      scope = this.createSpecialScope(this.getScope());
+      scope = this.createSpecialScope(state.scope);
       // Add the argument.
       var paramName = node['param']['name'];
       this.setProperty(scope, paramName, state.throwValue);
@@ -2983,7 +2980,7 @@ Interpreter.prototype['stepForInStatement'] = function(stack, state, node) {
     state.doneInit_ = true;
     if (node['left']['declarations'] &&
         node['left']['declarations'][0]['init']) {
-      if (this.getScope().strict) {
+      if (state.scope.strict) {
         this.throwException(this.SYNTAX_ERROR,
             'for-in loop variable declaration may not have an initializer.');
       }
@@ -3005,33 +3002,43 @@ Interpreter.prototype['stepForInStatement'] = function(stack, state, node) {
     // First iteration.
     state.isLoop = true;
     state.object_ = state.value;
-    state.visited_ = [];
+    state.visited_ = Object.create(null);
   }
   // Third, find the property name for this iteration.
   if (state.name_ === undefined) {
     done: do {
       if (state.object_ && state.object_.isObject) {
-        for (var prop in state.object_.properties) {
-          if (state.visited_.indexOf(prop) === -1) {
-            state.visited_.push(prop);
-            if (!state.object_.notEnumerable[prop]) {
-              state.name_ = prop;
-              state.visited_.push(prop);
-              break done;
-            }
-          }
+        if (!state.props_) {
+          state.props_ = Object.getOwnPropertyNames(state.object_.properties);
         }
-      } else {
-        for (var prop in state.object_) {
-          if (state.visited_.indexOf(prop) === -1) {
-            state.visited_.push(prop);
+        do {
+          var prop = state.props_.shift();
+        } while (prop && (state.visited_[prop] ||
+            !Object.prototype.hasOwnProperty.call(state.object_.properties,
+                                                  prop)));
+        if (prop) {
+          state.visited_[prop] = true;
+          if (Object.prototype.propertyIsEnumerable.call(
+              state.object_.properties, prop)) {
             state.name_ = prop;
-            state.visited_.push(prop);
             break done;
           }
         }
+      } else if (state.object_ !== null) {
+        if (!state.props_) {
+          state.props_ = Object.getOwnPropertyNames(state.object_);
+        }
+        do {
+          var prop = state.props_.shift();
+        } while (prop && state.visited_[prop]);
+        if (prop) {
+          state.visited_[prop] = true;
+          state.name_ = prop;
+          break done;
+        }
       }
       state.object_ = this.getPrototype(state.object_);
+      state.props_ = null;
     } while (state.object_ !== null);
     if (state.object_ === null) {
       // Done, exit loop.
@@ -3113,7 +3120,7 @@ Interpreter.prototype['stepFunctionDeclaration'] =
 
 Interpreter.prototype['stepFunctionExpression'] = function(stack, state, node) {
   stack.pop();
-  stack[stack.length - 1].value = this.createFunction(node, this.getScope());
+  stack[stack.length - 1].value = this.createFunction(node, state.scope);
 };
 
 Interpreter.prototype['stepIdentifier'] = function(stack, state, node) {
@@ -3127,7 +3134,7 @@ Interpreter.prototype['stepIdentifier'] = function(stack, state, node) {
   if (value && typeof value === 'object' && value.isGetter) {
     // Clear the getter flag and call the getter function.
     value.isGetter = false;
-    var scope = this.getScope();
+    var scope = state.scope;
     while (!this.hasProperty(scope, node['name'])) {
       scope = scope.parentScope;
     }
@@ -3433,11 +3440,11 @@ Interpreter.prototype['stepUnaryExpression'] = function(stack, state, node) {
       var obj = value[0];
       var name = value[1];
     } else {
-      var obj = this.getScope();
+      var obj = state.scope;
       var name = value;
     }
     value = this.deleteProperty(obj, name);
-    if (!value && this.getScope().strict) {
+    if (!value && state.scope.strict) {
       this.throwException(this.TYPE_ERROR, "Cannot delete property '" +
                           name + "' of '" + obj + "'");
     }
@@ -3536,7 +3543,7 @@ Interpreter.prototype['stepWithStatement'] = function(stack, state, node) {
     this.pushNode_(node['object']);
   } else if (!state.doneBody_) {
     state.doneBody_ = true;
-    var scope = this.createSpecialScope(this.getScope(), state.value);
+    var scope = this.createSpecialScope(state.scope, state.value);
     this.pushNode_(node['body']).scope = scope;
   } else {
     stack.pop();

@@ -25,7 +25,7 @@
 
 function deserialize(json, interpreter) {
   function decodeValue(value) {
-    if (value && typeof value == 'object') {
+    if (value && typeof value === 'object') {
       var data;
       if ((data = value['#'])) {
        // Object reference: {'#': 42}
@@ -41,7 +41,7 @@ function deserialize(json, interpreter) {
       }
       if ((data = value['Value'])) {
         // Special value: {'Value': 'undefined'}
-        if (value['Value'] == 'undefined') {
+        if (value['Value'] === 'undefined') {
           return undefined;
         }
       }
@@ -119,10 +119,15 @@ function deserialize(json, interpreter) {
     // Repopulate objects.
     var props = jsonObj['props'];
     if (props) {
+      var nonEnumerable = jsonObj['nonEnumerable'] || [];
       var names = Object.getOwnPropertyNames(props);
       for (var j = 0; j < names.length; j++) {
         var name = names[j];
-        obj[name] = decodeValue(props[name]);
+        Object.defineProperty(obj, name,
+            {configurable: true,
+             enumerable: nonEnumerable.indexOf(name) === -1,
+             writable: true,
+             value: decodeValue(props[name])});
       }
     }
     // Repopulate arrays.
@@ -139,12 +144,13 @@ function deserialize(json, interpreter) {
   var root = objectList[0];
   for (var prop in root) {
     interpreter[prop] = root[prop];
+    console.log(prop + ' ' + root[prop]);
   }
 }
 
 function serialize(interpreter) {
   function encodeValue(value) {
-    if (value && (typeof value == 'object' || typeof value == 'function')) {
+    if (value && (typeof value === 'object' || typeof value === 'function')) {
       var ref = objectList.indexOf(value);
       if (ref === -1) {
         throw RangeError('Object not found in table.');
@@ -154,14 +160,14 @@ function serialize(interpreter) {
     if (value === undefined) {
       return {'Value': 'undefined'};
     }
-    if (typeof value == 'number') {
+    if (typeof value === 'number') {
       if (value === Infinity) {
         return {'Number': 'Infinity'};
-      } else if (value == -Infinity) {
+      } else if (value === -Infinity) {
         return {'Number': '-Infinity'};
       } else if (isNaN(value)) {
         return {'Number': 'NaN'};
-      } else if (1 / value == -Infinity) {
+      } else if (1 / value === -Infinity) {
         return {'Number': '-0'};
       }
     }
@@ -203,6 +209,8 @@ function serialize(interpreter) {
     var jsonObj = Object.create(null);
     json.push(jsonObj);
     var obj = objectList[i];
+    // Uncomment this line for a debugging label.
+    jsonObj['#'] = i;
     switch (Object.getPrototypeOf(obj)) {
       case null:
         jsonObj['type'] = 'Map';
@@ -247,13 +255,20 @@ function serialize(interpreter) {
         throw TypeError('Unknown type: ' + obj);
     }
     var props = Object.create(null);
+    var nonEnumerable = [];
     var names = Object.getOwnPropertyNames(obj);
     for (var j = 0; j < names.length; j++) {
       var name = names[j];
       props[name] = encodeValue(obj[name]);
+      if (!Object.prototype.propertyIsEnumerable.call(obj, name)) {
+        nonEnumerable.push(name);
+      }
     }
     if (names.length) {
       jsonObj['props'] = props;
+    }
+    if (nonEnumerable.length) {
+      jsonObj['nonEnumerable'] = nonEnumerable;
     }
   }
   return json;
@@ -261,12 +276,12 @@ function serialize(interpreter) {
 
 // Recursively search the stack to find all non-primitives.
 function objectHunt_(node, objectList) {
-  if (node && (typeof node == 'object' || typeof node == 'function')) {
+  if (node && (typeof node === 'object' || typeof node === 'function')) {
     if (objectList.indexOf(node) != -1) {
       return;
     }
     objectList.push(node);
-    if (typeof node == 'object') {  // Recurse.
+    if (typeof node === 'object') {  // Recurse.
       var names = Object.getOwnPropertyNames(node);
       for (var i = 0; i < names.length; i++) {
         objectHunt_(node[names[i]], objectList);
