@@ -119,6 +119,15 @@ Interpreter.READONLY_NONENUMERABLE_DESCRIPTOR = {
 };
 
 /**
+ * Property descriptor of variables.
+ */
+Interpreter.VARIABLE_DESCRIPTOR = {
+  configurable: false,
+  enumerable: true,
+  writable: true
+};
+
+/**
  * Unique symbol for indicating that a step has encountered an error, has
  * added it to the stack, and will be thrown within the user's program.
  * When STEP_ERROR is thrown in the JS-Interpreter, the error can be ignored.
@@ -620,25 +629,21 @@ Interpreter.prototype.initObject = function(scope) {
     if (!(prop in obj.properties)) {
       return undefined;
     }
-    var configurable = !obj.notConfigurable[prop];
-    var enumerable = obj.propertyIsEnumerable(prop);
-    var writable = !obj.notWritable[prop];
+    var descriptor = Object.getOwnPropertyDescriptor(obj, prop);
     var getter = obj.getter[prop];
     var setter = obj.setter[prop];
 
-    var descriptor =
-        thisInterpreter.createObjectProto(thisInterpreter.OBJECT_PROTO);
-    thisInterpreter.setProperty(descriptor, 'configurable', configurable);
-    thisInterpreter.setProperty(descriptor, 'enumerable', enumerable);
     if (getter || setter) {
-      thisInterpreter.setProperty(descriptor, 'get', getter);
-      thisInterpreter.setProperty(descriptor, 'set', setter);
-    } else {
-      thisInterpreter.setProperty(descriptor, 'writable', writable);
-      thisInterpreter.setProperty(descriptor, 'value',
-          thisInterpreter.getProperty(obj, prop));
+      descriptor.get = getter;
+      descriptor.set = setter;
+      delete descriptor.value;
+      delete descriptor.writable;
     }
-    return descriptor;
+    var pseudoDescriptor = thisInterpreter.nativeToPseudo(descriptor);
+    if ('value' in descriptor) {
+      thisInterpreter.setProperty(pseudoDescriptor, 'value', descriptor.value);
+    }
+    return pseudoDescriptor;
   };
   this.setProperty(this.OBJECT, 'getOwnPropertyDescriptor',
       this.createNativeFunction(wrapper, false),
@@ -1604,8 +1609,6 @@ Interpreter.Value;
  * @constructor
  */
 Interpreter.Object = function(proto) {
-  this.notConfigurable = Object.create(null);
-  this.notWritable = Object.create(null);
   this.getter = Object.create(null);
   this.setter = Object.create(null);
   this.properties = Object.create(null);
@@ -2017,9 +2020,6 @@ Interpreter.prototype.hasProperty = function(obj, name) {
  */
 Interpreter.prototype.setProperty = function(obj, name, value, opt_descriptor) {
   name = String(name);
-  if (opt_descriptor && obj.notConfigurable[name]) {
-    this.throwException(this.TYPE_ERROR, 'Cannot redefine property: ' + name);
-  }
   if (obj === undefined || obj === null) {
     this.throwException(this.TYPE_ERROR,
                         "Cannot set property '" + name + "' of " + obj);
@@ -2080,12 +2080,7 @@ Interpreter.prototype.setProperty = function(obj, name, value, opt_descriptor) {
     return;
   }
   if (opt_descriptor) {
-    var previouslyDefined = name in obj.properties;
     // Define the property.
-    if ((!previouslyDefined || opt_descriptor.configurable !== undefined) &&
-        !opt_descriptor.configurable) {
-      obj.notConfigurable[name] = true;
-    }
     var getter = opt_descriptor.get;
     if (getter) {
       obj.getter[name] = getter;
@@ -2098,24 +2093,17 @@ Interpreter.prototype.setProperty = function(obj, name, value, opt_descriptor) {
     } else {
       delete obj.setter[name];
     }
-    if (getter || setter) {
-      delete obj.notWritable[name];
-      obj.properties[name] = undefined;
-    } else if (!previouslyDefined || opt_descriptor.writable !== undefined) {
-      if (opt_descriptor.writable) {
-        delete obj.notWritable[name];
-      } else {
-        obj.notWritable[name] = true;
-      }
+    var descriptor = {
+      configurable: opt_descriptor.configurable,
+      enumerable: opt_descriptor.enumerable,
+      writable: opt_descriptor.writable,
+      value: value
+    };
+    try {
+      Object.defineProperty(obj.properties, name, descriptor);
+    } catch (e) {
+      this.throwException(this.TYPE_ERROR, 'Cannot redefine property: ' + name);
     }
-    var descriptor = {configurable: true, value: value};
-    if (opt_descriptor.enumerable !== undefined) {
-      descriptor.enumerable = opt_descriptor.enumerable;
-    }
-    if (!getter && !setter) {
-      descriptor.writable = true;
-    }
-    Object.defineProperty(obj.properties, name, descriptor);
   } else {
     // Set the property.
     // Determine the parent (possibly self) where the property is defined.
@@ -2138,31 +2126,16 @@ Interpreter.prototype.setProperty = function(obj, name, value, opt_descriptor) {
       }
     } else {
       // No setter, simple assignment.
-      if (!defObj.notWritable[name]) {
+      try {
         obj.properties[name] = value;
-      } else if (strict) {
-        this.throwException(this.TYPE_ERROR, "Cannot assign to read only " +
-            "property '" + name + "' of object '" + obj + "'");
+      } catch (e) {
+        if (strict) {
+          this.throwException(this.TYPE_ERROR, "Cannot assign to read only " +
+              "property '" + name + "' of object '" + obj + "'");
+        }
       }
     }
   }
-};
-
-/**
- * Delete a property value on a data object.
- * @param {!Interpreter.Object} obj Data object.
- * @param {Interpreter.Value} name Name of property.
- * @return {boolean} True if deleted, false if undeletable.
- */
-Interpreter.prototype.deleteProperty = function(obj, name) {
-  name = String(name);
-  if (!obj || !obj.isObject || obj.notWritable[name]) {
-    return false;
-  }
-  if (name === 'length' && obj.class === 'Array') {
-    return false;
-  }
-  return delete obj.properties[name];
 };
 
 /**
@@ -2304,11 +2277,11 @@ Interpreter.prototype.populateScope_ = function(node, scope) {
   if (node['type'] === 'VariableDeclaration') {
     for (var i = 0; i < node['declarations'].length; i++) {
       this.setProperty(scope, node['declarations'][i]['id']['name'],
-                       undefined);
+          undefined, Interpreter.VARIABLE_DESCRIPTOR);
     }
   } else if (node['type'] === 'FunctionDeclaration') {
     this.setProperty(scope, node['id']['name'],
-                     this.createFunction(node, scope));
+        this.createFunction(node, scope), Interpreter.VARIABLE_DESCRIPTOR);
     return;  // Do not recurse into function.
   } else if (node['type'] === 'FunctionExpression') {
     return;  // Do not recurse into function.
@@ -2858,14 +2831,11 @@ Interpreter.prototype['stepCallExpression'] = function(stack, state, node) {
 Interpreter.prototype['stepCatchClause'] = function(stack, state, node) {
   if (!state.done_) {
     state.done_ = true;
-    var scope;
-    if (node['param']) {
-      // Create an empty scope.
-      scope = this.createSpecialScope(state.scope);
-      // Add the argument.
-      var paramName = node['param']['name'];
-      this.setProperty(scope, paramName, state.throwValue);
-    }
+    // Create an empty scope.
+    var scope = this.createSpecialScope(state.scope);
+    // Add the argument.
+    var paramName = node['param']['name'];
+    this.setProperty(scope, paramName, state.throwValue);
     this.pushNode_(node['body']).scope = scope;
   } else {
     stack.pop();
@@ -3436,18 +3406,28 @@ Interpreter.prototype['stepUnaryExpression'] = function(stack, state, node) {
   } else if (node['operator'] === '~') {
     value = ~value;
   } else if (node['operator'] === 'delete') {
-    if (value.length) {
+    var result = true;
+    // If value is not an array, then it is a primitive, or some other value.
+    // If so, skip the delete and return true.
+    if (Array.isArray(value)) {
       var obj = value[0];
-      var name = value[1];
-    } else {
-      var obj = state.scope;
-      var name = value;
+      if (obj === Interpreter.SCOPE_REFERENCE) {
+        // 'delete foo;' is the same as 'delete window.foo'.
+        obj = state.scope;
+      }
+      var name = String(value[1]);
+      try {
+        delete obj.properties[name];
+      } catch (e) {
+        if (state.scope.strict) {
+          this.throwException(this.TYPE_ERROR, "Cannot delete property '" +
+                              name + "' of '" + obj + "'");
+        } else {
+          result = false;
+        }
+      }
     }
-    value = this.deleteProperty(obj, name);
-    if (!value && state.scope.strict) {
-      this.throwException(this.TYPE_ERROR, "Cannot delete property '" +
-                          name + "' of '" + obj + "'");
-    }
+    value = result;
   } else if (node['operator'] === 'typeof') {
     value = (value && value.class === 'Function') ? 'function' : typeof value;
   } else if (node['operator'] === 'void') {
