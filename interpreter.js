@@ -57,20 +57,19 @@ var Interpreter = function(code, opt_initFunc) {
   this.ast = acorn.parse(this.polyfills_.join('\n'), Interpreter.PARSE_OPTIONS);
   this.polyfills_ = undefined;  // Allow polyfill strings to garbage collect.
   this.stripLocations_(this.ast, undefined, undefined);
-  this.stateStack = [{
-    node: this.ast,
-    scope: this.global,
-    done: false
-  }];
+  var state = new Interpreter.State(this.ast, this.global);
+  state.done = false;
+  this.stateStack = [state];
   this.run();
   this.value = undefined;
   // Point at the main program.
   this.ast = code;
-  this.stateStack = [{
-    node: this.ast,
-    scope: this.global,
-    done: false
-  }];
+  var state = new Interpreter.State(this.ast, this.global);
+  state.done = false;
+  this.stateStack.length = 0;
+  this.stateStack[0] = state;
+  // Get a handle on Acorn's node_t object.  It's tricky to access.
+  this.nodeProto = state.node.constructor.prototype;
   // Preserve publicly properties from being pruned/renamed by JS compilers.
   // Add others as needed.
   this['stateStack'] = this.stateStack;
@@ -195,12 +194,12 @@ Interpreter.prototype.step = function() {
       throw e;
     }
   }
+  if (nextState) {
+    stack.push(nextState);
+  }
   if (!node['end']) {
     // This is polyfill code.  Keep executing until we arrive at user code.
     return this.step();
-  }
-  if (nextState) {
-    stack.push(nextState);
   }
   return true;
 };
@@ -2453,7 +2452,9 @@ Interpreter.prototype.createGetter_ = function(func, left) {
   // Normally 'this' will be specified as the object component (o.x).
   // Sometimes 'this' is explicitly provided (o).
   var funcThis = Array.isArray(left) ? left[0] : left;
-  var state = new Interpreter.State({type: 'CallExpression'},
+  var node = new this.nodeProto.constructor();
+  node['type'] = 'CallExpression';
+  var state = new Interpreter.State(node,
       this.stateStack[this.stateStack.length - 1].scope);
   state.doneCallee_ = true;
   state.funcThis_ = funcThis;
@@ -2475,7 +2476,9 @@ Interpreter.prototype.createSetter_ = function(func, left, value) {
   // Normally 'this' will be specified as the object component (o.x).
   // Sometimes 'this' is implicitly the global object (x).
   var funcThis = Array.isArray(left) ? left[0] : this.global;
-  var state = new Interpreter.State({type: 'CallExpression'},
+  var node = new this.nodeProto.constructor();
+  node['type'] = 'CallExpression';
+  var state = new Interpreter.State(node,
       this.stateStack[this.stateStack.length - 1].scope);
   state.doneCallee_ = true;
   state.funcThis_ = funcThis;
@@ -2785,7 +2788,9 @@ Interpreter.prototype['stepCallExpression'] = function(stack, state, node) {
           // Acorn threw a SyntaxError.  Rethrow as a trappable error.
           this.throwException(this.SYNTAX_ERROR, 'Invalid code: ' + e.message);
         }
-        var evalNode = {type: 'EvalProgram_', body: ast['body']};
+        var evalNode = new this.nodeProto.constructor();
+        evalNode['type'] = 'EvalProgram_';
+        evalNode['body'] = ast['body'];
         this.stripLocations_(evalNode, node['start'], node['end']);
         // Update current scope with definitions in eval().
         var scope = state.scope;
