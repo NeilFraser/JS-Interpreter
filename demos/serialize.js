@@ -103,7 +103,7 @@ function deserialize(json, interpreter) {
         obj = new Interpreter.Object(null);
         break;
       case 'Node':
-        obj = new interpreter.nodeProto.constructor();
+        obj = new interpreter.nodeConstructor();
         break;
       default:
         throw TypeError('Unknown type: ' + jsonObj['type']);
@@ -245,7 +245,7 @@ function serialize(interpreter) {
       case Interpreter.Object.prototype:
         jsonObj['type'] = 'PseudoObject';
         break;
-      case interpreter.nodeProto:
+      case interpreter.nodeConstructor.prototype:
         jsonObj['type'] = 'Node';
         break;
       default:
