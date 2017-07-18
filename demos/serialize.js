@@ -211,7 +211,7 @@ function serialize(interpreter) {
     json.push(jsonObj);
     var obj = objectList[i];
     // Uncomment this line for a debugging label.
-    jsonObj['#'] = i;
+    //jsonObj['#'] = i;
     switch (Object.getPrototypeOf(obj)) {
       case null:
         jsonObj['type'] = 'Map';
