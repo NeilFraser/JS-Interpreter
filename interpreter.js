@@ -2758,8 +2758,8 @@ Interpreter.prototype['stepCallExpression'] = function(stack, state, node) {
       }
       this.setProperty(scope, 'this', state.funcThis_,
                        Interpreter.READONLY_DESCRIPTOR);
-      return new Interpreter.State(funcNode['body'], scope);
       state.value = undefined;  // Default value if no explicit return.
+      return new Interpreter.State(funcNode['body'], scope);
     } else if (func.nativeFunc) {
       state.value = func.nativeFunc.apply(state.funcThis_, state.arguments_);
     } else if (func.asyncFunc) {
