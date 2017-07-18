@@ -65,8 +65,6 @@ function deserialize(json, interpreter) {
       functionHash[objectList[i].id] = objectList[i];
     }
   }
-  // Get a handle on Acorn's node_t object.  It's tricky to access.
-  var nodeProto = stack[0].node.constructor.prototype;
   // First pass: Create object stubs for every object.
   objectList = [];
   for (var i = 0; i < json.length; i++) {
@@ -105,7 +103,7 @@ function deserialize(json, interpreter) {
         obj = new Interpreter.Object(null);
         break;
       case 'Node':
-        obj = new nodeProto.constructor();
+        obj = new interpreter.nodeConstructor();
         break;
       default:
         throw TypeError('Unknown type: ' + jsonObj['type']);
@@ -202,8 +200,6 @@ function serialize(interpreter) {
   // Find all objects.
   var objectList = [];
   objectHunt_(root, objectList);
-  // Get a handle on Acorn's node_t object.  It's tricky to access.
-  var nodeProto = interpreter.stateStack[0].node.constructor.prototype;
   // Serialize every object.
   var json = [];
   for (var i = 0; i < objectList.length; i++) {
@@ -249,7 +245,7 @@ function serialize(interpreter) {
       case Interpreter.Object.prototype:
         jsonObj['type'] = 'PseudoObject';
         break;
-      case nodeProto:
+      case interpreter.nodeConstructor.prototype:
         jsonObj['type'] = 'Node';
         break;
       default:
