@@ -119,14 +119,16 @@ function deserialize(json, interpreter) {
     // Repopulate objects.
     var props = jsonObj['props'];
     if (props) {
+      var nonConfigurable = jsonObj['nonConfigurable'] || [];
       var nonEnumerable = jsonObj['nonEnumerable'] || [];
+      var nonWritable = jsonObj['nonWritable'] || [];
       var names = Object.getOwnPropertyNames(props);
       for (var j = 0; j < names.length; j++) {
         var name = names[j];
         Object.defineProperty(obj, name,
-            {configurable: true,
+            {configurable: nonConfigurable.indexOf(name) === -1,
              enumerable: nonEnumerable.indexOf(name) === -1,
-             writable: true,
+             writable: nonWritable.indexOf(name) === -1,
              value: decodeValue(props[name])});
       }
     }
@@ -144,7 +146,6 @@ function deserialize(json, interpreter) {
   var root = objectList[0];
   for (var prop in root) {
     interpreter[prop] = root[prop];
-    console.log(prop + ' ' + root[prop]);
   }
 }
 
@@ -255,20 +256,35 @@ function serialize(interpreter) {
         throw TypeError('Unknown type: ' + obj);
     }
     var props = Object.create(null);
+    var nonConfigurable = [];
     var nonEnumerable = [];
+    var nonWritable = [];
     var names = Object.getOwnPropertyNames(obj);
     for (var j = 0; j < names.length; j++) {
       var name = names[j];
       props[name] = encodeValue(obj[name]);
-      if (!Object.prototype.propertyIsEnumerable.call(obj, name)) {
+      var descriptor = Object.getOwnPropertyDescriptor(obj, name);
+      if (!descriptor.configurable) {
+        nonConfigurable.push(name);
+      }
+      if (!descriptor.enumerable) {
         nonEnumerable.push(name);
+      }
+      if (!descriptor.writable) {
+        nonWritable.push(name);
       }
     }
     if (names.length) {
       jsonObj['props'] = props;
     }
+    if (nonConfigurable.length) {
+      jsonObj['nonConfigurable'] = nonConfigurable;
+    }
     if (nonEnumerable.length) {
       jsonObj['nonEnumerable'] = nonEnumerable;
+    }
+    if (nonWritable.length) {
+      jsonObj['nonWritable'] = nonWritable;
     }
   }
   return json;
