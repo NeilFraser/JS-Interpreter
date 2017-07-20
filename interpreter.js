@@ -543,6 +543,7 @@ Interpreter.prototype.initObject = function(scope) {
       Interpreter.NONENUMERABLE_DESCRIPTOR);
 
   wrapper = function(proto) {
+    // Support for the second argument is the responsibility of a polyfill.
     if (proto === null) {
       return thisInterpreter.createObjectProto(null);
     }
@@ -560,14 +561,11 @@ Interpreter.prototype.initObject = function(scope) {
   this.polyfills_.push(
   "(function() {",
     "var create_ = Object.create;",
-    "Object.defineProperty(Object, 'create',",
-        "{configurable: true, writable: true, value:",
-      "function(proto, props) {",
-        "var obj = create_(proto);",
-        "props && Object.defineProperties(obj, props);",
-        "return obj;",
-      "}",
-    "});",
+    "Object.create = function(proto, props) {",
+      "var obj = create_(proto);",
+      "props && Object.defineProperties(obj, props);",
+      "return obj;",
+    "};",
   "})();",
   "");
 
@@ -889,7 +887,10 @@ Interpreter.prototype.initArray = function(scope) {
     try {
       var text = [];
       for (var i = 0; i < this.length; i++) {
-        text[i] = String(this.properties[i]);
+        var value = this.properties[i];
+        if (value !== null && value !== undefined) {
+          text[i] = String(value);
+        }
       }
     } finally {
       cycles.pop();
@@ -1278,11 +1279,46 @@ Interpreter.prototype.initString = function(scope) {
   };
   this.setNativeFunctionPrototype(this.STRING, 'search', wrapper);
 
-  wrapper = function(substr, newSubStr) {
-    // TODO: Rewrite as a polyfill to support function replacements.
-    return String(this).replace(substr, newSubStr);
+  wrapper = function(substr, newSubstr) {
+    // Support for function replacements is the responsibility of a polyfill.
+    return String(this).replace(substr.data || substr, newSubstr);
   };
   this.setNativeFunctionPrototype(this.STRING, 'replace', wrapper);
+  // Add a polyfill to handle replace's second argument being a function.
+  this.polyfills_.push(
+  "(function() {",
+    "var replace_ = String.prototype.replace;",
+    "String.prototype.replace = function(substr, newSubstr) {",
+      "if (typeof newSubstr !== 'function') {",
+        // string.replace(string|regexp, string)
+        "return replace_.call(this, substr, newSubstr);",
+      "}",
+      "var str = this;",
+      "if (substr instanceof RegExp) {",  // string.replace(regexp, function)
+        "var subs = [];",
+        "var m = substr.exec(str);",
+        "while (m) {",
+          "m.push(m.index, str);",
+          "var inject = newSubstr.apply(null, m);",
+          "subs.push([m.index, m[0].length, inject]);",
+          "m = substr.global ? substr.exec(str) : null;",
+        "}",
+        "for (var i = subs.length - 1; i >= 0; i--) {",
+          "str = str.substring(0, subs[i][0]) + subs[i][2] + " +
+              "str.substring(subs[i][0] + subs[i][1]);",
+        "}",
+      "} else {",                         // string.replace(string, function)
+        "var i = str.indexOf(substr);",
+        "if (i !== -1) {",
+          "var inject = newSubstr(str.substr(i, substr.length), i, str);",
+          "str = str.substring(0, i) + inject + " +
+              "str.substring(i + substr.length);",
+        "}",
+      "}",
+      "return str;",
+    "};",
+  "})();",
+  "");
 };
 
 /**
