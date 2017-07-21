@@ -168,13 +168,13 @@
 
   <p>A slightly more complex case is where two or more threads should share the
   same global scope.  To implement this, 1) create one JS-Interpreter, 2) create
-  a separate list of stacks, assign the <code>.scope</code> property of the root
-  node of each stack to the interpreter's <code>.global</code> property, 3) then
-  assign the desired stack to the interpreter's <code>stateStack</code> property
-  before calling <code>step</code>.</p>
+  a separate list of stacks, 3) assign the <code>.scope</code> property of the
+  root node of each stack to the interpreter's <code>.global</code> property,
+  4) then assign the desired stack to the interpreter's <code>stateStack</code>
+  property before calling <code>step</code>.</p>
 
   <p>For a working example, see the
-  <a href="demos/thread.html">thread</a> demo</a>.</p>
+  <a href="demos/thread.html">thread demo</a>.</p>
 
   <h2>Security</h2>
 
