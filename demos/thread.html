@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>JS-Interpreter Thread Demo</title>
+  <link href="style.css" rel="stylesheet" type="text/css">
+  <script src="../acorn.js"></script>
+  <script src="../interpreter.js"></script>
+  <script>
+    function initAlert(interpreter, scope) {
+      var wrapper = function(text) {
+        return alert(text);
+      };
+      interpreter.setProperty(scope, 'alert',
+          interpreter.createNativeFunction(wrapper));
+    }
+    var myInterpreter = new Interpreter('', initAlert);
+    var threads = [];
+
+    function parseButton(n) {
+      var code = document.getElementById('code' + n).value;
+      var thread = new Interpreter(code).stateStack;
+      thread[0].scope = myInterpreter.global;
+      threads[n] = thread;
+      disable(n, '');
+    }
+
+    function stepButton(n) {
+      myInterpreter.stateStack = threads[n];
+      if (myInterpreter.stateStack.length) {
+        var node =
+            myInterpreter.stateStack[myInterpreter.stateStack.length - 1].node;
+        var start = node.start;
+        var end = node.end;
+      } else {
+        var start = 0;
+        var end = 0;
+      }
+      createSelection(n, start, end);
+      try {
+        var ok = myInterpreter.step();
+      } finally {
+        if (!ok) {
+          disable(n, 'disabled');
+        }
+      }
+    }
+
+    function disable(n, disabled) {
+      document.getElementById('stepButton' + n).disabled = disabled;
+    }
+
+    function createSelection(n, start, end) {
+      var field = document.getElementById('code' + n);
+      if (field.createTextRange) {
+        var selRange = field.createTextRange();
+        selRange.collapse(true);
+        selRange.moveStart('character', start);
+        selRange.moveEnd('character', end);
+        selRange.select();
+      } else if (field.setSelectionRange) {
+        field.setSelectionRange(start, end);
+      } else if (field.selectionStart) {
+        field.selectionStart = start;
+        field.selectionEnd = end;
+      }
+      field.focus();
+    }
+  </script>
+</head>
+<body>
+  <h1>JS-Interpreter Thread Demo</h1>
+
+  <p>Creating two or more completely independent threads that run separately
+  from each other is trivial.  Just create two instances of the Interpreter,
+  each with its own code, and alternate calling each interpreter's step function.</p>
+
+  <p>This demo illustrates the slightly harder problem of creating two threads
+  that share the same global environment.  This allows one to share functions
+  and variables, as well as to communicate between threads.</p>
+
+  <ol>
+    <li>Click <em>Parse</em> on thread #1, then click <em>Step</em> repeatedly
+    until one gets past the var line.</li>
+    <li>Click <em>Parse</em> on thread #2, then click <em>Step</em> repeatedly
+    to alert the value of 'foo'.</li>
+    <li>Continue clicking <em>Step</em> repeatedly on either thread to set or
+    read 'foo'.</li>
+  </ol>
+  <p>Open your browser's console for errors.</p>
+
+<table style="width: 100%;">
+  <tr>
+    <td>
+      Thread #1
+    </td>
+    <td>
+      Thread #2
+    </td>
+  </tr>
+  <tr>
+    <td>
+<textarea id="code1" style="height: 6em; width: 100%;">
+var foo = 0;
+while(true) {
+  foo++;
+}
+</textarea>
+    </td>
+    <td>
+<textarea id="code2" style="height: 6em; width: 100%;">
+while(true) {
+  alert(foo);
+}
+</textarea>
+    </td>
+  </tr>
+  <tr>
+    <td>
+      <button onclick="parseButton(1)">Parse</button>
+      <button onclick="stepButton(1)" id="stepButton1" disabled="disabled">Step</button>
+    </td>
+    <td>
+      <button onclick="parseButton(2)">Parse</button>
+      <button onclick="stepButton(2)" id="stepButton2" disabled="disabled">Step</button>
+    </td>
+  </tr>
+</table>
+
+  <p>Back to the <a href="../docs.html">JS-Interpreter documentation</a>.</p>
+
+  <script>
+    disable(1, 'disabled');
+    disable(2, 'disabled');
+  </script>
+</body>
+</html>

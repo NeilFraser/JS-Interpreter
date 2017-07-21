@@ -156,6 +156,26 @@
   <p>For a working example, see the
   <a href="demos/serialize.html">serialization demo</a>.</p>
 
+  <h2>Threading</h2>
+
+  <p>JavaScript is single-threaded, but the JS-Interpreter allows one to run
+  multiple threads at the same time.  Creating two or more completely
+  independent threads that run separately from each other is trivial: just
+  create two or more instances of the Interpreter, each with its own code,
+  and alternate calling each interpreter's step function.  They may
+  communicate indirectly with each other through any external APIs that are
+  provided.</p>
+
+  <p>A slightly more complex case is where two or more threads should share the
+  same global scope.  To implement this, 1) create one JS-Interpreter, 2) create
+  a separate list of stacks, assign the <code>.scope</code> property of the root
+  node of each stack to the interpreter's <code>.global</code> property, 3) then
+  assign the desired stack to the interpreter's <code>stateStack</code> property
+  before calling <code>step</code>.</p>
+
+  <p>For a working example, see the
+  <a href="demos/thread.html">thread</a> demo</a>.</p>
+
   <h2>Security</h2>
 
   <p>A common use-case of the JS-Interpreter is to sandbox potentially hostile
