@@ -102,6 +102,9 @@ function deserialize(json, interpreter) {
       case 'PseudoObject':
         obj = new Interpreter.Object(null);
         break;
+      case 'State':
+        obj = new Interpreter.State(undefined, undefined);
+        break;
       case 'Node':
         obj = new interpreter.nodeConstructor();
         break;
@@ -244,6 +247,9 @@ function serialize(interpreter) {
         continue;  // No need to index properties.
       case Interpreter.Object.prototype:
         jsonObj['type'] = 'PseudoObject';
+        break;
+      case Interpreter.State.prototype:
+        jsonObj['type'] = 'State';
         break;
       case interpreter.nodeConstructor.prototype:
         jsonObj['type'] = 'Node';
