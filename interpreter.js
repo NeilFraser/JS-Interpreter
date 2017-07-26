@@ -559,15 +559,15 @@ Interpreter.prototype.initObject = function(scope) {
 
   // Add a polyfill to handle create's second argument.
   this.polyfills_.push(
-  "(function() {",
-    "var create_ = Object.create;",
-    "Object.create = function(proto, props) {",
-      "var obj = create_(proto);",
-      "props && Object.defineProperties(obj, props);",
-      "return obj;",
-    "};",
-  "})();",
-  "");
+"(function() {",
+  "var create_ = Object.create;",
+  "Object.create = function(proto, props) {",
+    "var obj = create_(proto);",
+    "props && Object.defineProperties(obj, props);",
+    "return obj;",
+  "};",
+"})();",
+"");
 
   wrapper = function(obj, prop, descriptor) {
     prop = String(prop);
@@ -583,24 +583,30 @@ Interpreter.prototype.initObject = function(scope) {
       thisInterpreter.throwException(thisInterpreter.TYPE_ERROR,
           "Can't define property '" + prop + "', object is not extensible");
     }
-    var get = thisInterpreter.getProperty(descriptor, 'get');
-    var set = thisInterpreter.getProperty(descriptor, 'set');
-    var nativeDescriptor = {
-      configurable: thisInterpreter.pseudoToNative(
-          thisInterpreter.getProperty(descriptor, 'configurable')),
-      enumerable: thisInterpreter.pseudoToNative(
-          thisInterpreter.getProperty(descriptor, 'enumerable')),
-      writable: thisInterpreter.pseudoToNative(
-          thisInterpreter.getProperty(descriptor, 'writable')),
-      get: get === undefined ? undefined : get,
-      set: set === undefined ? undefined : set
-    };
-    var value = thisInterpreter.getProperty(descriptor, 'value');
-    if ((nativeDescriptor.get || nativeDescriptor.set) &&
-         value === undefined) {
-      value = null;
+    // Can't just use pseudoToNative since descriptors can inherit properties.
+    var nativeDescriptor = {};
+    if (thisInterpreter.hasProperty(descriptor, 'configurable')) {
+      nativeDescriptor.configurable =
+          !!thisInterpreter.getProperty(descriptor, 'configurable');
     }
-    thisInterpreter.setProperty(obj, prop, value, nativeDescriptor);
+    if (thisInterpreter.hasProperty(descriptor, 'enumerable')) {
+      nativeDescriptor.enumerable =
+          !!thisInterpreter.getProperty(descriptor, 'enumerable');
+    }
+    if (thisInterpreter.hasProperty(descriptor, 'writable')) {
+      nativeDescriptor.writable =
+          !!thisInterpreter.getProperty(descriptor, 'writable');
+    }
+    if (thisInterpreter.hasProperty(descriptor, 'value')) {
+      nativeDescriptor.value = thisInterpreter.getProperty(descriptor, 'value');
+    }
+    if (thisInterpreter.hasProperty(descriptor, 'get')) {
+      nativeDescriptor.get = thisInterpreter.getProperty(descriptor, 'get');
+    }
+    if (thisInterpreter.hasProperty(descriptor, 'set')) {
+      nativeDescriptor.set = thisInterpreter.getProperty(descriptor, 'set');
+    }
+    thisInterpreter.setProperty(obj, prop, nativeDescriptor);
     return obj;
   };
   this.setProperty(this.OBJECT, 'defineProperty',
@@ -2050,20 +2056,29 @@ Interpreter.prototype.hasProperty = function(obj, name) {
  * Set a property value on a data object.
  * @param {!Interpreter.Object} obj Data object.
  * @param {Interpreter.Value} name Name of property.
- * @param {Interpreter.Value} value New property value
- *     or null if getter/setter is described.
+ * @param {Interpreter.Value|Object} opt_value New property value.
+ *   This parameter may be omitted, and a descriptor specified instead.
  * @param {Object=} opt_descriptor Optional descriptor object.
  * @return {!Interpreter.Object|undefined} Returns a setter function if one
  *     needs to be called, otherwise undefined.
  */
-Interpreter.prototype.setProperty = function(obj, name, value, opt_descriptor) {
+Interpreter.prototype.setProperty =
+    function(obj, name, opt_value, opt_descriptor) {
+  if (!opt_descriptor) {
+    if (opt_value && Object.getPrototypeOf(opt_value) === Object.prototype) {
+      // 3rd argument is a descriptor.
+      opt_descriptor = opt_value;
+      // Flag value as not used.
+      opt_value = ReferenceError;
+    }
+  }
   name = String(name);
   if (obj === undefined || obj === null) {
     this.throwException(this.TYPE_ERROR,
                         "Cannot set property '" + name + "' of " + obj);
   }
-  if (opt_descriptor && (opt_descriptor.get || opt_descriptor.set) &&
-      (value || opt_descriptor.writable !== undefined)) {
+  if (opt_descriptor && ('get' in opt_descriptor || 'set' in opt_descriptor) &&
+      ('value' in opt_descriptor || 'writable' in opt_descriptor)) {
     this.throwException(this.TYPE_ERROR, 'Invalid property descriptor. ' +
         'Cannot both specify accessors and a value or writable attribute');
   }
@@ -2089,6 +2104,7 @@ Interpreter.prototype.setProperty = function(obj, name, value, opt_descriptor) {
   if (obj.class === 'Array') {
     // Arrays have a magic length variable that is bound to the elements.
     var i;
+    // TODO: Make length a real property that has descriptor attributes.
     if (name === 'length') {
       // Delete elements if length is smaller.
       var newLength = Interpreter.legalArrayLength(value);
@@ -2119,24 +2135,41 @@ Interpreter.prototype.setProperty = function(obj, name, value, opt_descriptor) {
   }
   if (opt_descriptor) {
     // Define the property.
-    var getter = opt_descriptor.get;
-    if (getter) {
-      obj.getter[name] = getter;
-    } else {
-      delete obj.getter[name];
+    if ('get' in opt_descriptor) {
+      if (opt_descriptor.get) {
+        obj.getter[name] = opt_descriptor.get;
+      } else {
+        delete obj.getter[name];
+      }
     }
-    var setter = opt_descriptor.set;
-    if (setter) {
-      obj.setter[name] = setter;
-    } else {
+    if ('set' in opt_descriptor) {
+      if (opt_descriptor.set) {
+        obj.setter[name] = opt_descriptor.set;
+      } else {
+        delete obj.setter[name];
+      }
+    }
+    var descriptor = {};
+    if ('configurable' in opt_descriptor) {
+      descriptor.configurable = opt_descriptor.configurable;
+    }
+    if ('enumerable' in opt_descriptor) {
+      descriptor.enumerable = opt_descriptor.enumerable;
+    }
+    if ('writable' in opt_descriptor) {
+      descriptor.writable = opt_descriptor.writable;
+      delete obj.getter[name];
       delete obj.setter[name];
     }
-    var descriptor = {
-      configurable: opt_descriptor.configurable,
-      enumerable: opt_descriptor.enumerable,
-      writable: opt_descriptor.writable,
-      value: value
-    };
+    if ('value' in opt_descriptor) {
+      descriptor.value = opt_descriptor.value;
+      delete obj.getter[name];
+      delete obj.setter[name];
+    } else if (opt_value != ReferenceError) {
+      descriptor.value = opt_value;
+      delete obj.getter[name];
+      delete obj.setter[name];
+    }
     try {
       Object.defineProperty(obj.properties, name, descriptor);
     } catch (e) {
@@ -2165,7 +2198,7 @@ Interpreter.prototype.setProperty = function(obj, name, value, opt_descriptor) {
     } else {
       // No setter, simple assignment.
       try {
-        obj.properties[name] = value;
+        obj.properties[name] = opt_value;
       } catch (e) {
         if (strict) {
           this.throwException(this.TYPE_ERROR, "Cannot assign to read only " +
