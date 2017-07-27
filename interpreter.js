@@ -583,30 +583,10 @@ Interpreter.prototype.initObject = function(scope) {
       thisInterpreter.throwException(thisInterpreter.TYPE_ERROR,
           "Can't define property '" + prop + "', object is not extensible");
     }
-    // Can't just use pseudoToNative since descriptors can inherit properties.
-    var nativeDescriptor = {};
-    if (thisInterpreter.hasProperty(descriptor, 'configurable')) {
-      nativeDescriptor.configurable =
-          !!thisInterpreter.getProperty(descriptor, 'configurable');
-    }
-    if (thisInterpreter.hasProperty(descriptor, 'enumerable')) {
-      nativeDescriptor.enumerable =
-          !!thisInterpreter.getProperty(descriptor, 'enumerable');
-    }
-    if (thisInterpreter.hasProperty(descriptor, 'writable')) {
-      nativeDescriptor.writable =
-          !!thisInterpreter.getProperty(descriptor, 'writable');
-    }
-    if (thisInterpreter.hasProperty(descriptor, 'value')) {
-      nativeDescriptor.value = thisInterpreter.getProperty(descriptor, 'value');
-    }
-    if (thisInterpreter.hasProperty(descriptor, 'get')) {
-      nativeDescriptor.get = thisInterpreter.getProperty(descriptor, 'get');
-    }
-    if (thisInterpreter.hasProperty(descriptor, 'set')) {
-      nativeDescriptor.set = thisInterpreter.getProperty(descriptor, 'set');
-    }
-    thisInterpreter.setProperty(obj, prop, nativeDescriptor);
+    // The polyfill guarantees no inheritance and no getter functions.
+    // Therefore the descriptor properties map is the native object needed.
+    thisInterpreter.setProperty(obj, prop, ReferenceError,
+                                descriptor.properties);
     return obj;
   };
   this.setProperty(this.OBJECT, 'defineProperty',
@@ -614,6 +594,21 @@ Interpreter.prototype.initObject = function(scope) {
       Interpreter.NONENUMERABLE_DESCRIPTOR);
 
   this.polyfills_.push(
+// Flatten the descriptor to remove any inheritance or getter functions.
+"(function() {",
+  "var defineProperty_ = Object.defineProperty;",
+  "Object.defineProperty = function(obj, prop, d1) {",
+    "d2 = {};",
+    "if ('configurable' in d1) d2.configurable = d1.configurable;",
+    "if ('enumerable' in d1) d2.enumerable = d1.enumerable;",
+    "if ('writable' in d1) d2.writable = d1.writable;",
+    "if ('value' in d1) d2.value = d1.value;",
+    "if ('get' in d1) d2.get = d1.get;",
+    "if ('set' in d1) d2.set = d1.set;",
+    "return defineProperty_(obj, prop, d2);",
+  "};",
+"})();",
+
 "Object.defineProperty(Object, 'defineProperties',",
     "{configurable: true, writable: true, value:",
   "function(obj, props) {",
@@ -1292,39 +1287,39 @@ Interpreter.prototype.initString = function(scope) {
   this.setNativeFunctionPrototype(this.STRING, 'replace', wrapper);
   // Add a polyfill to handle replace's second argument being a function.
   this.polyfills_.push(
-  "(function() {",
-    "var replace_ = String.prototype.replace;",
-    "String.prototype.replace = function(substr, newSubstr) {",
-      "if (typeof newSubstr !== 'function') {",
-        // string.replace(string|regexp, string)
-        "return replace_.call(this, substr, newSubstr);",
+"(function() {",
+  "var replace_ = String.prototype.replace;",
+  "String.prototype.replace = function(substr, newSubstr) {",
+    "if (typeof newSubstr !== 'function') {",
+      // string.replace(string|regexp, string)
+      "return replace_.call(this, substr, newSubstr);",
+    "}",
+    "var str = this;",
+    "if (substr instanceof RegExp) {",  // string.replace(regexp, function)
+      "var subs = [];",
+      "var m = substr.exec(str);",
+      "while (m) {",
+        "m.push(m.index, str);",
+        "var inject = newSubstr.apply(null, m);",
+        "subs.push([m.index, m[0].length, inject]);",
+        "m = substr.global ? substr.exec(str) : null;",
       "}",
-      "var str = this;",
-      "if (substr instanceof RegExp) {",  // string.replace(regexp, function)
-        "var subs = [];",
-        "var m = substr.exec(str);",
-        "while (m) {",
-          "m.push(m.index, str);",
-          "var inject = newSubstr.apply(null, m);",
-          "subs.push([m.index, m[0].length, inject]);",
-          "m = substr.global ? substr.exec(str) : null;",
-        "}",
-        "for (var i = subs.length - 1; i >= 0; i--) {",
-          "str = str.substring(0, subs[i][0]) + subs[i][2] + " +
-              "str.substring(subs[i][0] + subs[i][1]);",
-        "}",
-      "} else {",                         // string.replace(string, function)
-        "var i = str.indexOf(substr);",
-        "if (i !== -1) {",
-          "var inject = newSubstr(str.substr(i, substr.length), i, str);",
-          "str = str.substring(0, i) + inject + " +
-              "str.substring(i + substr.length);",
-        "}",
+      "for (var i = subs.length - 1; i >= 0; i--) {",
+        "str = str.substring(0, subs[i][0]) + subs[i][2] + " +
+            "str.substring(subs[i][0] + subs[i][1]);",
       "}",
-      "return str;",
-    "};",
-  "})();",
-  "");
+    "} else {",                         // string.replace(string, function)
+      "var i = str.indexOf(substr);",
+      "if (i !== -1) {",
+        "var inject = newSubstr(str.substr(i, substr.length), i, str);",
+        "str = str.substring(0, i) + inject + " +
+            "str.substring(i + substr.length);",
+      "}",
+    "}",
+    "return str;",
+  "};",
+"})();",
+"");
 };
 
 /**
@@ -2056,22 +2051,13 @@ Interpreter.prototype.hasProperty = function(obj, name) {
  * Set a property value on a data object.
  * @param {!Interpreter.Object} obj Data object.
  * @param {Interpreter.Value} name Name of property.
- * @param {Interpreter.Value|Object} opt_value New property value.
- *   This parameter may be omitted, and a descriptor specified instead.
+ * @param {Interpreter.Value|ReferenceError} value New property value.
+ *   Use ReferenceError if value is handled by descriptor instead.
  * @param {Object=} opt_descriptor Optional descriptor object.
  * @return {!Interpreter.Object|undefined} Returns a setter function if one
  *     needs to be called, otherwise undefined.
  */
-Interpreter.prototype.setProperty =
-    function(obj, name, opt_value, opt_descriptor) {
-  if (!opt_descriptor) {
-    if (opt_value && Object.getPrototypeOf(opt_value) === Object.prototype) {
-      // 3rd argument is a descriptor.
-      opt_descriptor = opt_value;
-      // Flag value as not used.
-      opt_value = ReferenceError;
-    }
-  }
+Interpreter.prototype.setProperty = function(obj, name, value, opt_descriptor) {
   name = String(name);
   if (obj === undefined || obj === null) {
     this.throwException(this.TYPE_ERROR,
@@ -2126,7 +2112,7 @@ Interpreter.prototype.setProperty =
       obj.length = Math.max(obj.length, i + 1);
     }
   }
-  if (!obj.properties[name] && obj.preventExtensions) {
+  if (obj.preventExtensions && !(name in obj.properties)) {
     if (strict) {
       this.throwException(this.TYPE_ERROR, "Can't add property '" + name +
                           "', object is not extensible");
@@ -2165,8 +2151,8 @@ Interpreter.prototype.setProperty =
       descriptor.value = opt_descriptor.value;
       delete obj.getter[name];
       delete obj.setter[name];
-    } else if (opt_value != ReferenceError) {
-      descriptor.value = opt_value;
+    } else if (value != ReferenceError) {
+      descriptor.value = value;
       delete obj.getter[name];
       delete obj.setter[name];
     }
@@ -2177,6 +2163,9 @@ Interpreter.prototype.setProperty =
     }
   } else {
     // Set the property.
+    if (value === ReferenceError) {
+      throw ReferenceError('Value not specified.');
+    }
     // Determine the parent (possibly self) where the property is defined.
     var defObj = obj;
     while (!(name in defObj.properties)) {
@@ -2198,7 +2187,7 @@ Interpreter.prototype.setProperty =
     } else {
       // No setter, simple assignment.
       try {
-        obj.properties[name] = opt_value;
+        obj.properties[name] = value;
       } catch (e) {
         if (strict) {
           this.throwException(this.TYPE_ERROR, "Cannot assign to read only " +
