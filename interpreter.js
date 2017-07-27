@@ -43,12 +43,13 @@ var Interpreter = function(code, opt_initFunc) {
   this.functionCounter_ = 0;
   // Map node types to our step function names; a property lookup is faster
   // than string concatenation with "step" prefix.
-  this.functionMap_ = Object.create(null);
+  this.stepFunctions_ = Object.create(null);
   var stepMatch = /^step([A-Z]\w*)$/;
   var m;
   for (var methodName in this) {
-    if ((m = methodName.match(stepMatch))) {
-      this.functionMap_[m[1]] = this[methodName].bind(this);
+    if ((typeof this[methodName] === 'function') &&
+        (m = methodName.match(stepMatch))) {
+      this.stepFunctions_[m[1]] = this[methodName].bind(this);
     }
   }
   // Create and initialize the global scope.
@@ -186,7 +187,7 @@ Interpreter.prototype.step = function() {
     return true;
   }
   try {
-    var nextState = this.functionMap_[type](stack, state, node);
+    var nextState = this.stepFunctions_[type](stack, state, node);
   } catch (e) {
     // Eat any step errors.  They have been thrown on the stack.
     if (e !== Interpreter.STEP_ERROR) {
@@ -220,9 +221,9 @@ Interpreter.prototype.run = function() {
  */
 Interpreter.prototype.initGlobalScope = function(scope) {
   // Initialize uneditable global properties.
-  this.setProperty(scope, 'Infinity', Infinity,
-                   Interpreter.READONLY_DESCRIPTOR);
   this.setProperty(scope, 'NaN', NaN,
+                   Interpreter.READONLY_DESCRIPTOR);
+  this.setProperty(scope, 'Infinity', Infinity,
                    Interpreter.READONLY_DESCRIPTOR);
   this.setProperty(scope, 'undefined', undefined,
                    Interpreter.READONLY_DESCRIPTOR);
@@ -245,33 +246,32 @@ Interpreter.prototype.initGlobalScope = function(scope) {
   scope.proto = this.OBJECT_PROTO;
   this.setProperty(scope, 'constructor', this.OBJECT);
   this.initArray(scope);
-  this.initNumber(scope);
   this.initString(scope);
   this.initBoolean(scope);
+  this.initNumber(scope);
   this.initDate(scope);
-  this.initMath(scope);
   this.initRegExp(scope);
-  this.initJSON(scope);
   this.initError(scope);
+  this.initMath(scope);
+  this.initJSON(scope);
 
   // Initialize global functions.
   var thisInterpreter = this;
+  var func = this.createNativeFunction(
+      function(x) {throw EvalError("Can't happen");}, false);
+  func.eval = true;
+  this.setProperty(scope, 'eval', func);
+
+  this.setProperty(scope, 'parseInt',
+      this.createNativeFunction(parseInt, false));
+  this.setProperty(scope, 'parseFloat',
+      this.createNativeFunction(parseFloat, false));
+
   this.setProperty(scope, 'isNaN',
       this.createNativeFunction(isNaN, false));
 
   this.setProperty(scope, 'isFinite',
       this.createNativeFunction(isFinite, false));
-
-  this.setProperty(scope, 'parseFloat',
-      this.createNativeFunction(parseFloat, false));
-  this.setProperty(scope, 'parseInt',
-      this.createNativeFunction(parseInt, false));
-
-  var func = this.createObjectProto(this.FUNCTION_PROTO);
-  func.eval = true;
-  func.illegalConstructor = true;
-  this.setProperty(func, 'length', 1, Interpreter.READONLY_DESCRIPTOR);
-  this.setProperty(scope, 'eval', func);
 
   var strFunctions = [
     [escape, 'escape'], [unescape, 'unescape'],
@@ -1134,84 +1134,6 @@ Interpreter.prototype.initArray = function(scope) {
 };
 
 /**
- * Initialize the Number class.
- * @param {!Interpreter.Object} scope Global scope.
- */
-Interpreter.prototype.initNumber = function(scope) {
-  var thisInterpreter = this;
-  var wrapper;
-  // Number constructor.
-  wrapper = function(value) {
-    value = Number(value);
-    if (thisInterpreter.calledWithNew()) {
-      // Called as new Number().
-      this.data = value;
-      return this;
-    } else {
-      // Called as Number().
-      return value;
-    }
-  };
-  this.NUMBER = this.createNativeFunction(wrapper, true);
-  this.setProperty(scope, 'Number', this.NUMBER);
-
-  var numConsts = ['MAX_VALUE', 'MIN_VALUE', 'NaN', 'NEGATIVE_INFINITY',
-                   'POSITIVE_INFINITY'];
-  for (var i = 0; i < numConsts.length; i++) {
-    this.setProperty(this.NUMBER, numConsts[i], Number[numConsts[i]],
-        Interpreter.READONLY_NONENUMERABLE_DESCRIPTOR);
-  }
-
-  // Instance methods on Number.
-  wrapper = function(fractionDigits) {
-    try {
-      return Number(this).toExponential(fractionDigits);
-    } catch (e) {
-      // Throws if fractionDigits isn't within 0-20.
-      thisInterpreter.throwException(thisInterpreter.ERROR, e.message);
-    }
-  };
-  this.setNativeFunctionPrototype(this.NUMBER, 'toExponential', wrapper);
-
-  wrapper = function(digits) {
-    try {
-      return Number(this).toFixed(digits);
-    } catch (e) {
-      // Throws if digits isn't within 0-20.
-      thisInterpreter.throwException(thisInterpreter.ERROR, e.message);
-    }
-  };
-  this.setNativeFunctionPrototype(this.NUMBER, 'toFixed', wrapper);
-
-  wrapper = function(precision) {
-    try {
-      return Number(this).toPrecision(precision);
-    } catch (e) {
-      // Throws if precision isn't within range (depends on implementation).
-      thisInterpreter.throwException(thisInterpreter.ERROR, e.message);
-    }
-  };
-  this.setNativeFunctionPrototype(this.NUMBER, 'toPrecision', wrapper);
-
-  wrapper = function(radix) {
-    try {
-      return Number(this).toString(radix);
-    } catch (e) {
-      // Throws if radix isn't within 2-36.
-      thisInterpreter.throwException(thisInterpreter.ERROR, e.message);
-    }
-  };
-  this.setNativeFunctionPrototype(this.NUMBER, 'toString', wrapper);
-
-  wrapper = function(locales, options) {
-    locales = locales ? thisInterpreter.pseudoToNative(locales) : undefined;
-    options = options ? thisInterpreter.pseudoToNative(options) : undefined;
-    return Number(this).toLocaleString(locales, options);
-  };
-  this.setNativeFunctionPrototype(this.NUMBER, 'toLocaleString', wrapper);
-};
-
-/**
  * Initialize the String class.
  * @param {!Interpreter.Object} scope Global scope.
  */
@@ -1346,6 +1268,84 @@ Interpreter.prototype.initBoolean = function(scope) {
 };
 
 /**
+ * Initialize the Number class.
+ * @param {!Interpreter.Object} scope Global scope.
+ */
+Interpreter.prototype.initNumber = function(scope) {
+  var thisInterpreter = this;
+  var wrapper;
+  // Number constructor.
+  wrapper = function(value) {
+    value = Number(value);
+    if (thisInterpreter.calledWithNew()) {
+      // Called as new Number().
+      this.data = value;
+      return this;
+    } else {
+      // Called as Number().
+      return value;
+    }
+  };
+  this.NUMBER = this.createNativeFunction(wrapper, true);
+  this.setProperty(scope, 'Number', this.NUMBER);
+
+  var numConsts = ['MAX_VALUE', 'MIN_VALUE', 'NaN', 'NEGATIVE_INFINITY',
+                   'POSITIVE_INFINITY'];
+  for (var i = 0; i < numConsts.length; i++) {
+    this.setProperty(this.NUMBER, numConsts[i], Number[numConsts[i]],
+        Interpreter.READONLY_NONENUMERABLE_DESCRIPTOR);
+  }
+
+  // Instance methods on Number.
+  wrapper = function(fractionDigits) {
+    try {
+      return Number(this).toExponential(fractionDigits);
+    } catch (e) {
+      // Throws if fractionDigits isn't within 0-20.
+      thisInterpreter.throwException(thisInterpreter.ERROR, e.message);
+    }
+  };
+  this.setNativeFunctionPrototype(this.NUMBER, 'toExponential', wrapper);
+
+  wrapper = function(digits) {
+    try {
+      return Number(this).toFixed(digits);
+    } catch (e) {
+      // Throws if digits isn't within 0-20.
+      thisInterpreter.throwException(thisInterpreter.ERROR, e.message);
+    }
+  };
+  this.setNativeFunctionPrototype(this.NUMBER, 'toFixed', wrapper);
+
+  wrapper = function(precision) {
+    try {
+      return Number(this).toPrecision(precision);
+    } catch (e) {
+      // Throws if precision isn't within range (depends on implementation).
+      thisInterpreter.throwException(thisInterpreter.ERROR, e.message);
+    }
+  };
+  this.setNativeFunctionPrototype(this.NUMBER, 'toPrecision', wrapper);
+
+  wrapper = function(radix) {
+    try {
+      return Number(this).toString(radix);
+    } catch (e) {
+      // Throws if radix isn't within 2-36.
+      thisInterpreter.throwException(thisInterpreter.ERROR, e.message);
+    }
+  };
+  this.setNativeFunctionPrototype(this.NUMBER, 'toString', wrapper);
+
+  wrapper = function(locales, options) {
+    locales = locales ? thisInterpreter.pseudoToNative(locales) : undefined;
+    options = options ? thisInterpreter.pseudoToNative(options) : undefined;
+    return Number(this).toLocaleString(locales, options);
+  };
+  this.setNativeFunctionPrototype(this.NUMBER, 'toLocaleString', wrapper);
+};
+
+/**
  * Initialize the Date class.
  * @param {!Interpreter.Object} scope Global scope.
  */
@@ -1402,30 +1402,6 @@ Interpreter.prototype.initDate = function(scope) {
       };
     })(functions[i]);
     this.setNativeFunctionPrototype(this.DATE, functions[i], wrapper);
-  }
-};
-
-/**
- * Initialize Math object.
- * @param {!Interpreter.Object} scope Global scope.
- */
-Interpreter.prototype.initMath = function(scope) {
-  var thisInterpreter = this;
-  var myMath = this.createObjectProto(this.OBJECT_PROTO);
-  this.setProperty(scope, 'Math', myMath);
-  var mathConsts = ['E', 'LN2', 'LN10', 'LOG2E', 'LOG10E', 'PI',
-                    'SQRT1_2', 'SQRT2'];
-  for (var i = 0; i < mathConsts.length; i++) {
-    this.setProperty(myMath, mathConsts[i], Math[mathConsts[i]],
-        Interpreter.READONLY_NONENUMERABLE_DESCRIPTOR);
-  }
-  var numFunctions = ['abs', 'acos', 'asin', 'atan', 'atan2', 'ceil', 'cos',
-                      'exp', 'floor', 'log', 'max', 'min', 'pow', 'random',
-                      'round', 'sin', 'sqrt', 'tan'];
-  for (var i = 0; i < numFunctions.length; i++) {
-    this.setProperty(myMath, numFunctions[i],
-        this.createNativeFunction(Math[numFunctions[i]], false),
-        Interpreter.NONENUMERABLE_DESCRIPTOR);
   }
 };
 
@@ -1493,38 +1469,6 @@ Interpreter.prototype.initRegExp = function(scope) {
 };
 
 /**
- * Initialize JSON object.
- * @param {!Interpreter.Object} scope Global scope.
- */
-Interpreter.prototype.initJSON = function(scope) {
-  var thisInterpreter = this;
-  var myJSON = thisInterpreter.createObjectProto(this.OBJECT_PROTO);
-  this.setProperty(scope, 'JSON', myJSON);
-
-  var wrapper = function(text) {
-    try {
-      var nativeObj = JSON.parse(text.toString());
-    } catch (e) {
-      thisInterpreter.throwException(thisInterpreter.SYNTAX_ERROR, e.message);
-    }
-    return thisInterpreter.nativeToPseudo(nativeObj);
-  };
-  this.setProperty(myJSON, 'parse', this.createNativeFunction(wrapper, false));
-
-  wrapper = function(value) {
-    var nativeObj = thisInterpreter.pseudoToNative(value);
-    try {
-      var str = JSON.stringify(nativeObj);
-    } catch (e) {
-      thisInterpreter.throwException(thisInterpreter.TYPE_ERROR, e.message);
-    }
-    return str;
-  };
-  this.setProperty(myJSON, 'stringify',
-      this.createNativeFunction(wrapper, false));
-};
-
-/**
  * Initialize the Error class.
  * @param {!Interpreter.Object} scope Global scope.
  */
@@ -1582,6 +1526,62 @@ Interpreter.prototype.initError = function(scope) {
   this.SYNTAX_ERROR = createErrorSubclass('SyntaxError');
   this.TYPE_ERROR = createErrorSubclass('TypeError');
   this.URI_ERROR = createErrorSubclass('URIError');
+};
+
+/**
+ * Initialize Math object.
+ * @param {!Interpreter.Object} scope Global scope.
+ */
+Interpreter.prototype.initMath = function(scope) {
+  var thisInterpreter = this;
+  var myMath = this.createObjectProto(this.OBJECT_PROTO);
+  this.setProperty(scope, 'Math', myMath);
+  var mathConsts = ['E', 'LN2', 'LN10', 'LOG2E', 'LOG10E', 'PI',
+                    'SQRT1_2', 'SQRT2'];
+  for (var i = 0; i < mathConsts.length; i++) {
+    this.setProperty(myMath, mathConsts[i], Math[mathConsts[i]],
+        Interpreter.READONLY_NONENUMERABLE_DESCRIPTOR);
+  }
+  var numFunctions = ['abs', 'acos', 'asin', 'atan', 'atan2', 'ceil', 'cos',
+                      'exp', 'floor', 'log', 'max', 'min', 'pow', 'random',
+                      'round', 'sin', 'sqrt', 'tan'];
+  for (var i = 0; i < numFunctions.length; i++) {
+    this.setProperty(myMath, numFunctions[i],
+        this.createNativeFunction(Math[numFunctions[i]], false),
+        Interpreter.NONENUMERABLE_DESCRIPTOR);
+  }
+};
+
+/**
+ * Initialize JSON object.
+ * @param {!Interpreter.Object} scope Global scope.
+ */
+Interpreter.prototype.initJSON = function(scope) {
+  var thisInterpreter = this;
+  var myJSON = thisInterpreter.createObjectProto(this.OBJECT_PROTO);
+  this.setProperty(scope, 'JSON', myJSON);
+
+  var wrapper = function(text) {
+    try {
+      var nativeObj = JSON.parse(text.toString());
+    } catch (e) {
+      thisInterpreter.throwException(thisInterpreter.SYNTAX_ERROR, e.message);
+    }
+    return thisInterpreter.nativeToPseudo(nativeObj);
+  };
+  this.setProperty(myJSON, 'parse', this.createNativeFunction(wrapper, false));
+
+  wrapper = function(value) {
+    var nativeObj = thisInterpreter.pseudoToNative(value);
+    try {
+      var str = JSON.stringify(nativeObj);
+    } catch (e) {
+      thisInterpreter.throwException(thisInterpreter.TYPE_ERROR, e.message);
+    }
+    return str;
+  };
+  this.setProperty(myJSON, 'stringify',
+      this.createNativeFunction(wrapper, false));
 };
 
 /**
@@ -2821,18 +2821,6 @@ Interpreter.prototype['stepCallExpression'] = function(stack, state, node) {
                        Interpreter.READONLY_DESCRIPTOR);
       state.value = undefined;  // Default value if no explicit return.
       return new Interpreter.State(funcNode['body'], scope);
-    } else if (func.nativeFunc) {
-      state.value = func.nativeFunc.apply(state.funcThis_, state.arguments_);
-    } else if (func.asyncFunc) {
-      var thisInterpreter = this;
-      var callback = function(value) {
-        state.value = value;
-        thisInterpreter.paused_ = false;
-      };
-      var argsWithCallback = state.arguments_.concat(callback);
-      this.paused_ = true;
-      func.asyncFunc.apply(state.funcThis_, argsWithCallback);
-      return;
     } else if (func.eval) {
       var code = state.arguments_[0];
       if (typeof code !== 'string') {
@@ -2861,6 +2849,18 @@ Interpreter.prototype['stepCallExpression'] = function(stack, state, node) {
         }
         return new Interpreter.State(evalNode, scope);
       }
+    } else if (func.nativeFunc) {
+      state.value = func.nativeFunc.apply(state.funcThis_, state.arguments_);
+    } else if (func.asyncFunc) {
+      var thisInterpreter = this;
+      var callback = function(value) {
+        state.value = value;
+        thisInterpreter.paused_ = false;
+      };
+      var argsWithCallback = state.arguments_.concat(callback);
+      this.paused_ = true;
+      func.asyncFunc.apply(state.funcThis_, argsWithCallback);
+      return;
     } else {
       /* A child of a function is a function but is not callable.  For example:
       var F = function() {};
