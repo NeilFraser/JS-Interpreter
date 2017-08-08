@@ -2751,6 +2751,7 @@ Interpreter.prototype['stepCallExpression'] = function(stack, state, node) {
           // Non-strict mode pollutes the current scope.
           this.populateScope_(ast, scope);
         }
+        this.value = undefined;  // Default value if no code.
         return new Interpreter.State(evalNode, scope);
       }
     } else if (func.nativeFunc) {
