@@ -399,8 +399,8 @@ Interpreter.prototype.initFunction = function(scope) {
     state.funcThis_ = boxThis(thisArg);
     // Bind any provided arguments.
     state.arguments_ = [];
-    if (args) {
-      if (thisInterpreter.isa(args, thisInterpreter.ARRAY)) {
+    if (args !== null && args !== undefined) {
+      if (args.isObject) {
         state.arguments_ = thisInterpreter.pseudoToNative(args);
       } else {
         thisInterpreter.throwException(thisInterpreter.TYPE_ERROR,
@@ -596,7 +596,7 @@ Interpreter.prototype.initObject = function(scope) {
 "(function() {",
   "var defineProperty_ = Object.defineProperty;",
   "Object.defineProperty = function(obj, prop, d1) {",
-    "d2 = {};",
+    "var d2 = {};",
     "if ('configurable' in d1) d2.configurable = d1.configurable;",
     "if ('enumerable' in d1) d2.enumerable = d1.enumerable;",
     "if ('writable' in d1) d2.writable = d1.writable;",
