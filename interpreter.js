@@ -3277,8 +3277,8 @@ Interpreter.prototype['stepSwitchStatement'] = function(stack, state, node) {
       continue;
     }
     if (switchCase) {
-      if (!state.matched_ && !stack.tested_ && switchCase['test']) {
-        stack.tested_ = true;
+      if (!state.matched_ && !state.tested_ && switchCase['test']) {
+        state.tested_ = true;
         return new Interpreter.State(switchCase['test'], state.scope);
       }
       if (state.matched_ || state.value === state.switchValue_) {
@@ -3292,7 +3292,7 @@ Interpreter.prototype['stepSwitchStatement'] = function(stack, state, node) {
         }
       }
       // Move on to next case.
-      stack.tested_ = false;
+      state.tested_ = false;
       state.n_ = 0;
       state.index_ = index + 1;
     } else {
