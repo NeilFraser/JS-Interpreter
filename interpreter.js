@@ -1087,12 +1087,12 @@ define(["require", "exports"], function (require, exports) {
             }
             // The first step up the prototype chain is harder since the child might be
             // a primitive value.  Subsequent steps can just follow the .proto property.
-            child = this.getPrototype(child);
-            while (child) {
-                if (child === proto) {
+            var childObj = this.getPrototype(child);
+            while (childObj) {
+                if (childObj === proto) {
                     return true;
                 }
-                child = child.proto;
+                childObj = childObj.proto;
             }
             return false;
         };
@@ -1370,15 +1370,16 @@ define(["require", "exports"], function (require, exports) {
                 }
             }
             do {
-                if (obj.properties && name in obj.properties) {
-                    var getter = obj.getter[name];
+                var myObj = obj;
+                if (myObj.properties && name in myObj.properties) {
+                    var getter = myObj.getter[name];
                     if (getter) {
                         // Flag this function as being a getter and thus needing immediate
                         // execution (rather than being the value of the property).
                         getter.isGetter = true;
                         return getter;
                     }
-                    return obj.properties[name];
+                    return myObj.properties[name];
                 }
             } while ((obj = this.getPrototype(obj)));
             return undefined;
@@ -1391,7 +1392,7 @@ define(["require", "exports"], function (require, exports) {
          * @return {boolean} True if property exists.
          */
         Interpreter.prototype.hasProperty = function (obj, name) {
-            if (!obj.isObject) {
+            if (!obj['isObject']) {
                 throw TypeError('Primitive data type has no properties');
             }
             name = String(name);
@@ -1405,7 +1406,8 @@ define(["require", "exports"], function (require, exports) {
                 }
             }
             do {
-                if (obj.properties && name in obj.properties) {
+                var myObj = obj;
+                if (myObj.properties && name in myObj.properties) {
                     return true;
                 }
             } while ((obj = this.getPrototype(obj)));

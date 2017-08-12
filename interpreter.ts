@@ -8,6 +8,9 @@ declare module acorn {
 interface NodeConstructor {
   new (): ESTree.BaseNode;
 }
+interface NativeFunction extends Function {
+  id?: number;
+}
 
 /**
  * @license
@@ -206,7 +209,7 @@ static toStringCycles_ = [];
  * Add more code to the interpreter.
  * @param {string|!Object} code Raw JavaScript text or AST.
  */
-public appendCode(code) {
+public appendCode(code: string | ESTree.Node) {
   var state = this.stateStack[0];
   if (!state || state.node['type'] !== 'Program') {
     throw Error('Expecting original AST to start with a Program node.');
@@ -229,7 +232,7 @@ public appendCode(code) {
  * Execute one step of the interpreter.
  * @return {boolean} True if a step was executed, false if no more instructions.
  */
-public step() {
+public step(): boolean {
   var stack = this.stateStack;
   var state = stack[stack.length - 1];
   if (!state) {
@@ -274,7 +277,7 @@ public run() {
  * Initialize the global scope with buitin properties and functions.
  * @param {!Interpreter.MyObject} scope Global scope.
  */
-public initGlobalScope(scope) {
+public initGlobalScope(scope: Interpreter.MyObject) {
   // Initialize uneditable global properties.
   this.setProperty(scope, 'NaN', NaN,
                    Interpreter.READONLY_DESCRIPTOR);
@@ -359,7 +362,7 @@ public initGlobalScope(scope) {
  * Initialize the Function class.
  * @param {!Interpreter.MyObject} scope Global scope.
  */
-public initFunction(scope) {
+public initFunction(scope: Interpreter.MyObject) {
   var thisInterpreter = this;
   var wrapper;
   var identifierRegexp = /^[A-Za-z_$][\w$]*$/;
@@ -531,7 +534,7 @@ public initFunction(scope) {
  * Initialize the Object class.
  * @param {!Interpreter.MyObject} scope Global scope.
  */
-public initObject(scope) {
+public initObject(scope: Interpreter.MyObject) {
   var thisInterpreter = this;
   var wrapper;
   // Object constructor.
@@ -693,7 +696,7 @@ public initObject(scope) {
       delete descriptor.value;
       delete descriptor.writable;
     }
-    var pseudoDescriptor = thisInterpreter.nativeToPseudo(descriptor);
+    var pseudoDescriptor = <Interpreter.MyObject>thisInterpreter.nativeToPseudo(descriptor);
     if ('value' in descriptor) {
       thisInterpreter.setProperty(pseudoDescriptor, 'value', descriptor.value);
     }
@@ -771,7 +774,7 @@ public initObject(scope) {
  * Initialize the Array class.
  * @param {!Interpreter.MyObject} scope Global scope.
  */
-public initArray(scope) {
+public initArray(scope: Interpreter.MyObject) {
   var thisInterpreter = this;
   var getInt = function(obj, def) {
     // Return an integer, or the default.
@@ -1094,7 +1097,7 @@ public initArray(scope) {
  * Initialize the String class.
  * @param {!Interpreter.MyObject} scope Global scope.
  */
-public initString(scope) {
+public initString(scope: Interpreter.MyObject) {
   var thisInterpreter = this;
   var wrapper;
   // String constructor.
@@ -1205,7 +1208,7 @@ public initString(scope) {
  * Initialize the Boolean class.
  * @param {!Interpreter.MyObject} scope Global scope.
  */
-public initBoolean(scope) {
+public initBoolean(scope: Interpreter.MyObject) {
   var thisInterpreter = this;
   var wrapper;
   // Boolean constructor.
@@ -1228,7 +1231,7 @@ public initBoolean(scope) {
  * Initialize the Number class.
  * @param {!Interpreter.MyObject} scope Global scope.
  */
-public initNumber(scope) {
+public initNumber(scope: Interpreter.MyObject) {
   var thisInterpreter = this;
   var wrapper;
   // Number constructor.
@@ -1306,7 +1309,7 @@ public initNumber(scope) {
  * Initialize the Date class.
  * @param {!Interpreter.MyObject} scope Global scope.
  */
-public initDate(scope) {
+public initDate(scope: Interpreter.MyObject) {
   var thisInterpreter = this;
   var wrapper;
   // Date constructor.
@@ -1366,7 +1369,7 @@ public initDate(scope) {
  * Initialize Regular Expression object.
  * @param {!Interpreter.MyObject} scope Global scope.
  */
-public initRegExp(scope) {
+public initRegExp(scope: Interpreter.MyObject) {
   var thisInterpreter = this;
   var wrapper;
   // RegExp constructor.
@@ -1429,7 +1432,7 @@ public initRegExp(scope) {
  * Initialize the Error class.
  * @param {!Interpreter.MyObject} scope Global scope.
  */
-public initError(scope) {
+public initError(scope: Interpreter.MyObject) {
   var thisInterpreter = this;
   // Error constructor.
   this.ERROR = this.createNativeFunction(function(opt_message) {
@@ -1489,7 +1492,7 @@ public initError(scope) {
  * Initialize Math object.
  * @param {!Interpreter.MyObject} scope Global scope.
  */
-public initMath(scope) {
+public initMath(scope: Interpreter.MyObject) {
   var thisInterpreter = this;
   var myMath = this.createObjectProto(this.OBJECT_PROTO);
   this.setProperty(scope, 'Math', myMath);
@@ -1513,7 +1516,7 @@ public initMath(scope) {
  * Initialize JSON object.
  * @param {!Interpreter.MyObject} scope Global scope.
  */
-public initJSON(scope) {
+public initJSON(scope: Interpreter.MyObject) {
   var thisInterpreter = this;
   var myJSON = thisInterpreter.createObjectProto(this.OBJECT_PROTO);
   this.setProperty(scope, 'JSON', myJSON);
@@ -1548,7 +1551,7 @@ public initJSON(scope) {
  * @return {boolean} True if object is the class or inherits from it.
  *     False otherwise.
  */
-public isa(child, constructor) {
+public isa(child: Interpreter.MyValue, constructor: Interpreter.MyObject) {
   if (child === null || child === undefined || !constructor) {
     return false;
   }
@@ -1558,12 +1561,12 @@ public isa(child, constructor) {
   }
   // The first step up the prototype chain is harder since the child might be
   // a primitive value.  Subsequent steps can just follow the .proto property.
-  child = this.getPrototype(child);
-  while (child) {
-    if (child === proto) {
+  var childObj = this.getPrototype(child);
+  while (childObj) {
+    if (childObj === proto) {
       return true;
     }
-    child = child.proto;
+    childObj = childObj.proto;
   }
   return false;
 };
@@ -1574,8 +1577,8 @@ public isa(child, constructor) {
  * @return {number} Zero, or a positive integer if the value can be
  *     converted to such.  NaN otherwise.
  */
-static legalArrayLength(x) {
-  var n = x >>> 0;
+static legalArrayLength(x: Interpreter.MyValue) {
+  var n = <number>x >>> 0;
   // Array length must be between 0 and 2^32-1 (inclusive).
   return (n === Number(x)) ? n : NaN;
 };
@@ -1586,8 +1589,8 @@ static legalArrayLength(x) {
  * @return {number} Zero, or a positive integer if the value can be
  *     converted to such.  NaN otherwise.
  */
-static legalArrayIndex(x) {
-  var n = x >>> 0;
+static legalArrayIndex(x: Interpreter.MyValue) {
+  var n = <number>x >>> 0;
   // Array index cannot be 2^32-1, otherwise length would be 2^32.
   // 0xffffffff is 2^32-1.
   return (String(n) === String(x) && n !== 0xffffffff) ? n : NaN;
@@ -1599,7 +1602,7 @@ static legalArrayIndex(x) {
  *     or null if scope object.
  * @return {!Interpreter.MyObject} New data object.
  */
-public createObject(constructor) {
+public createObject(constructor: Interpreter.MyObject) {
   return this.createObjectProto(constructor &&
                                 constructor.properties['prototype']);
 };
@@ -1609,7 +1612,7 @@ public createObject(constructor) {
  * @param {Interpreter.MyObject} proto Prototype object.
  * @return {!Interpreter.MyObject} New data object.
  */
-public createObjectProto(proto) {
+public createObjectProto(proto: Interpreter.MyObject) {
   var obj = new Interpreter.MyObject(proto);
   // Functions have prototype objects.
   if (this.isa(obj, this.FUNCTION)) {
@@ -1635,7 +1638,7 @@ public createObjectProto(proto) {
  * @param {!Interpreter.MyObject} pseudoRegexp The existing object to set.
  * @param {!RegExp} nativeRegexp The native regular expression.
  */
-public populateRegExp(pseudoRegexp, nativeRegexp) {
+public populateRegExp(pseudoRegexp: Interpreter.MyObject, nativeRegexp: RegExp) {
   pseudoRegexp.data = nativeRegexp;
   // lastIndex is settable, all others are read-only attributes
   this.setProperty(pseudoRegexp, 'lastIndex', nativeRegexp.lastIndex,
@@ -1656,7 +1659,7 @@ public populateRegExp(pseudoRegexp, nativeRegexp) {
  * @param {!Object} scope Parent scope.
  * @return {!Interpreter.MyObject} New function.
  */
-public createFunction(node, scope) {
+public createFunction(node: ESTree.FunctionDeclaration, scope: Interpreter.MyObject) {
   var func = this.createObjectProto(this.FUNCTION_PROTO);
   func.parentScope = scope;
   func.node = node;
@@ -1674,7 +1677,7 @@ public createFunction(node, scope) {
  * Defaults to undefined.
  * @return {!Interpreter.MyObject} New function.
  */
-public createNativeFunction(nativeFunc, opt_constructor?) {
+public createNativeFunction(nativeFunc: NativeFunction, opt_constructor?: boolean) {
   var func = this.createObjectProto(this.FUNCTION_PROTO);
   func.nativeFunc = nativeFunc;
   nativeFunc.id = this.functionCounter_++;
@@ -1710,7 +1713,7 @@ public createAsyncFunction(asyncFunc) {
  * @param {*} nativeObj The native JS object to be converted.
  * @return {Interpreter.MyValue} The equivalent JS interpreter object.
  */
-public nativeToPseudo(nativeObj) {
+public nativeToPseudo(nativeObj: any): Interpreter.MyValue {
   if (typeof nativeObj === 'boolean' ||
       typeof nativeObj === 'number' ||
       typeof nativeObj === 'string' ||
@@ -1739,7 +1742,7 @@ public nativeToPseudo(nativeObj) {
     return this.createNativeFunction(wrapper, undefined);
   }
 
-  var pseudoObj;
+  var pseudoObj: Interpreter.MyObject;
   if (Array.isArray(nativeObj)) {  // Array.
     pseudoObj = this.createObjectProto(this.ARRAY_PROTO);
     for (var i = 0; i < nativeObj.length; i++) {
@@ -1764,7 +1767,7 @@ public nativeToPseudo(nativeObj) {
  * @param {Object=} opt_cycles Cycle detection (used in recursive calls).
  * @return {*} The equivalent native JS object or value.
  */
-public pseudoToNative(pseudoObj, opt_cycles?) {
+public pseudoToNative(pseudoObj: Interpreter.MyValue, opt_cycles?: Interpreter.MyValueTable) {
   if (typeof pseudoObj === 'boolean' ||
       typeof pseudoObj === 'number' ||
       typeof pseudoObj === 'string' ||
@@ -1780,7 +1783,7 @@ public pseudoToNative(pseudoObj, opt_cycles?) {
     pseudo: [],
     native: []
   };
-  var i = (<Array<any>>cycles.pseudo).indexOf(pseudoObj);
+  var i = cycles.pseudo.indexOf(pseudoObj);
   if (i !== -1) {
     return cycles.native[i];
   }
@@ -1815,7 +1818,7 @@ public pseudoToNative(pseudoObj, opt_cycles?) {
  * @param {Interpreter.MyValue} value Data object.
  * @return {Interpreter.MyObject} Prototype object, null if none.
  */
-public getPrototype(value) {
+public getPrototype(value: Interpreter.MyValue): Interpreter.MyObject {
   switch (typeof value) {
     case 'number':
       return this.NUMBER.properties['prototype'];
@@ -1825,7 +1828,7 @@ public getPrototype(value) {
       return this.STRING.properties['prototype'];
   }
   if (value) {
-    return value.proto;
+    return (<Interpreter.MyObject>value).proto;
   }
   return null;
 };
@@ -1836,7 +1839,7 @@ public getPrototype(value) {
  * @param {Interpreter.MyValue} name Name of property.
  * @return {Interpreter.MyValue} Property value (may be undefined).
  */
-public getProperty(obj, name) {
+public getProperty(obj: Interpreter.MyValue, name: Interpreter.MyValue): Interpreter.MyValue {
   name = String(name);
   if (obj === undefined || obj === null) {
     this.throwException(this.TYPE_ERROR,
@@ -1858,15 +1861,16 @@ public getProperty(obj, name) {
     }
   }
   do {
-    if (obj.properties && name in obj.properties) {
-      var getter = obj.getter[name];
+    const myObj = <Interpreter.MyObject>obj;
+    if (myObj.properties && name in myObj.properties) {
+      var getter = myObj.getter[name];
       if (getter) {
         // Flag this function as being a getter and thus needing immediate
         // execution (rather than being the value of the property).
         getter.isGetter = true;
         return getter;
       }
-      return obj.properties[name];
+      return myObj.properties[name];
     }
   } while ((obj = this.getPrototype(obj)));
   return undefined;
@@ -1878,8 +1882,8 @@ public getProperty(obj, name) {
  * @param {Interpreter.MyValue} name Name of property.
  * @return {boolean} True if property exists.
  */
-public hasProperty(obj, name) {
-  if (!obj.isObject) {
+public hasProperty(obj: Interpreter.MyValue, name: Interpreter.MyValue) {
+  if (!obj['isObject']) {
     throw TypeError('Primitive data type has no properties');
   }
   name = String(name);
@@ -1893,7 +1897,8 @@ public hasProperty(obj, name) {
     }
   }
   do {
-    if (obj.properties && name in obj.properties) {
+    const myObj = <Interpreter.MyObject> obj;
+    if (myObj.properties && name in myObj.properties) {
       return true;
     }
   } while ((obj = this.getPrototype(obj)));
@@ -1910,7 +1915,7 @@ public hasProperty(obj, name) {
  * @return {!Interpreter.MyObject|undefined} Returns a setter function if one
  *     needs to be called, otherwise undefined.
  */
-public setProperty(obj, name, value, opt_descriptor?) {
+public setProperty(obj: Interpreter.MyObject, name: Interpreter.MyValue, value: Interpreter.MyValue | ReferenceErrorConstructor, opt_descriptor?): Interpreter.MyObject {
   name = String(name);
   if (obj === undefined || obj === null) {
     this.throwException(this.TYPE_ERROR,
@@ -1946,7 +1951,7 @@ public setProperty(obj, name, value, opt_descriptor?) {
     var i;
     if (name === 'length') {
       // Delete elements if length is smaller.
-      value = Interpreter.legalArrayLength(value);
+      value = Interpreter.legalArrayLength(<number>value);
       if (isNaN(value)) {
         this.throwException(this.RANGE_ERROR, 'Invalid array length');
       }
@@ -2061,7 +2066,7 @@ public setProperty(obj, name, value, opt_descriptor?) {
  * @param {Interpreter.MyValue} name Name of property.
  * @param {!Function} wrapper Function object.
  */
-private setNativeFunctionPrototype(obj, name, wrapper) {
+private setNativeFunctionPrototype(obj: Interpreter.MyObject, name: Interpreter.MyValue, wrapper: Function) {
   this.setProperty(obj.properties['prototype'], name,
       this.createNativeFunction(wrapper, false),
       Interpreter.NONENUMERABLE_DESCRIPTOR);
@@ -2086,7 +2091,7 @@ public getScope() {
  * @param {Interpreter.MyObject} parentScope Scope to link to.
  * @return {!Interpreter.MyObject} New scope.
  */
-public createScope(node, parentScope) {
+public createScope(node: ESTree.Node, parentScope: Interpreter.MyObject) {
   var scope = this.createObjectProto(null);
   scope.parentScope = parentScope;
   if (!parentScope) {
@@ -2118,7 +2123,7 @@ public createScope(node, parentScope) {
  *     scope.
  * @return {!Interpreter.MyObject} New scope.
  */
-public createSpecialScope(parentScope, opt_scope?) {
+public createSpecialScope(parentScope: Interpreter.MyObject, opt_scope?: Interpreter.MyObject) {
   if (!parentScope) {
     throw Error('parentScope required');
   }
@@ -2135,7 +2140,7 @@ public createSpecialScope(parentScope, opt_scope?) {
  *   May be flagged as being a getter and thus needing immediate execution
  *   (rather than being the value of the property).
  */
-public getValueFromScope(name) {
+public getValueFromScope(name: string): Interpreter.MyValue {
   var scope = this.getScope();
   while (scope && scope !== this.global) {
     if (name in scope.properties) {
@@ -2164,7 +2169,7 @@ public getValueFromScope(name) {
  * @return {!Interpreter.MyObject|undefined} Returns a setter function if one
  *     needs to be called, otherwise undefined.
  */
-public setValueToScope(name, value) {
+public setValueToScope(name: string, value: Interpreter.MyValue) {
   var scope = this.getScope();
   var strict = scope.strict;
   while (scope && scope !== this.global) {
@@ -2188,7 +2193,7 @@ public setValueToScope(name, value) {
  * @param {!Interpreter.MyObject} scope Scope dictionary to populate.
  * @private
  */
-public populateScope_(node, scope) {
+public populateScope_(node: ESTree.Node, scope: Interpreter.MyObject) {
   if (node['type'] === 'VariableDeclaration') {
     for (var i = 0; i < node['declarations'].length; i++) {
       this.setProperty(scope, node['declarations'][i]['id']['name'],
@@ -2196,7 +2201,7 @@ public populateScope_(node, scope) {
     }
   } else if (node['type'] === 'FunctionDeclaration') {
     this.setProperty(scope, node['id']['name'],
-        this.createFunction(node, scope), Interpreter.VARIABLE_DESCRIPTOR);
+        this.createFunction(<ESTree.FunctionDeclaration>node, scope), Interpreter.VARIABLE_DESCRIPTOR);
     return;  // Do not recurse into function.
   } else if (node['type'] === 'FunctionExpression') {
     return;  // Do not recurse into function.
@@ -2231,7 +2236,7 @@ public populateScope_(node, scope) {
  * @param {number=} end Ending character of all nodes, or undefined.
  * @private
  */
-public stripLocations_(node, start, end) {
+private stripLocations_(node: ESTree.BaseNode, start: number, end: number) {
   if (start) {
     node['start'] = start;
   } else {
@@ -2256,7 +2261,7 @@ public stripLocations_(node, start, end) {
  * Is the current state directly being called with as a construction with 'new'.
  * @return {boolean} True if 'new foo()', false if 'foo()'.
  */
-public calledWithNew() {
+public calledWithNew(): boolean {
   return this.stateStack[this.stateStack.length - 1].isConstructor;
 };
 
@@ -2284,7 +2289,7 @@ public getValue(ref) {
  * @return {!Interpreter.MyObject|undefined} Returns a setter function if one
  *     needs to be called, otherwise undefined.
  */
-public setValue(ref, value) {
+public setValue(ref: Array<any> & { 0: Interpreter.MyObject, 1: string }, value: Interpreter.MyValue) {
   if (ref[0] === Interpreter.SCOPE_REFERENCE) {
     // A null/varname variable lookup.
     return this.setValueToScope(ref[1], value);
@@ -2303,7 +2308,7 @@ public setValue(ref, value) {
  *   provided) or the value to throw (if no message).
  * @param {string=} opt_message Message being thrown.
  */
-public throwException(errorClass, opt_message?) {
+public throwException(errorClass: Interpreter.MyObject, opt_message?: string) {
   if (opt_message === undefined) {
     var error = <Interpreter.MyObject>errorClass;  // This is a value to throw, not an error class.
   } else {
@@ -2322,7 +2327,7 @@ public throwException(errorClass, opt_message?) {
  * be thrown.
  * @param {!Interpreter.MyObject} error Error object to execute.
  */
-public executeException(error) {
+public executeException(error: Interpreter.MyObject) {
   // Search for a try statement.
   do {
     this.stateStack.pop();
@@ -2361,7 +2366,7 @@ public executeException(error) {
  *     Name of variable or object/propname tuple.
  * @private
  */
-public createGetter_(func, left) {
+public createGetter_(func: Interpreter.MyObject, left: Interpreter.MyObject | Array<Interpreter.MyObject>) {
   // Normally 'this' will be specified as the object component (o.x).
   // Sometimes 'this' is explicitly provided (o).
   var funcThis = Array.isArray(left) ? left[0] : left;
@@ -2385,7 +2390,7 @@ public createGetter_(func, left) {
  * @param {Interpreter.MyValue} value Value to set.
  * @private
  */
-public createSetter_(func, left, value) {
+public createSetter_(func: Interpreter.MyObject, left: Interpreter.MyObject | Array<Interpreter.MyObject>, value: Interpreter.MyValue) {
   // Normally 'this' will be specified as the object component (o.x).
   // Sometimes 'this' is implicitly the global object (x).
   var funcThis = Array.isArray(left) ? left[0] : this.global;
@@ -2406,7 +2411,7 @@ public createSetter_(func, left, value) {
 // Functions to handle each node type.
 ///////////////////////////////////////////////////////////////////////////////
 
-private stepArrayExpression(stack, state, node) {
+private stepArrayExpression(stack: Interpreter.MyState[], state: Interpreter.MyState, node: ESTree.Node) {
   var elements = node['elements'];
   var n = state.n_ || 0;
   if (!state.array_) {
@@ -2428,7 +2433,7 @@ private stepArrayExpression(stack, state, node) {
   stack[stack.length - 1].value = state.array_;
 };
 
-private stepAssignmentExpression(stack, state, node) {
+private stepAssignmentExpression(stack: Interpreter.MyState[], state: Interpreter.MyState, node: ESTree.Node) {
   if (!state.doneLeft_) {
     state.doneLeft_ = true;
     var nextState = new Interpreter.MyState(node['left'], state.scope);
@@ -2492,7 +2497,7 @@ private stepAssignmentExpression(stack, state, node) {
   stack[stack.length - 1].value = value;
 };
 
-private stepBinaryExpression(stack, state, node) {
+private stepBinaryExpression(stack: Interpreter.MyState[], state: Interpreter.MyState, node: ESTree.Node) {
   if (!state.doneLeft_) {
     state.doneLeft_ = true;
     return new Interpreter.MyState(node['left'], state.scope);
@@ -2546,7 +2551,7 @@ private stepBinaryExpression(stack, state, node) {
   stack[stack.length - 1].value = value;
 };
 
-private stepBlockStatement(stack, state, node) {
+private stepBlockStatement(stack: Interpreter.MyState[], state: Interpreter.MyState, node: ESTree.Node) {
   var n = state.n_ || 0;
   var expression = node['body'][n];
   if (expression) {
@@ -2556,7 +2561,7 @@ private stepBlockStatement(stack, state, node) {
   stack.pop();
 };
 
-private stepBreakStatement(stack, state, node) {
+private stepBreakStatement(stack: Interpreter.MyState[], state: Interpreter.MyState, node: ESTree.Node) {
   stack.pop();
   var label = null;
   if (node['label']) {
@@ -2578,7 +2583,7 @@ private stepBreakStatement(stack, state, node) {
   throw SyntaxError('Illegal break statement');
 };
 
-private stepCallExpression(stack, state, node) {
+private stepCallExpression(stack: Interpreter.MyState[], state: Interpreter.MyState, node: ESTree.Node) {
   if (!state.doneCallee_) {
     state.doneCallee_ = 1;
     // Components needed to determine value of 'this'.
@@ -2725,7 +2730,7 @@ private stepCallExpression(stack, state, node) {
   }
 };
 
-private stepCatchClause(stack, state, node) {
+private stepCatchClause(stack: Interpreter.MyState[], state: Interpreter.MyState, node: ESTree.Node) {
   if (!state.done_) {
     state.done_ = true;
     // Create an empty scope.
@@ -2739,7 +2744,7 @@ private stepCatchClause(stack, state, node) {
   }
 };
 
-private stepConditionalExpression(stack, state, node) {
+private stepConditionalExpression(stack: Interpreter.MyState[], state: Interpreter.MyState, node: ESTree.Node) {
   var mode = state.mode_ || 0;
   if (mode === 0) {
     state.mode_ = 1;
@@ -2764,7 +2769,7 @@ private stepConditionalExpression(stack, state, node) {
   }
 };
 
-private stepContinueStatement(stack, state, node) {
+private stepContinueStatement(stack: Interpreter.MyState[], state: Interpreter.MyState, node: ESTree.Node) {
   stack.pop();
   var label = null;
   if (node['label']) {
@@ -2786,12 +2791,12 @@ private stepContinueStatement(stack, state, node) {
   throw SyntaxError('Illegal continue statement');
 };
 
-private stepDebuggerStatement(stack, state, node) {
+private stepDebuggerStatement(stack: Interpreter.MyState[], state: Interpreter.MyState, node: ESTree.Node) {
   // Do nothing.  May be overridden by developers.
   stack.pop();
 };
 
-private stepDoWhileStatement(stack, state, node) {
+private stepDoWhileStatement(stack: Interpreter.MyState[], state: Interpreter.MyState, node: ESTree.Node) {
   if (node['type'] === 'DoWhileStatement' && state.test_ === undefined) {
     // First iteration of do/while executes without checking test.
     state.value = true;
@@ -2810,11 +2815,11 @@ private stepDoWhileStatement(stack, state, node) {
   }
 };
 
-private stepEmptyStatement(stack, state, node) {
+private stepEmptyStatement(stack: Interpreter.MyState[], state: Interpreter.MyState, node: ESTree.Node) {
   stack.pop();
 };
 
-private stepEvalProgram_(stack, state, node) {
+private stepEvalProgram_(stack: Interpreter.MyState[], state: Interpreter.MyState, node: ESTree.Node) {
   var n = state.n_ || 0;
   var expression = node['body'][n];
   if (expression) {
@@ -2825,7 +2830,7 @@ private stepEvalProgram_(stack, state, node) {
   stack[stack.length - 1].value = this.value;
 };
 
-private stepExpressionStatement(stack, state, node) {
+private stepExpressionStatement(stack: Interpreter.MyState[], state: Interpreter.MyState, node: ESTree.Node) {
   if (!state.done_) {
     state.done_ = true;
     return new Interpreter.MyState(node['expression'], state.scope);
@@ -2836,7 +2841,7 @@ private stepExpressionStatement(stack, state, node) {
   this.value = state.value;
 };
 
-private stepForInStatement(stack, state, node) {
+private stepForInStatement(stack: Interpreter.MyState[], state: Interpreter.MyState, node: ESTree.Node) {
   // First, initialize a variable if exists.  Only do so once, ever.
   if (!state.doneInit_) {
     state.doneInit_ = true;
@@ -2945,7 +2950,7 @@ private stepForInStatement(stack, state, node) {
   }
 };
 
-private stepForStatement(stack, state, node) {
+private stepForStatement(stack: Interpreter.MyState[], state: Interpreter.MyState, node: ESTree.Node) {
   var mode = state.mode_ || 0;
   if (mode === 0) {
     state.mode_ = 1;
@@ -2974,17 +2979,17 @@ private stepForStatement(stack, state, node) {
   }
 };
 
-private stepFunctionDeclaration(stack, state, node) {
+private stepFunctionDeclaration(stack: Interpreter.MyState[], state: Interpreter.MyState, node: ESTree.Node) {
   // This was found and handled when the scope was populated.
   stack.pop();
 };
 
-private stepFunctionExpression(stack, state, node) {
+private stepFunctionExpression(stack: Interpreter.MyState[], state: Interpreter.MyState, node: ESTree.Node) {
   stack.pop();
-  stack[stack.length - 1].value = this.createFunction(node, state.scope);
+  stack[stack.length - 1].value = this.createFunction(<ESTree.FunctionDeclaration>node, state.scope);
 };
 
-private stepIdentifier(stack, state, node) {
+private stepIdentifier(stack: Interpreter.MyState[], state: Interpreter.MyState, node: ESTree.Node) {
   stack.pop();
   if (state.components) {
     stack[stack.length - 1].value = [Interpreter.SCOPE_REFERENCE, node['name']];
@@ -3005,11 +3010,11 @@ private stepIdentifier(stack, state, node) {
   stack[stack.length - 1].value = value;
 };
 
-private stepIfStatement(stack, state, node) {
+private stepIfStatement(stack: Interpreter.MyState[], state: Interpreter.MyState, node: ESTree.Node) {
   return this.stepConditionalExpression(stack, state, node);
 }
 
-private stepLabeledStatement(stack, state, node) {
+private stepLabeledStatement(stack: Interpreter.MyState[], state: Interpreter.MyState, node: ESTree.Node) {
   // No need to hit this node again on the way back up the stack.
   stack.pop();
   // Note that a statement might have multiple labels.
@@ -3020,7 +3025,7 @@ private stepLabeledStatement(stack, state, node) {
   return nextState;
 };
 
-private stepLiteral(stack, state, node) {
+private stepLiteral(stack: Interpreter.MyState[], state: Interpreter.MyState, node: ESTree.Node) {
   stack.pop();
   var value = node['value'];
   if (value instanceof RegExp) {
@@ -3031,7 +3036,7 @@ private stepLiteral(stack, state, node) {
   stack[stack.length - 1].value = value;
 };
 
-private stepLogicalExpression(stack, state, node) {
+private stepLogicalExpression(stack: Interpreter.MyState[], state: Interpreter.MyState, node: ESTree.Node) {
   if (node['operator'] !== '&&' && node['operator'] !== '||') {
     throw SyntaxError('Unknown logical operator: ' + node['operator']);
   }
@@ -3055,7 +3060,7 @@ private stepLogicalExpression(stack, state, node) {
   }
 };
 
-private stepMemberExpression(stack, state, node) {
+private stepMemberExpression(stack: Interpreter.MyState[], state: Interpreter.MyState, node: ESTree.Node) {
   if (!state.doneObject_) {
     state.doneObject_ = true;
     return new Interpreter.MyState(node['object'], state.scope);
@@ -3088,11 +3093,11 @@ private stepMemberExpression(stack, state, node) {
   }
 };
 
-private stepNewExpression(stack, state, node) {
+private stepNewExpression(stack: Interpreter.MyState[], state: Interpreter.MyState, node: ESTree.Node) {
   return this.stepCallExpression(stack, state, node);
 }
 
-private stepObjectExpression(stack, state, node) {
+private stepObjectExpression(stack: Interpreter.MyState[], state: Interpreter.MyState, node: ESTree.Node) {
   var n = state.n_ || 0;
   var property = node['properties'][n];
   if (!state.object_) {
@@ -3141,7 +3146,7 @@ private stepObjectExpression(stack, state, node) {
   stack[stack.length - 1].value = state.object_;
 };
 
-private stepProgram(stack, state, node) {
+private stepProgram(stack: Interpreter.MyState[], state: Interpreter.MyState, node: ESTree.Node) {
   var n = state.n_ || 0;
   var expression = node['body'][n];
   if (expression) {
@@ -3154,7 +3159,7 @@ private stepProgram(stack, state, node) {
   // Leave the root scope on the tree in case the program is appended to.
 };
 
-private stepReturnStatement(stack, state, node) {
+private stepReturnStatement(stack: Interpreter.MyState[], state: Interpreter.MyState, node: ESTree.Node) {
   if (node['argument'] && !state.done_) {
     state.done_ = true;
     return new Interpreter.MyState(node['argument'], state.scope);
@@ -3177,7 +3182,7 @@ private stepReturnStatement(stack, state, node) {
   state.value = value;
 };
 
-private stepSequenceExpression(stack, state, node) {
+private stepSequenceExpression(stack: Interpreter.MyState[], state: Interpreter.MyState, node: ESTree.Node) {
   var n = state.n_ || 0;
   var expression = node['expressions'][n];
   if (expression) {
@@ -3188,7 +3193,7 @@ private stepSequenceExpression(stack, state, node) {
   stack[stack.length - 1].value = state.value;
 };
 
-private stepSwitchStatement(stack, state, node) {
+private stepSwitchStatement(stack: Interpreter.MyState[], state: Interpreter.MyState, node: ESTree.Node) {
   if (!state.test_) {
     state.test_ = 1;
     return new Interpreter.MyState(node['discriminant'], state.scope);
@@ -3241,12 +3246,12 @@ private stepSwitchStatement(stack, state, node) {
   }
 };
 
-private stepThisExpression(stack, state, node) {
+private stepThisExpression(stack: Interpreter.MyState[], state: Interpreter.MyState, node: ESTree.Node) {
   stack.pop();
   stack[stack.length - 1].value = this.getValueFromScope('this');
 };
 
-private stepThrowStatement(stack, state, node) {
+private stepThrowStatement(stack: Interpreter.MyState[], state: Interpreter.MyState, node: ESTree.Node) {
   if (!state.done_) {
     state.done_ = true;
     return new Interpreter.MyState(node['argument'], state.scope);
@@ -3255,7 +3260,7 @@ private stepThrowStatement(stack, state, node) {
   }
 };
 
-private stepTryStatement(stack, state, node) {
+private stepTryStatement(stack: Interpreter.MyState[], state: Interpreter.MyState, node: ESTree.Node) {
   if (!state.doneBlock_) {
     state.doneBlock_ = true;
     return new Interpreter.MyState(node['block'], state.scope);
@@ -3280,7 +3285,7 @@ private stepTryStatement(stack, state, node) {
   }
 };
 
-private stepUnaryExpression(stack, state, node) {
+private stepUnaryExpression(stack: Interpreter.MyState[], state: Interpreter.MyState, node: ESTree.Node) {
   if (!state.done_) {
     state.done_ = true;
     var nextState = new Interpreter.MyState(node['argument'], state.scope);
@@ -3330,7 +3335,7 @@ private stepUnaryExpression(stack, state, node) {
   stack[stack.length - 1].value = value;
 };
 
-private stepUpdateExpression(stack, state, node) {
+private stepUpdateExpression(stack: Interpreter.MyState[], state: Interpreter.MyState, node: ESTree.Node) {
   if (!state.doneLeft_) {
     state.doneLeft_ = true;
     var nextState = new Interpreter.MyState(node['argument'], state.scope);
@@ -3382,7 +3387,7 @@ private stepUpdateExpression(stack, state, node) {
   stack[stack.length - 1].value = returnValue;
 };
 
-private stepVariableDeclaration(stack, state, node) {
+private stepVariableDeclaration(stack: Interpreter.MyState[], state: Interpreter.MyState, node: ESTree.Node) {
   var declarations = node['declarations'];
   var n = state.n_ || 0;
   var declarationNode = declarations[n];
@@ -3407,7 +3412,7 @@ private stepVariableDeclaration(stack, state, node) {
   stack.pop();
 };
 
-private stepWithStatement(stack, state, node) {
+private stepWithStatement(stack: Interpreter.MyState[], state: Interpreter.MyState, node: ESTree.Node) {
   if (!state.doneObject_) {
     state.doneObject_ = true;
     return new Interpreter.MyState(node['object'], state.scope);
@@ -3420,7 +3425,7 @@ private stepWithStatement(stack, state, node) {
   }
 };
 
-private stepWhileStatement(stack, state, node) {
+private stepWhileStatement(stack: Interpreter.MyState[], state: Interpreter.MyState, node: ESTree.Node) {
   return this.stepDoWhileStatement(stack, state, node);
 }
 }
@@ -3454,6 +3459,10 @@ module Interpreter {
  */
 export class MyObject {
 [key: string]: any;
+getter: any;
+setter: any;
+properties: any;
+
 constructor(proto) {
   this.getter = Object.create(null);
   this.setter = Object.create(null);
@@ -3462,7 +3471,7 @@ constructor(proto) {
 }
 
 /** @type {Interpreter.MyObject} */
-proto = null;
+proto: Interpreter.MyObject = null;
 
 /** @type {boolean} */
 isObject = true;
@@ -3471,7 +3480,7 @@ isObject = true;
 class = 'Object';
 
 /** @type {Date|RegExp|boolean|number|string|undefined|null} */
-data = null;
+data: Date | RegExp | boolean | number | string | undefined | null = null;
 
 /**
  * Convert this object into a string.
@@ -3502,14 +3511,14 @@ toString() {
     }
     var name, message;
     // Bug: Does not support getters and setters for name or message.
-    var obj = this;
+    var obj = <Interpreter.MyObject>this;
     do {
       if ('name' in obj.properties) {
         name = obj.properties['name'];
         break;
       }
     } while ((obj = obj.proto));
-    var obj = this;
+    var obj = <Interpreter.MyObject>this;
     do {
       if ('message' in obj.properties) {
         message = obj.properties['message'];
@@ -3571,5 +3580,10 @@ constructor(node: ESTree.BaseNode, scope: Interpreter.MyObject) {
   this.node = node;
   this.scope = scope;
 }
+}
+
+export interface MyValueTable {
+  pseudo: MyValue[],
+  native: any[]
 }
 }
