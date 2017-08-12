@@ -2,10 +2,6 @@
 import * as ESTree from 'estree';
 declare function escape(s:string): string;
 declare function unescape(s:string): string;
-interface ArrayConstructor {
-  from<T, U>(arrayLike: ArrayLike<T>, mapfn: (v: T, k: number) => U, thisArg?: any): Array<U>;
-  from<T>(arrayLike: ArrayLike<T>): Array<T>;
-}
 declare module acorn {
   function parse(code: string, options?: any): ESTree.Program;
 }
@@ -1317,7 +1313,7 @@ public initDate(scope) {
       return Date();
     }
     // Called as new Date().
-    var args = [null].concat(Array.from(arguments));
+    var args = [null].concat([].slice.call(arguments));
     this.data = new (Function.prototype.bind.apply(Date, args));
     return this;
   };
