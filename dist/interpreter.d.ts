@@ -20,7 +20,7 @@
 /**
  * @fileoverview Interpreting JavaScript in JavaScript.
  * @author fraser@google.com (Neil Fraser)
- * @author i@junkato (Jun Kato)
+ * @author i@junkato.jp (Jun Kato)
  */
 /**
  * Create a new interpreter.

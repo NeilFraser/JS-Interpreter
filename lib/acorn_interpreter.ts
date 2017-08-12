@@ -20,5 +20,11 @@ import Interpreter = require('./interpreter');
  * limitations under the License.
  */
 
+/**
+ * @fileoverview Interpreting JavaScript in JavaScript (concatenated with acorn)
+ * @author fraser@google.com (Neil Fraser)
+ * @author i@junkato.jp (Jun Kato)
+ */
+
 Interpreter.acorn = acorn;
 export = Interpreter;
