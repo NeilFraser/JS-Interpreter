@@ -1910,7 +1910,7 @@ public setProperty(obj, name, value, opt_descriptor?) {
     var i;
     if (name === 'length') {
       // Delete elements if length is smaller.
-      var value = Interpreter.legalArrayLength(value);
+      value = Interpreter.legalArrayLength(value);
       if (isNaN(value)) {
         this.throwException(this.RANGE_ERROR, 'Invalid array length');
       }
@@ -3326,7 +3326,7 @@ private stepUpdateExpression(stack, state, node) {
     stack[stack.length - 1].value = state.doneSetter_;
     return;
   }
-  var leftValue = Number(state.leftValue_);
+  leftValue = Number(state.leftValue_);
   var changeValue;
   if (node['operator'] === '++') {
     changeValue = leftValue + 1;
