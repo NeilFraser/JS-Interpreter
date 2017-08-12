@@ -3,15 +3,6 @@
 // Declare missing functions
 declare function escape(s:string): string;
 declare function unescape(s:string): string;
-interface Acorn {
-  parse(code: string, options?: any): ESTree.Program;
-}
-interface NodeConstructor {
-  new (): ESTree.BaseNode;
-}
-interface NativeFunction extends Function {
-  id?: number;
-}
 
 /**
  * @license
@@ -46,9 +37,9 @@ interface NativeFunction extends Function {
  * @constructor
  */
 class Interpreter {
-public static acorn: Acorn;
+public static acorn: Interpreter.Acorn;
 
-private nodeConstructor: NodeConstructor;
+private nodeConstructor: Interpreter.NodeConstructor;
 public ast: ESTree.Program;
 public global: Interpreter.MyObject;
 public stateStack: Interpreter.MyState[];
@@ -131,7 +122,7 @@ constructor(code: string | ESTree.Program
   this.stateStack.length = 0;
   this.stateStack[0] = state;
   // Get a handle on Acorn's node_t object.  It's tricky to access.
-  this.nodeConstructor = <NodeConstructor>state.node.constructor;
+  this.nodeConstructor = <Interpreter.NodeConstructor>state.node.constructor;
   // Preserve publicly properties from being pruned/renamed by JS compilers.
   // Add others as needed.
   this['stateStack'] = this.stateStack;
@@ -1680,7 +1671,7 @@ public createFunction(node: ESTree.FunctionDeclaration, scope: Interpreter.MyObj
  * Defaults to undefined.
  * @return {!Interpreter.MyObject} New function.
  */
-public createNativeFunction(nativeFunc: NativeFunction, opt_constructor?: boolean) {
+public createNativeFunction(nativeFunc: Interpreter.NativeFunction, opt_constructor?: boolean) {
   var func = this.createObjectProto(this.FUNCTION_PROTO);
   func.nativeFunc = nativeFunc;
   nativeFunc.id = this.functionCounter_++;
@@ -3433,27 +3424,6 @@ private stepWhileStatement(stack: Interpreter.MyState[], state: Interpreter.MySt
 }
 }
 
-// Preserve top-level API functions from being pruned/renamed by JS compilers.
-// Add others as needed.
-// The global object ('window' in a browser, 'global' in node.js) is 'this'.
-this['Interpreter'] = Interpreter;
-Interpreter.prototype['step'] = Interpreter.prototype.step;
-Interpreter.prototype['run'] = Interpreter.prototype.run;
-Interpreter.prototype['appendCode'] = Interpreter.prototype.appendCode;
-Interpreter.prototype['createObject'] = Interpreter.prototype.createObject;
-Interpreter.prototype['createObjectProto'] =
-    Interpreter.prototype.createObjectProto;
-Interpreter.prototype['createAsyncFunction'] =
-    Interpreter.prototype.createAsyncFunction;
-Interpreter.prototype['createNativeFunction'] =
-    Interpreter.prototype.createNativeFunction;
-Interpreter.prototype['getProperty'] = Interpreter.prototype.getProperty;
-Interpreter.prototype['setProperty'] = Interpreter.prototype.setProperty;
-Interpreter.prototype['nativeToPseudo'] = Interpreter.prototype.nativeToPseudo;
-Interpreter.prototype['pseudoToNative'] = Interpreter.prototype.pseudoToNative;
-// Obsolete.  Do not use.
-Interpreter.prototype['createPrimitive'] = (x) => {return x;};
-
 module Interpreter {
 /**
  * Class for an object.
@@ -3588,6 +3558,18 @@ constructor(node: ESTree.BaseNode, scope: Interpreter.MyObject) {
 export interface MyValueTable {
   pseudo: MyValue[],
   native: any[]
+}
+
+export interface Acorn {
+  parse(code: string, options?: any): ESTree.Program;
+}
+
+export interface NodeConstructor {
+  new (): ESTree.BaseNode;
+}
+
+export interface NativeFunction extends Function {
+  id?: number;
 }
 }
 

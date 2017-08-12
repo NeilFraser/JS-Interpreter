@@ -1,9 +1,9 @@
 
 import acorn = require('acorn');
-import Interpreter = require('../../dist/interpreter');
+import Interpreter = require('../../');
 Interpreter.acorn = acorn;
 
 // Test the interpreter.
 var interpreter = new Interpreter("var a = 1, b = 2; a + b;");
 interpreter.run();
-alert('1 + 2 = ' + interpreter.value); // shows an alert '1 + 2 = 3'
+console.log('1 + 2 = ' + interpreter.value); // shows '1 + 2 = 3' in the console

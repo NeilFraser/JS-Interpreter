@@ -1,0 +1,15 @@
+{
+  "name": "js-interpreter-demo-nodejs",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Jun Kato <i@junkato.jp> (https://junkato.jp)",
+  "license": "ISC",
+  "devDependencies": {
+    "@types/acorn": "^4.0.2",
+    "acorn": "^0.4.2"
+  }
+}

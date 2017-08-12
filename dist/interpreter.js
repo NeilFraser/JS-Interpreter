@@ -3102,26 +3102,6 @@
         Interpreter.toStringCycles_ = [];
         return Interpreter;
     }());
-    // Preserve top-level API functions from being pruned/renamed by JS compilers.
-    // Add others as needed.
-    // The global object ('window' in a browser, 'global' in node.js) is 'this'.
-    this['Interpreter'] = Interpreter;
-    Interpreter.prototype['step'] = Interpreter.prototype.step;
-    Interpreter.prototype['run'] = Interpreter.prototype.run;
-    Interpreter.prototype['appendCode'] = Interpreter.prototype.appendCode;
-    Interpreter.prototype['createObject'] = Interpreter.prototype.createObject;
-    Interpreter.prototype['createObjectProto'] =
-        Interpreter.prototype.createObjectProto;
-    Interpreter.prototype['createAsyncFunction'] =
-        Interpreter.prototype.createAsyncFunction;
-    Interpreter.prototype['createNativeFunction'] =
-        Interpreter.prototype.createNativeFunction;
-    Interpreter.prototype['getProperty'] = Interpreter.prototype.getProperty;
-    Interpreter.prototype['setProperty'] = Interpreter.prototype.setProperty;
-    Interpreter.prototype['nativeToPseudo'] = Interpreter.prototype.nativeToPseudo;
-    Interpreter.prototype['pseudoToNative'] = Interpreter.prototype.pseudoToNative;
-    // Obsolete.  Do not use.
-    Interpreter.prototype['createPrimitive'] = function (x) { return x; };
     (function (Interpreter) {
         /**
          * Class for an object.

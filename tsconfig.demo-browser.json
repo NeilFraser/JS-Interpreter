@@ -1,9 +1,9 @@
 {
   "compilerOptions": {
     "module": "amd",
-    "sourceMap": true,
     "target": "es5",
-    "types": ["estree", "requirejs"]
+    "types": ["requirejs"],
+    "skipLibCheck": true
   },
   "files": ["./demos/browser/index.ts"]
 }
