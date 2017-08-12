@@ -1,6 +1,6 @@
 
 import acorn = require('acorn');
-import Interpreter = require('../../');
+import Interpreter = require('JS-Interpreter');
 Interpreter.acorn = acorn;
 
 // Test the interpreter.

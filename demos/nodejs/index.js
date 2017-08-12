@@ -1,7 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 var acorn = require("acorn");
-var Interpreter = require("../../");
+var Interpreter = require("JS-Interpreter");
 Interpreter.acorn = acorn;
 // Test the interpreter.
 var interpreter = new Interpreter("var a = 1, b = 2; a + b;");

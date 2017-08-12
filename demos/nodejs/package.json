@@ -4,12 +4,16 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "build": "tsc index.ts --typeRoots ./node_modules/@types"
   },
   "author": "Jun Kato <i@junkato.jp> (https://junkato.jp)",
   "license": "ISC",
   "devDependencies": {
     "@types/acorn": "^4.0.2",
-    "acorn": "^0.4.2"
+    "@types/node": "^8.0.20"
+  },
+  "dependencies": {
+    "acorn": "^0.4.2",
+    "JS-Interpreter": "git+https://github.com/arcatdmz/JS-Interpreter.git"
   }
 }
