@@ -5,6 +5,9 @@ declare function unescape(s:string): string;
 declare module acorn {
   function parse(code: string, options?: any): ESTree.Program;
 }
+interface NodeConstructor {
+  new (): ESTree.BaseNode;
+}
 
 /**
  * @license
@@ -39,12 +42,12 @@ declare module acorn {
  * @constructor
  */
 class Interpreter {
-private nodeConstructor: FunctionConstructor;
+private nodeConstructor: NodeConstructor;
 public ast: ESTree.Program;
 public global: Interpreter.MyObject;
 public stateStack: Interpreter.MyState[];
 public value: Interpreter.MyValue;
-private initFunc_: Function;
+private initFunc_: (i: Interpreter, scope: Interpreter.MyObject) => void;
 private paused_: boolean;
 private polyfills_: string[];
 private functionCounter_: number;
@@ -82,7 +85,8 @@ public STRING_EMPTY: string;
 public NUMBER_ZERO: number;
 public NUMBER_ONE: number;
 
-constructor(code: string | ESTree.Program, opt_initFunc?: Function) {
+constructor(code: string | ESTree.Program
+    , opt_initFunc?: (i: Interpreter, scope: Interpreter.MyObject) => void) {
   if (typeof code === 'string') {
     code = acorn.parse(code, Interpreter.PARSE_OPTIONS);
   }
@@ -121,7 +125,7 @@ constructor(code: string | ESTree.Program, opt_initFunc?: Function) {
   this.stateStack.length = 0;
   this.stateStack[0] = state;
   // Get a handle on Acorn's node_t object.  It's tricky to access.
-  this.nodeConstructor = state.node.constructor;
+  this.nodeConstructor = <NodeConstructor>state.node.constructor;
   // Preserve publicly properties from being pruned/renamed by JS compilers.
   // Add others as needed.
   this['stateStack'] = this.stateStack;
@@ -3440,7 +3444,7 @@ Interpreter.prototype['setProperty'] = Interpreter.prototype.setProperty;
 Interpreter.prototype['nativeToPseudo'] = Interpreter.prototype.nativeToPseudo;
 Interpreter.prototype['pseudoToNative'] = Interpreter.prototype.pseudoToNative;
 // Obsolete.  Do not use.
-// private createPrimitive(x) {return x;};
+Interpreter.prototype['createPrimitive'] = (x) => {return x;};
 
 module Interpreter {
 /**
@@ -3561,7 +3565,9 @@ export type MyValue = MyObject | boolean | number | string | undefined | null;
  */
 export class MyState {
 [key: string]: any;
-constructor(node, scope) {
+node: ESTree.BaseNode;
+scope: Interpreter.MyObject;
+constructor(node: ESTree.BaseNode, scope: Interpreter.MyObject) {
   this.node = node;
   this.scope = scope;
 }

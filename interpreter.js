@@ -3111,7 +3111,7 @@ define(["require", "exports"], function (require, exports) {
     Interpreter.prototype['nativeToPseudo'] = Interpreter.prototype.nativeToPseudo;
     Interpreter.prototype['pseudoToNative'] = Interpreter.prototype.pseudoToNative;
     // Obsolete.  Do not use.
-    // private createPrimitive(x) {return x;};
+    Interpreter.prototype['createPrimitive'] = function (x) { return x; };
     (function (Interpreter) {
         /**
          * Class for an object.
