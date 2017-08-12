@@ -1,7 +1,7 @@
 const UglifyJSPlugin = require('uglifyjs-webpack-plugin')
 
 module.exports = {
-  entry: ['./lib/acorn.js', './lib/global.ts'],
+  entry: ['./lib/acorn.js', './lib/interpreter.global.ts'],
   output: {
     filename: './dist/acorn_interpreter.js'
   },

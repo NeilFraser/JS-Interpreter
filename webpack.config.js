@@ -1,7 +1,7 @@
 module.exports = {
-  entry: './lib/global.ts',
+  entry: './lib/interpreter.global.ts',
   output: {
-    filename: './dist/interpreter.js'
+    filename: './dist/interpreter.global.js'
   },
 
   devtool: 'source-map',
