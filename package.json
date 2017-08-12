@@ -7,14 +7,15 @@
     "type": "git",
     "url": "git+https://github.com/arcatdmz/JS-Interpreter.git"
   },
-  "keywords": ["javascript", "js-interpreter", "sandbox"],
+  "keywords": [
+    "javascript",
+    "js-interpreter",
+    "sandbox"
+  ],
   "author": "Jun Kato <i@junkato.jp> (https://junkato.jp)",
-  "license": "Apache 2.0",
+  "license": "Apache-2.0",
   "bugs": {
     "url": "https://github.com/arcatdmz/JS-Interpreter/issues"
   },
-  "homepage": "https://github.com/arcatdmz/JS-Interpreter#readme",
-  "dependencies": {
-    "@types/requirejs": "^2.1.30"
-  }
+  "homepage": "https://github.com/arcatdmz/JS-Interpreter#readme"
 }
