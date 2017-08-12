@@ -3226,4 +3226,7 @@ Interpreter.prototype['createPrimitive'] = function (x) { return x; };
     }());
     Interpreter.MyState = MyState;
 })(Interpreter || (Interpreter = {}));
+// These lines are added for API compatibility
+Interpreter['Object'] = Interpreter.MyObject;
+Interpreter['State'] = Interpreter.MyState;
 //# sourceMappingURL=interpreter.js.map
