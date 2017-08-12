@@ -75,7 +75,7 @@ var Interpreter =
      * @license
      * JavaScript Interpreter
      *
-     * Copyright 2013 Google Inc.
+     * Copyright 2013-2017 Google Inc. and Jun Kato
      *
      * Licensed under the Apache License, Version 2.0 (the "License");
      * you may not use this file except in compliance with the License.
@@ -92,6 +92,7 @@ var Interpreter =
     /**
      * @fileoverview Interpreting JavaScript in JavaScript.
      * @author fraser@google.com (Neil Fraser)
+     * @author i@junkato (Jun Kato)
      */
     /**
      * Create a new interpreter.

@@ -35,6 +35,12 @@ module.exports = {
   },
 
   plugins: [
-    new UglifyJSPlugin()
+    new UglifyJSPlugin({
+      compress: {warnings: false},
+      output: {comments: function(node, comment) {
+        return /^!/.test(comment.value);
+      }},
+      sourceMap: true
+    })
   ]
 };
