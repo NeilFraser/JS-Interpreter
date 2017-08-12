@@ -1,5 +1,13 @@
 /// <reference path="./_estree.d.ts" />
-define(["require", "exports"], function (require, exports) {
+(function (factory) {
+    if (typeof module === "object" && typeof module.exports === "object") {
+        var v = factory(require, exports);
+        if (v !== undefined) module.exports = v;
+    }
+    else if (typeof define === "function" && define.amd) {
+        define(["require", "exports"], factory);
+    }
+})(function (require, exports) {
     "use strict";
     /**
      * @license
@@ -3233,7 +3241,7 @@ define(["require", "exports"], function (require, exports) {
     Interpreter['State'] = Interpreter.MyState;
     // Look for globally-defined acorn
     try {
-        Interpreter.acorn = (this.self || global)['acorn'];
+        Interpreter.acorn = (self || global)['acorn'];
     }
     catch (e) {
         // do nothing if we fail

@@ -1,7 +1,8 @@
 {
   "compilerOptions": {
-    "module": "umd",
+    "module": "amd",
     "sourceMap": true,
+    "allowJs": true,
     "target": "es5",
     "outDir": "dist",
     "types": ["estree", "node"]

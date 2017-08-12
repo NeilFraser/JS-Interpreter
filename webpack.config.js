@@ -1,7 +1,8 @@
 module.exports = {
-  entry: './lib/interpreter.global.ts',
+  entry: './lib/interpreter.ts',
   output: {
-    filename: './dist/interpreter.global.js'
+    filename: './dist/interpreter.global.js',
+    library: 'Interpreter'
   },
 
   devtool: 'source-map',
@@ -15,7 +16,7 @@ module.exports = {
       {
         test: /\.tsx?$/,
         use: [
-          {loader: 'ts-loader'}
+          {loader: 'ts-loader', options: { configFileName: 'tsconfig.webpack.json' }}
         ]
       }
     ]

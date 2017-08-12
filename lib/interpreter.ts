@@ -3597,7 +3597,7 @@ Interpreter['State'] = Interpreter.MyState;
 
 // Look for globally-defined acorn
 try {
-  Interpreter.acorn = (this.self || global)['acorn'];
+  Interpreter.acorn = (self || global)['acorn'];
 } catch (e) {
   // do nothing if we fail
 }

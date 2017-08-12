@@ -1,9 +1,10 @@
 const UglifyJSPlugin = require('uglifyjs-webpack-plugin')
 
 module.exports = {
-  entry: ['./lib/acorn.js', './lib/interpreter.global.ts'],
+  entry: ['./lib/acorn_interpreter.ts'],
   output: {
-    filename: './dist/acorn_interpreter.js'
+    filename: './dist/acorn_interpreter.js',
+    library: 'Interpreter'
   },
 
   devtool: 'source-map',
@@ -27,7 +28,7 @@ module.exports = {
       {
         test: /\.tsx?$/,
         use: [
-          {loader: 'ts-loader'}
+          {loader: 'ts-loader', options: { configFileName: 'tsconfig.webpack.json' }}
         ]
       }
     ]
