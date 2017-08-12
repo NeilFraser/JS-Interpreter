@@ -1,7 +1,8 @@
 {
   "compilerOptions": {
-    "module": "amd",
-    "sourceMap": true
+    "module": "none",
+    "sourceMap": true,
+    "outFile": "interpreter.js"
   },
   "files": ["interpreter.ts"]
 }

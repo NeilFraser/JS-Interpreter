@@ -1,5 +1,6 @@
+/// <reference path="./_estree.d.ts" />
+
 // Declare missing functions
-import * as ESTree from 'estree';
 declare function escape(s:string): string;
 declare function unescape(s:string): string;
 declare module acorn {
