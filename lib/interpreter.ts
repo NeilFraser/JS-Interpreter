@@ -3,19 +3,14 @@
 // Declare missing functions
 declare function escape(s:string): string;
 declare function unescape(s:string): string;
-declare module acorn {
-  function parse(code: string, options?: any): ESTree.Program;
+interface Acorn {
+  parse(code: string, options?: any): ESTree.Program;
 }
 interface NodeConstructor {
   new (): ESTree.BaseNode;
 }
 interface NativeFunction extends Function {
   id?: number;
-}
-
-// Import acorn if not found
-if (typeof acorn === 'undefined') {
-  (this.self || global)['acorn'] = require('acorn');
 }
 
 /**
@@ -51,6 +46,8 @@ if (typeof acorn === 'undefined') {
  * @constructor
  */
 class Interpreter {
+public static acorn: Acorn;
+
 private nodeConstructor: NodeConstructor;
 public ast: ESTree.Program;
 public global: Interpreter.MyObject;
@@ -97,7 +94,7 @@ public NUMBER_ONE: number;
 constructor(code: string | ESTree.Program
     , opt_initFunc?: (i: Interpreter, scope: Interpreter.MyObject) => void) {
   if (typeof code === 'string') {
-    code = acorn.parse(code, Interpreter.PARSE_OPTIONS);
+    code = Interpreter.acorn.parse(code, Interpreter.PARSE_OPTIONS);
   }
   this.ast = code;
   this.initFunc_ = opt_initFunc;
@@ -119,7 +116,7 @@ constructor(code: string | ESTree.Program
   // Create and initialize the global scope.
   this.global = this.createScope(this.ast, null);
   // Run the polyfills.
-  this.ast = acorn.parse(this.polyfills_.join('\n'), Interpreter.PARSE_OPTIONS);
+  this.ast = Interpreter.acorn.parse(this.polyfills_.join('\n'), Interpreter.PARSE_OPTIONS);
   this.polyfills_ = undefined;  // Allow polyfill strings to garbage collect.
   this.stripLocations_(this.ast, undefined, undefined);
   var state = new Interpreter.MyState(this.ast, this.global);
@@ -221,7 +218,7 @@ public appendCode(code: string | ESTree.Node) {
     throw Error('Expecting original AST to start with a Program node.');
   }
   if (typeof code === 'string') {
-    code = acorn.parse(code, Interpreter.PARSE_OPTIONS);
+    code = Interpreter.acorn.parse(code, Interpreter.PARSE_OPTIONS);
   }
   if (!code || code['type'] !== 'Program') {
     throw Error('Expecting new AST to start with a Program node.');
@@ -403,7 +400,7 @@ public initFunction(scope: Interpreter.MyObject) {
     // Acorn needs to parse code in the context of a function or else 'return'
     // statements will be syntax errors.
     try {
-    var ast = acorn.parse('$ = function(' + args + ') {' + code + '};',
+    var ast = Interpreter.acorn.parse('$ = function(' + args + ') {' + code + '};',
         Interpreter.PARSE_OPTIONS);
     } catch (e) {
       // Acorn threw a SyntaxError.  Rethrow as a trappable error.
@@ -2683,7 +2680,7 @@ private stepCallExpression(stack: Interpreter.MyState[], state: Interpreter.MySt
         state.value = code;
       } else {
         try {
-          var ast = acorn.parse(code.toString(), Interpreter.PARSE_OPTIONS);
+          var ast = Interpreter.acorn.parse(code.toString(), Interpreter.PARSE_OPTIONS);
         } catch (e) {
           // Acorn threw a SyntaxError.  Rethrow as a trappable error.
           this.throwException(this.SYNTAX_ERROR, 'Invalid code: ' + e.message);
@@ -3597,5 +3594,12 @@ export interface MyValueTable {
 // These lines are added for API compatibility
 Interpreter['Object'] = Interpreter.MyObject;
 Interpreter['State'] = Interpreter.MyState;
+
+// Look for globally-defined acorn
+try {
+  Interpreter.acorn = (this.self || global)['acorn'];
+} catch (e) {
+  // do nothing if we fail
+}
 
 export = Interpreter;

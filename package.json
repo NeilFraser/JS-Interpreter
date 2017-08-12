@@ -2,7 +2,7 @@
   "name": "JS-Interpreter",
   "version": "0.1.0",
   "description": "A sandboxed JavaScript interpreter in JavaScript. Execute arbitrary JavaScript code line by line in isolation and safety.",
-  "main": "interpreter.js",
+  "main": "dist/interpreter.js",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/arcatdmz/JS-Interpreter.git"
@@ -18,11 +18,18 @@
     "url": "https://github.com/arcatdmz/JS-Interpreter/issues"
   },
   "homepage": "https://github.com/arcatdmz/JS-Interpreter#readme",
+  "scripts": {
+    "build": "tsc",
+    "build-global": "webpack --colors --config webpack.config.js",
+    "build-with-acorn": "webpack --colors --config webpack.with-acorn.config.js"
+  },
   "dependencies": {
     "@types/estree": "0.0.37"
   },
   "devDependencies": {
+    "@types/acorn": "^4.0.2",
     "@types/node": "^8.0.20",
+    "@types/requirejs": "^2.1.30",
     "babel-core": "^6.25.0",
     "babel-loader": "^7.1.1",
     "babel-preset-es2015": "^6.24.1",

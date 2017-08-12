@@ -1,10 +1,6 @@
 /// <reference path="./_estree.d.ts" />
 define(["require", "exports"], function (require, exports) {
     "use strict";
-    // Import acorn if not found
-    if (typeof acorn === 'undefined') {
-        (this.self || global)['acorn'] = require('acorn');
-    }
     /**
      * @license
      * JavaScript Interpreter
@@ -38,7 +34,7 @@ define(["require", "exports"], function (require, exports) {
     var Interpreter = (function () {
         function Interpreter(code, opt_initFunc) {
             if (typeof code === 'string') {
-                code = acorn.parse(code, Interpreter.PARSE_OPTIONS);
+                code = Interpreter.acorn.parse(code, Interpreter.PARSE_OPTIONS);
             }
             this.ast = code;
             this.initFunc_ = opt_initFunc;
@@ -60,7 +56,7 @@ define(["require", "exports"], function (require, exports) {
             // Create and initialize the global scope.
             this.global = this.createScope(this.ast, null);
             // Run the polyfills.
-            this.ast = acorn.parse(this.polyfills_.join('\n'), Interpreter.PARSE_OPTIONS);
+            this.ast = Interpreter.acorn.parse(this.polyfills_.join('\n'), Interpreter.PARSE_OPTIONS);
             this.polyfills_ = undefined; // Allow polyfill strings to garbage collect.
             this.stripLocations_(this.ast, undefined, undefined);
             var state = new Interpreter.MyState(this.ast, this.global);
@@ -108,7 +104,7 @@ define(["require", "exports"], function (require, exports) {
                 throw Error('Expecting original AST to start with a Program node.');
             }
             if (typeof code === 'string') {
-                code = acorn.parse(code, Interpreter.PARSE_OPTIONS);
+                code = Interpreter.acorn.parse(code, Interpreter.PARSE_OPTIONS);
             }
             if (!code || code['type'] !== 'Program') {
                 throw Error('Expecting new AST to start with a Program node.');
@@ -274,7 +270,7 @@ define(["require", "exports"], function (require, exports) {
                 // Acorn needs to parse code in the context of a function or else 'return'
                 // statements will be syntax errors.
                 try {
-                    var ast = acorn.parse('$ = function(' + args + ') {' + code + '};', Interpreter.PARSE_OPTIONS);
+                    var ast = Interpreter.acorn.parse('$ = function(' + args + ') {' + code + '};', Interpreter.PARSE_OPTIONS);
                 }
                 catch (e) {
                     // Acorn threw a SyntaxError.  Rethrow as a trappable error.
@@ -2256,7 +2252,7 @@ define(["require", "exports"], function (require, exports) {
                     }
                     else {
                         try {
-                            var ast = acorn.parse(code.toString(), Interpreter.PARSE_OPTIONS);
+                            var ast = Interpreter.acorn.parse(code.toString(), Interpreter.PARSE_OPTIONS);
                         }
                         catch (e) {
                             // Acorn threw a SyntaxError.  Rethrow as a trappable error.
@@ -3235,6 +3231,13 @@ define(["require", "exports"], function (require, exports) {
     // These lines are added for API compatibility
     Interpreter['Object'] = Interpreter.MyObject;
     Interpreter['State'] = Interpreter.MyState;
+    // Look for globally-defined acorn
+    try {
+        Interpreter.acorn = (this.self || global)['acorn'];
+    }
+    catch (e) {
+        // do nothing if we fail
+    }
     return Interpreter;
 });
 //# sourceMappingURL=interpreter.js.map

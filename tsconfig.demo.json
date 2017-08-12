@@ -3,8 +3,7 @@
     "module": "amd",
     "sourceMap": true,
     "target": "es5",
-    "outDir": "dist",
-    "types": ["estree", "node"]
+    "types": ["estree", "requirejs"]
   },
-  "files": ["./lib/interpreter.ts"]
+  "files": ["./demos/browser/index.ts"]
 }
