@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>JS-Interpreter Serialization Demo</title>
+  <link href="style.css" rel="stylesheet" type="text/css">
+  <script src="../acorn.js"></script>
+  <script src="../interpreter.js"></script>
+  <script src="serialize.js"></script>
+  <script>
+    var myInterpreter;
+    function initAlert(interpreter, scope) {
+      var wrapper = function(text) {
+        return alert(arguments.length ? text : '');
+      };
+      interpreter.setProperty(scope, 'alert',
+          interpreter.createNativeFunction(wrapper));
+    }
+
+    function parseButton() {
+      var code = document.getElementById('code').value;
+      myInterpreter = new Interpreter(code, initAlert);
+      disable('');
+    }
+
+    function serializeButton() {
+      var json = serialize(myInterpreter);
+      document.getElementById('serializeTextarea').value = JSON.stringify(json);
+    }
+
+    function deserializeButton() {
+      var text = document.getElementById('serializeTextarea').value;
+      try {
+        var json = JSON.parse(text);
+      } catch (e) {
+        alert('Invalid JSON\n' + e);
+        return;
+      }
+      // Create a clean interpreter with the same initalization functions.
+      parseButton();
+      deserialize(json, myInterpreter);
+    }
+
+    function stepButton() {
+      if (myInterpreter.stateStack.length) {
+        var node =
+            myInterpreter.stateStack[myInterpreter.stateStack.length - 1].node;
+        var start = node.start;
+        var end = node.end;
+      } else {
+        var start = 0;
+        var end = 0;
+      }
+      createSelection(start, end);
+      try {
+        var ok = myInterpreter.step();
+      } finally {
+        if (!ok) {
+          disable('disabled');
+        }
+      }
+    }
+
+    function runButton() {
+      disable('disabled');
+      myInterpreter.run();
+    }
+
+    function disable(disabled) {
+      document.getElementById('stepButton').disabled = disabled;
+      document.getElementById('runButton').disabled = disabled;
+      document.getElementById('serializeButton').disabled = disabled;
+    }
+
+    function createSelection(start, end) {
+      var field = document.getElementById('code');
+      if (field.createTextRange) {
+        var selRange = field.createTextRange();
+        selRange.collapse(true);
+        selRange.moveStart('character', start);
+        selRange.moveEnd('character', end);
+        selRange.select();
+      } else if (field.setSelectionRange) {
+        field.setSelectionRange(start, end);
+      } else if (field.selectionStart) {
+        field.selectionStart = start;
+        field.selectionEnd = end;
+      }
+      field.focus();
+    }
+  </script>
+</head>
+<body>
+  <h1>JS-Interpreter Serialization Demo</h1>
+
+  <p>The intepreter may be stopped at any time, the state serialized, then
+  deserialized at a later time, and the interpreter resumed.  The functions
+  for this are in <a href="serialize.js">serialize.js</a>.</p>
+
+  <ol>
+    <li>Click <em>Parse</em>, then click <em>Step</em> repeatedly.</li>
+    <li>At some point click <em>Serialize</em>.</li>
+    <li>Copy the serialized data structure to the clipboad, reload this page,
+    then paste the data structure back in its text area.</li>
+    <li>Click <em>Deserialize</em>.</li>
+    <li>Continue clicking <em>Step</em> repeatedly, or press <em>Run</em>.</li>
+  </ol>
+  <p>Open your browser's console for errors.</p>
+
+  <p><textarea id="code" style="height: 10em;">
+var numbers = [];
+for (var i = 0; i < 3; i++) {
+  numbers.push(i);
+}
+alert(numbers.join('-'));
+</textarea><br>
+  <button onclick="parseButton()">Parse</button>
+  <button onclick="stepButton()" id="stepButton" disabled="disabled">Step</button>
+  <button onclick="runButton()" id="runButton" disabled="disabled">Run</button>
+  </p>
+
+  <p>
+    <button onclick="serializeButton()" id="serializeButton" disabled="disabled">Serialize &darr;</button>
+    <button onclick="deserializeButton()" id="deserializeButton">Deserialize &uarr;</button><br>
+    <textarea id="serializeTextarea" style="height: 10ex; width: 80ex;"></textarea>
+  </p>
+
+  <p>Back to the <a href="../docs.html">JS-Interpreter documentation</a>.</p>
+
+  <script>
+    disable('disabled');
+  </script>
+</body>
+</html>
