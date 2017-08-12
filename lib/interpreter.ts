@@ -13,6 +13,11 @@ interface NativeFunction extends Function {
   id?: number;
 }
 
+// Import acorn if not found
+if (typeof acorn === 'undefined') {
+  (this.self || global)['acorn'] = require('acorn');
+}
+
 /**
  * @license
  * JavaScript Interpreter
@@ -3592,3 +3597,5 @@ export interface MyValueTable {
 // These lines are added for API compatibility
 Interpreter['Object'] = Interpreter.MyObject;
 Interpreter['State'] = Interpreter.MyState;
+
+export = Interpreter;

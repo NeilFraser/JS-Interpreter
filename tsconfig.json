@@ -1,8 +1,8 @@
 {
   "compilerOptions": {
-    "module": "none",
+    "module": "amd",
     "sourceMap": true,
-    "outFile": "interpreter.js"
+    "target": "es5"
   },
-  "files": ["interpreter.ts"]
+  "files": ["./lib/interpreter.ts"]
 }

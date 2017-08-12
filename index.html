@@ -9,10 +9,10 @@
     // Depending on the URL argument, test the compressed or uncompressed version.
     var compressed = (document.location.search == '?compressed');
     if (compressed) {
-      document.write('<scr'+'ipt src="acorn_interpreter.js"></scr'+'ipt>');
+      document.write('<scr'+'ipt src="dist/acorn_interpreter.js"></scr'+'ipt>');
     } else {
-      document.write('<scr'+'ipt src="acorn.js"></scr'+'ipt>');
-      document.write('<scr'+'ipt src="interpreter.js"></scr'+'ipt>');
+      document.write('<scr'+'ipt src="lib/acorn.js"></scr'+'ipt>');
+      document.write('<scr'+'ipt src="dist/interpreter.js"></scr'+'ipt>');
     }
 
     var myInterpreter;
