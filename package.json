@@ -17,5 +17,8 @@
   "bugs": {
     "url": "https://github.com/arcatdmz/JS-Interpreter/issues"
   },
-  "homepage": "https://github.com/arcatdmz/JS-Interpreter#readme"
+  "homepage": "https://github.com/arcatdmz/JS-Interpreter#readme",
+  "dependencies": {
+    "@types/estree": "0.0.37"
+  }
 }

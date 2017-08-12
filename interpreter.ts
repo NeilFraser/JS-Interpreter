@@ -1,4 +1,5 @@
 // Declare missing functions
+import * as ESTree from 'estree';
 declare function escape(s:string): string;
 declare function unescape(s:string): string;
 interface ArrayConstructor {
@@ -6,7 +7,7 @@ interface ArrayConstructor {
   from<T>(arrayLike: ArrayLike<T>): Array<T>;
 }
 declare module acorn {
-  function parse(code: string, options?: any): any;
+  function parse(code: string, options?: any): ESTree.Program;
 }
 
 /**
@@ -42,9 +43,50 @@ declare module acorn {
  * @constructor
  */
 class Interpreter {
-[key: string]: any;
+private nodeConstructor: FunctionConstructor;
+public ast: ESTree.Program;
+public global: Interpreter.MyObject;
+public stateStack: Interpreter.MyState[];
+public value: Interpreter.MyValue;
+private initFunc_: Function;
+private paused_: boolean;
+private polyfills_: string[];
+private functionCounter_: number;
+private stepFunctions_: { [key: string]: Function };
 
-constructor(code: string, opt_initFunc?: Function) {
+public OBJECT: Interpreter.MyObject;
+public OBJECT_PROTO: Interpreter.MyObject;
+public FUNCTION: Interpreter.MyObject;
+public FUNCTION_PROTO: Interpreter.MyObject;
+public ARRAY: Interpreter.MyObject;
+public ARRAY_PROTO: Interpreter.MyObject;
+public REGEXP: Interpreter.MyObject;
+public REGEXP_PROTO: Interpreter.MyObject;
+
+public ERROR: Interpreter.MyObject;
+public EVAL_ERROR: Interpreter.MyObject;
+public RANGE_ERROR: Interpreter.MyObject;
+public REFERENCE_ERROR: Interpreter.MyObject;
+public SYNTAX_ERROR: Interpreter.MyObject;
+public TYPE_ERROR: Interpreter.MyObject;
+public URI_ERROR: Interpreter.MyObject;
+
+public STRING: Interpreter.MyObject;
+public BOOLEAN: Interpreter.MyObject;
+public NUMBER: Interpreter.MyObject;
+public DATE: Interpreter.MyObject;
+
+// The following properties are obsolete.  Do not use.
+public UNDEFINED: Interpreter.MyObject;
+public NULL: null;
+public NAN: number;
+public TRUE: boolean;
+public FALSE: boolean;
+public STRING_EMPTY: string;
+public NUMBER_ZERO: number;
+public NUMBER_ONE: number;
+
+constructor(code: string | ESTree.Program, opt_initFunc?: Function) {
   if (typeof code === 'string') {
     code = acorn.parse(code, Interpreter.PARSE_OPTIONS);
   }
@@ -523,7 +565,7 @@ public initObject(scope) {
   /**
    * Checks if the provided value is null or undefined.
    * If so, then throw an error in the call stack.
-   * @param {Interpreter.Value} value Value to check.
+   * @param {Interpreter.MyValue} value Value to check.
    */
   var throwIfNullUndefined = function(value) {
     if (value === undefined || value === null) {
@@ -1501,7 +1543,7 @@ public initJSON(scope) {
 
 /**
  * Is an object of a certain class?
- * @param {Interpreter.Value} child Object to check.
+ * @param {Interpreter.MyValue} child Object to check.
  * @param {Interpreter.MyObject} constructor Constructor of object.
  * @return {boolean} True if object is the class or inherits from it.
  *     False otherwise.
@@ -1528,7 +1570,7 @@ public isa(child, constructor) {
 
 /**
  * Is a value a legal integer for an array length?
- * @param {Interpreter.Value} x Value to check.
+ * @param {Interpreter.MyValue} x Value to check.
  * @return {number} Zero, or a positive integer if the value can be
  *     converted to such.  NaN otherwise.
  */
@@ -1540,7 +1582,7 @@ static legalArrayLength(x) {
 
 /**
  * Is a value a legal integer for an array index?
- * @param {Interpreter.Value} x Value to check.
+ * @param {Interpreter.MyValue} x Value to check.
  * @return {number} Zero, or a positive integer if the value can be
  *     converted to such.  NaN otherwise.
  */
@@ -1550,12 +1592,6 @@ static legalArrayIndex(x) {
   // 0xffffffff is 2^32-1.
   return (String(n) === String(x) && n !== 0xffffffff) ? n : NaN;
 };
-
-/**
- * Typedef for JS values.
- * @typedef {!Interpreter.MyObject|boolean|number|string|undefined|null}
- */
-static Value;
 
 /**
  * Create a new data object based on a constructor's prototype.
@@ -1672,7 +1708,7 @@ public createAsyncFunction(asyncFunc) {
  * Converts from a native JS object or value to a JS interpreter object.
  * Can handle JSON-style values.
  * @param {*} nativeObj The native JS object to be converted.
- * @return {Interpreter.Value} The equivalent JS interpreter object.
+ * @return {Interpreter.MyValue} The equivalent JS interpreter object.
  */
 public nativeToPseudo(nativeObj) {
   if (typeof nativeObj === 'boolean' ||
@@ -1723,7 +1759,7 @@ public nativeToPseudo(nativeObj) {
 /**
  * Converts from a JS interpreter object to native JS object.
  * Can handle JSON-style values, plus cycles.
- * @param {Interpreter.Value} pseudoObj The JS interpreter object to be
+ * @param {Interpreter.MyValue} pseudoObj The JS interpreter object to be
  * converted.
  * @param {Object=} opt_cycles Cycle detection (used in recursive calls).
  * @return {*} The equivalent native JS object or value.
@@ -1776,7 +1812,7 @@ public pseudoToNative(pseudoObj, opt_cycles?) {
 
 /**
  * Look up the prototype for this value.
- * @param {Interpreter.Value} value Data object.
+ * @param {Interpreter.MyValue} value Data object.
  * @return {Interpreter.MyObject} Prototype object, null if none.
  */
 public getPrototype(value) {
@@ -1796,9 +1832,9 @@ public getPrototype(value) {
 
 /**
  * Fetch a property value from a data object.
- * @param {Interpreter.Value} obj Data object.
- * @param {Interpreter.Value} name Name of property.
- * @return {Interpreter.Value} Property value (may be undefined).
+ * @param {Interpreter.MyValue} obj Data object.
+ * @param {Interpreter.MyValue} name Name of property.
+ * @return {Interpreter.MyValue} Property value (may be undefined).
  */
 public getProperty(obj, name) {
   name = String(name);
@@ -1838,8 +1874,8 @@ public getProperty(obj, name) {
 
 /**
  * Does the named property exist on a data object.
- * @param {Interpreter.Value} obj Data object.
- * @param {Interpreter.Value} name Name of property.
+ * @param {Interpreter.MyValue} obj Data object.
+ * @param {Interpreter.MyValue} name Name of property.
  * @return {boolean} True if property exists.
  */
 public hasProperty(obj, name) {
@@ -1867,8 +1903,8 @@ public hasProperty(obj, name) {
 /**
  * Set a property value on a data object.
  * @param {!Interpreter.MyObject} obj Data object.
- * @param {Interpreter.Value} name Name of property.
- * @param {Interpreter.Value|ReferenceError} value New property value.
+ * @param {Interpreter.MyValue} name Name of property.
+ * @param {Interpreter.MyValue|ReferenceError} value New property value.
  *   Use ReferenceError if value is handled by descriptor instead.
  * @param {Object=} opt_descriptor Optional descriptor object.
  * @return {!Interpreter.MyObject|undefined} Returns a setter function if one
@@ -2022,7 +2058,7 @@ public setProperty(obj, name, value, opt_descriptor?) {
  * Convenience method for adding a native function as a non-enumerable property
  * onto an object's prototype.
  * @param {!Interpreter.MyObject} obj Data object.
- * @param {Interpreter.Value} name Name of property.
+ * @param {Interpreter.MyValue} name Name of property.
  * @param {!Function} wrapper Function object.
  */
 private setNativeFunctionPrototype(obj, name, wrapper) {
@@ -2095,7 +2131,7 @@ public createSpecialScope(parentScope, opt_scope?) {
 /**
  * Retrieves a value from the scope chain.
  * @param {string} name Name of variable.
- * @return {Interpreter.Value} Any value.
+ * @return {Interpreter.MyValue} Any value.
  *   May be flagged as being a getter and thus needing immediate execution
  *   (rather than being the value of the property).
  */
@@ -2124,7 +2160,7 @@ public getValueFromScope(name) {
 /**
  * Sets a value to the current scope.
  * @param {string} name Name of variable.
- * @param {Interpreter.Value} value Value.
+ * @param {Interpreter.MyValue} value Value.
  * @return {!Interpreter.MyObject|undefined} Returns a setter function if one
  *     needs to be called, otherwise undefined.
  */
@@ -2227,7 +2263,7 @@ public calledWithNew() {
 /**
  * Gets a value from the scope chain or from an object property.
  * @param {!Array} ref Name of variable or object/propname tuple.
- * @return {Interpreter.Value} Any value.
+ * @return {Interpreter.MyValue} Any value.
  *   May be flagged as being a getter and thus needing immediate execution
  *   (rather than being the value of the property).
  */
@@ -2244,7 +2280,7 @@ public getValue(ref) {
 /**
  * Sets a value to the scope chain or to an object property.
  * @param {!Array} ref Name of variable or object/propname tuple.
- * @param {Interpreter.Value} value Value.
+ * @param {Interpreter.MyValue} value Value.
  * @return {!Interpreter.MyObject|undefined} Returns a setter function if one
  *     needs to be called, otherwise undefined.
  */
@@ -2346,7 +2382,7 @@ public createGetter_(func, left) {
  * @param {!Interpreter.MyObject} func Function to execute.
  * @param {!Interpreter.MyObject|!Array} left
  *     Name of variable or object/propname tuple.
- * @param {Interpreter.Value} value Value to set.
+ * @param {Interpreter.MyValue} value Value to set.
  * @private
  */
 public createSetter_(func, left, value) {
@@ -3500,7 +3536,7 @@ toString() {
 
 /**
  * Return the object's value.
- * @return {Interpreter.Value} Value.
+ * @return {Interpreter.MyValue} Value.
  * @override
  */
 valueOf() {
@@ -3515,6 +3551,11 @@ valueOf() {
 }
 }
 
+/**
+ * Typedef for JS values.
+ * @typedef {!Interpreter.MyObject|boolean|number|string|undefined|null}
+ */
+export type MyValue = MyObject | boolean | number | string | undefined | null;
 
 /**
  * Class for a state.
