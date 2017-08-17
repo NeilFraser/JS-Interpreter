@@ -22,8 +22,6 @@ Documentation:
 This `README` file ... or the original documentation at 
 [https://neil.fraser.name/software/JS-Interpreter/docs.html](https://neil.fraser.name/software/JS-Interpreter/docs.html)
 
-
-
 ## Node.js Basic Usage
 
 `npm install` to install the latest code.
@@ -69,7 +67,7 @@ No global scope pollution!
 ```html
 <script src="https://cdn.rawgit.com/arcatdmz/JS-Interpreter/39cbd828/lib/require.js"></script>
 <script>
-requirejs(['https://cdn.rawgit.com/arcatdmz/JS-Interpreter/39cbd828/lib/acorn.js', 'https://cdn.rawgit.com/arcatdmz/JS-Interpreter/39cbd828/dist/interpreter.amd.js'], function (acorn, Interpreter) {
+requirejs(['https://cdn.rawgit.com/arcatdmz/JS-Interpreter/39cbd828/lib/acorn.js', 'https://cdn.rawgit.com/arcatdmz/JS-Interpreter/39cbd828/dist/interpreter.js'], function (acorn, Interpreter) {
   Interpreter.acorn = acorn; // Manually pass acorn runtime to the Interpreter
   var interpreter = new Interpreter("var a = 1, b = 2; a + b;");
   interpreter.run();
