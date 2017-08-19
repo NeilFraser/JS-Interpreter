@@ -2321,6 +2321,7 @@ public throwException(errorClass: Interpreter.MyObject, opt_message?: string) {
  */
 public executeException(error: Interpreter.MyObject) {
   // Search for a try statement.
+  const stateStack = this.stateStack.slice();
   do {
     this.stateStack.pop();
     var state = this.stateStack[this.stateStack.length - 1];
@@ -2348,6 +2349,7 @@ public executeException(error: Interpreter.MyObject) {
   } else {
     realError = error.toString();
   }
+  this.stateStack = stateStack; // recover the original state stack
   throw realError;
 };
 
