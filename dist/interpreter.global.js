@@ -118,10 +118,12 @@ var Interpreter =
             this.stepFunctions_ = Object.create(null);
             var stepMatch = /^step([A-Z]\w*)$/;
             var m;
-            for (var methodName in this) {
-                if ((typeof this[methodName] === 'function') &&
+            var props = Object.getOwnPropertyNames(Interpreter.prototype);
+            for (var i = 0; i < props.length; i++) {
+                var methodName = props[i];
+                if ((typeof Interpreter.prototype[methodName] === 'function') &&
                     (m = methodName.match(stepMatch))) {
-                    this.stepFunctions_[m[1]] = this[methodName].bind(this);
+                    this.stepFunctions_[m[1]] = Interpreter.prototype[methodName].bind(this);
                 }
             }
             // Create and initialize the global scope.

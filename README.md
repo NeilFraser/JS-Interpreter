@@ -7,10 +7,10 @@ This interpreter is a TypeScript port of [the original JavaScript version](https
 
 There are several library files that serve different use cases. See below for more concrete instructions.
 
-- `dist/interpreter.js` ... packed with `tsc` and can be loaded from Node.js or a browser with RequireJS. `acorn` needs to be loaded separately.
+- `dist/interpreter.js` ... packed with `tsc` (`npm run build`) and can be loaded from Node.js or a browser with RequireJS. `acorn` needs to be loaded separately.
 - `dist/interpreter.d.ts` ... TypeScript type definition
-- `dist/acorn_interpreter.js` ... packed with `Webpack` as a library and  can be loaded with a `<script>` tag from a browser. `acorn` is bundled.
-- `dist/interpreter.global.js` ... packed with `Webpack` as a library and can be loaded with a `<script>` tag from a browser. `acorn` needs to be loaded separately.
+- `dist/acorn_interpreter.js` ... packed with `Webpack` (`npm run build-with-acorn`) as a library and  can be loaded with a `<script>` tag from a browser. `acorn` is bundled.
+- `dist/interpreter.global.js` ... packed with `Webpack` (`npm run build-global`) as a library and can be loaded with a `<script>` tag from a browser. `acorn` needs to be loaded separately.
 
 Live demo:
 [https://junkato.jp/JS-Interpreter](https://junkato.jp/JS-Interpreter)

@@ -1,6 +1,6 @@
 {
   "name": "JS-Interpreter",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "A sandboxed JavaScript interpreter in JavaScript. Execute arbitrary JavaScript code line by line in isolation and safety.",
   "main": "dist/interpreter.js",
   "types": "dist/interpreter.d.ts",
