@@ -1855,6 +1855,7 @@
          */
         Interpreter.prototype.executeException = function (error) {
             // Search for a try statement.
+            var stateStack = this.stateStack.slice();
             do {
                 this.stateStack.pop();
                 var state = this.stateStack[this.stateStack.length - 1];
@@ -1882,6 +1883,7 @@
             else {
                 realError = error.toString();
             }
+            this.stateStack = stateStack; // recover the original state stack
             throw realError;
         };
         ;

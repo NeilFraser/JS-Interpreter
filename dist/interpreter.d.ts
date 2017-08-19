@@ -79,35 +79,19 @@ declare class Interpreter {
     /**
      * Property descriptor of readonly properties.
      */
-    static READONLY_DESCRIPTOR: {
-        configurable: boolean;
-        enumerable: boolean;
-        writable: boolean;
-    };
+    static READONLY_DESCRIPTOR: Interpreter.MyDescriptor;
     /**
      * Property descriptor of non-enumerable properties.
      */
-    static NONENUMERABLE_DESCRIPTOR: {
-        configurable: boolean;
-        enumerable: boolean;
-        writable: boolean;
-    };
+    static NONENUMERABLE_DESCRIPTOR: Interpreter.MyDescriptor;
     /**
      * Property descriptor of readonly, non-enumerable properties.
      */
-    static READONLY_NONENUMERABLE_DESCRIPTOR: {
-        configurable: boolean;
-        enumerable: boolean;
-        writable: boolean;
-    };
+    static READONLY_NONENUMERABLE_DESCRIPTOR: Interpreter.MyDescriptor;
     /**
      * Property descriptor of variables.
      */
-    static VARIABLE_DESCRIPTOR: {
-        configurable: boolean;
-        enumerable: boolean;
-        writable: boolean;
-    };
+    static VARIABLE_DESCRIPTOR: Interpreter.MyDescriptor;
     /**
      * Unique symbol for indicating that a step has encountered an error, has
      * added it to the stack, and will be thrown within the user's program.
@@ -527,6 +511,14 @@ declare module Interpreter {
     interface MyValueTable {
         pseudo: MyValue[];
         native: any[];
+    }
+    interface MyDescriptor {
+        get?: MyObject;
+        set?: MyObject;
+        configurable?: boolean;
+        enumerable?: boolean;
+        writable?: boolean;
+        value?: any;
     }
     interface Acorn {
         parse(code: string, options?: any): ESTree.Program;
