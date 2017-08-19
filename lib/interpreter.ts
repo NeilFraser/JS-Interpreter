@@ -149,7 +149,7 @@ static PARSE_OPTIONS = {
 /**
  * Property descriptor of readonly properties.
  */
-static READONLY_DESCRIPTOR = {
+static READONLY_DESCRIPTOR: Interpreter.MyDescriptor = {
   configurable: true,
   enumerable: true,
   writable: false
@@ -158,7 +158,7 @@ static READONLY_DESCRIPTOR = {
 /**
  * Property descriptor of non-enumerable properties.
  */
-static NONENUMERABLE_DESCRIPTOR = {
+static NONENUMERABLE_DESCRIPTOR: Interpreter.MyDescriptor = {
   configurable: true,
   enumerable: false,
   writable: true
@@ -167,7 +167,7 @@ static NONENUMERABLE_DESCRIPTOR = {
 /**
  * Property descriptor of readonly, non-enumerable properties.
  */
-static READONLY_NONENUMERABLE_DESCRIPTOR = {
+static READONLY_NONENUMERABLE_DESCRIPTOR: Interpreter.MyDescriptor = {
   configurable: true,
   enumerable: false,
   writable: false
@@ -176,7 +176,7 @@ static READONLY_NONENUMERABLE_DESCRIPTOR = {
 /**
  * Property descriptor of variables.
  */
-static VARIABLE_DESCRIPTOR = {
+static VARIABLE_DESCRIPTOR: Interpreter.MyDescriptor = {
   configurable: false,
   enumerable: true,
   writable: true
@@ -1988,12 +1988,7 @@ public setProperty(obj: Interpreter.MyObject, name: Interpreter.MyValue, value: 
         delete obj.setter[name];
       }
     }
-    var descriptor: {
-      configurable?: boolean;
-      enumerable?: boolean;
-      writable?: boolean;
-      value?: any;
-    } = {};
+    var descriptor: Interpreter.MyDescriptor = {};
     if ('configurable' in opt_descriptor) {
       descriptor.configurable = opt_descriptor.configurable;
     }
@@ -2015,7 +2010,7 @@ public setProperty(obj: Interpreter.MyObject, name: Interpreter.MyValue, value: 
       delete obj.setter[name];
     }
     try {
-      Object.defineProperty(obj.properties, name, descriptor);
+      Object.defineProperty(obj.properties, name, <any>descriptor);
     } catch (e) {
       this.throwException(this.TYPE_ERROR, 'Cannot redefine property: ' + name);
     }
@@ -3561,6 +3556,15 @@ constructor(node: ESTree.BaseNode, scope: Interpreter.MyObject) {
 export interface MyValueTable {
   pseudo: MyValue[],
   native: any[]
+}
+
+export interface MyDescriptor {
+  get?: MyObject;
+  set?: MyObject;
+  configurable?: boolean;
+  enumerable?: boolean;
+  writable?: boolean;
+  value?: any;
 }
 
 export interface Acorn {
