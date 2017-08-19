@@ -751,7 +751,9 @@
             };
             this.setNativeFunctionPrototype(this.STRING, 'match', wrapper);
             wrapper = function (regexp) {
-                regexp = regexp ? regexp.data : undefined;
+                if (thisInterpreter.isa(regexp, thisInterpreter.REGEXP)) {
+                    regexp = regexp.data;
+                }
                 return String(this).search(regexp);
             };
             this.setNativeFunctionPrototype(this.STRING, 'search', wrapper);
