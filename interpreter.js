@@ -2400,7 +2400,7 @@ Interpreter.prototype.executeException = function(error) {
     var type = errorTable[name] || Error;
     realError = type(message);
   } else {
-    realError = error.toString();
+    realError = String(error);
   }
   throw realError;
 };
