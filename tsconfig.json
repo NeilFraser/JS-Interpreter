@@ -1,0 +1,11 @@
+{
+  "compilerOptions": {
+    "module": "umd",
+    "sourceMap": true,
+    "declaration": true,
+    "target": "es5",
+    "outDir": "dist",
+    "types": ["estree", "node"]
+  },
+  "files": ["./lib/interpreter.ts"]
+}

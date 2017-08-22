@@ -1,0 +1,9 @@
+{
+  "compilerOptions": {
+    "module": "amd",
+    "target": "es5",
+    "types": ["requirejs"],
+    "skipLibCheck": true
+  },
+  "files": ["./demos/browser/index.ts"]
+}

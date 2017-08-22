@@ -7,12 +7,16 @@
 
   <script>
     // Depending on the URL argument, test the compressed or uncompressed version.
-    var compressed = (document.location.search == '?compressed');
-    if (compressed) {
-      document.write('<scr'+'ipt src="acorn_interpreter.js"></scr'+'ipt>');
+    var compressed = (document.location.search == '?compressed')
+      , required = (document.location.search == '?required');
+    if (required) {
+      document.write('<scr'+'ipt src="lib/acorn.js"></scr'+'ipt>');
+      document.write('<scr'+'ipt src="lib/require.js"></scr'+'ipt>');
+    } else if (compressed) {
+      document.write('<scr'+'ipt src="dist/acorn_interpreter.js"></scr'+'ipt>');
     } else {
-      document.write('<scr'+'ipt src="acorn.js"></scr'+'ipt>');
-      document.write('<scr'+'ipt src="interpreter.js"></scr'+'ipt>');
+      document.write('<scr'+'ipt src="lib/acorn.js"></scr'+'ipt>');
+      document.write('<scr'+'ipt src="dist/interpreter.global.js"></scr'+'ipt>');
     }
 
     var myInterpreter;
@@ -26,6 +30,13 @@
 
     function parseButton() {
       var code = document.getElementById('code').value
+      if (typeof Interpreter === 'undefined') {
+        requirejs(['dist/interpreter'], function (Interpreter) {
+          myInterpreter = new Interpreter(code, initAlert);
+          disable('');
+        });
+        return;
+      }
       myInterpreter = new Interpreter(code, initAlert);
       disable('');
     }
@@ -105,17 +116,19 @@ alert(result.join(', '));
 
   <p><small>
   <script>
-    if (compressed) {
+    if (required) {
+      document.write('[ Running AMD bundled library dynamically loaded with RequireJS.  Switch to <A HREF="?uncompressed">raw sources</A>. ]');
+    } else if (compressed) {
       document.write('[ Running compressed bundle.  Switch to <A HREF="?uncompressed">raw sources</A>. ]');
     } else {
-      document.write('[ Running raw sources.  Switch to <A HREF="?compressed">compressed bundle</A>. ]');
+      document.write('[ Running raw sources.  Switch to <A HREF="?compressed">compressed bundle</A> or <A HREF="?required">dynamically loaded library</A>. ]');
     }
     disable('disabled');
   </script>
   </small></p>
 
   <p>Read the <a href="docs.html">JS-Interpreter documentation</a>.</p>
-  <p>Get the <a href="https://github.com/NeilFraser/JS-Interpreter">source code</a>.</p>
+  <p>Get the <a href="https://github.com/arcatdmz/JS-Interpreter">source code</a>.</p>
 
 </body>
 </html>
