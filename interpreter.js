@@ -2383,14 +2383,14 @@ Interpreter.prototype.throwException = function(errorClass, opt_message) {
  * Unwind the stack to the innermost relevant enclosing TryStatement,
  * For/ForIn/WhileStatement or Call/NewExpression.  If this results in
  * the stack being completely unwound the thread will be terminated
- * and the appropriate error being  thrown.
+ * and the appropriate error being thrown.
  * @param {Interpreter.Completion} type Completion type.
  * @param {Interpreter.Value=} value Value computed, returned or thrown.
  * @param {string=} label Target label for break or return.
  */
 Interpreter.prototype.unwind = function(type, value, label) {
   if (type === Interpreter.Completion.NORMAL) {
-    throw TypeError('Should not unwind for NORMAL completions.');
+    throw TypeError('Should not unwind for NORMAL completions');
   }
 
   for (var stack = this.stateStack; stack.length > 0; stack.pop()) {
@@ -2404,8 +2404,9 @@ Interpreter.prototype.unwind = function(type, value, label) {
         if (type === Interpreter.Completion.RETURN) {
           state.value = value;
           return;
+        } else if (type !== Interpreter.Completion.THROW) {
+          throw Error('Unsynatctic break/continue not rejected by Acorn');
         }
-        throw Error('Unsynatctic break/continue not rejected by acorn');
     }
     if (type === Interpreter.Completion.BREAK) {
       if (label ? (state.labels && state.labels.indexOf(label) !== -1) :
