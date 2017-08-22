@@ -2346,6 +2346,18 @@ Interpreter.prototype.setValue = function(ref, value) {
 };
 
 /**
+  * Completion Value Types.
+  * @enum {number}
+  */
+ Interpreter.Completion = {
+   NORMAL: 0,
+   BREAK: 1,
+   CONTINUE: 2,
+   RETURN: 3,
+   THROW: 4
+ };
+
+/**
  * Throw an exception in the interpreter that can be handled by an
  * interpreter try/catch statement.  If unhandled, a real exception will
  * be thrown.  Can be called with either an error class and a message, or
@@ -2362,31 +2374,57 @@ Interpreter.prototype.throwException = function(errorClass, opt_message) {
     this.setProperty(error, 'message', opt_message,
         Interpreter.NONENUMERABLE_DESCRIPTOR);
   }
-  this.executeException(error);
+  this.unwind(Interpreter.Completion.THROW, error, undefined);
   // Abort anything related to the current step.
   throw Interpreter.STEP_ERROR;
 };
 
 /**
- * Throw an exception in the interpreter that can be handled by a
- * interpreter try/catch statement.  If unhandled, a real exception will
- * be thrown.
- * @param {!Interpreter.Object} error Error object to execute.
+ * Unwind the stack to the innermost relevant enclosing TryStatement,
+ * For/ForIn/WhileStatement or Call/NewExpression.  If this results in
+ * the stack being completely unwound the thread will be terminated
+ * and the appropriate error being thrown.
+ * @param {Interpreter.Completion} type Completion type.
+ * @param {Interpreter.Value=} value Value computed, returned or thrown.
+ * @param {string=} label Target label for break or return.
  */
-Interpreter.prototype.executeException = function(error) {
-  // Search for a try statement.
-  do {
-    this.stateStack.pop();
-    var state = this.stateStack[this.stateStack.length - 1];
-    if (state.node['type'] === 'TryStatement') {
-      state.throwValue = error;
-      return;
-    }
-  } while (state && state.node['type'] !== 'Program');
+Interpreter.prototype.unwind = function(type, value, label) {
+  if (type === Interpreter.Completion.NORMAL) {
+    throw TypeError('Should not unwind for NORMAL completions');
+  }
 
-  // Throw a real error.
+  for (var stack = this.stateStack; stack.length > 0; stack.pop()) {
+    var state = stack[stack.length - 1];
+    switch (state.node['type']) {
+      case 'TryStatement':
+        state.cv = {type: type, value: value, label: label};
+        return;
+      case 'CallExpression':
+      case 'NewExpression':
+        if (type === Interpreter.Completion.RETURN) {
+          state.value = value;
+          return;
+        } else if (type !== Interpreter.Completion.THROW) {
+          throw Error('Unsynatctic break/continue not rejected by Acorn');
+        }
+    }
+    if (type === Interpreter.Completion.BREAK) {
+      if (label ? (state.labels && state.labels.indexOf(label) !== -1) :
+          (state.isLoop || state.isSwitch)) {
+        stack.pop();
+        return;
+      }
+    } else if (type === Interpreter.Completion.CONTINUE) {
+      if (label ? (state.labels && state.labels.indexOf(label) !== -1) :
+          state.isLoop) {
+        return;
+      }
+    }
+  }
+
+  // Unhandled completion.  Throw a real error.
   var realError;
-  if (this.isa(error, this.ERROR)) {
+  if (this.isa(value, this.ERROR)) {
     var errorTable = {
       'EvalError': EvalError,
       'RangeError': RangeError,
@@ -2395,12 +2433,12 @@ Interpreter.prototype.executeException = function(error) {
       'TypeError': TypeError,
       'URIError': URIError
     };
-    var name = this.getProperty(error, 'name').toString();
-    var message = this.getProperty(error, 'message').valueOf();
+    var name = this.getProperty(value, 'name').toString();
+    var message = this.getProperty(value, 'message').valueOf();
     var type = errorTable[name] || Error;
     realError = type(message);
   } else {
-    realError = String(error);
+    realError = String(value);
   }
   throw realError;
 };
@@ -2620,25 +2658,8 @@ Interpreter.prototype['stepBlockStatement'] = function(stack, state, node) {
 };
 
 Interpreter.prototype['stepBreakStatement'] = function(stack, state, node) {
-  stack.pop();
-  var label = null;
-  if (node['label']) {
-    label = node['label']['name'];
-  }
-  while (state &&
-         state.node['type'] !== 'CallExpression' &&
-         state.node['type'] !== 'NewExpression') {
-    if (label) {
-      if (state.labels && state.labels.indexOf(label) !== -1) {
-        return;
-      }
-    } else if (state.isLoop || state.isSwitch) {
-      return;
-    }
-    state = stack.pop();
-  }
-  // Syntax error, do not allow this error to be trapped.
-  throw SyntaxError('Illegal break statement');
+  var label = node['label'] && node['label']['name'];
+  this.unwind(Interpreter.Completion.BREAK, undefined, label);
 };
 
 Interpreter.prototype['stepCallExpression'] = function(stack, state, node) {
@@ -2829,25 +2850,8 @@ Interpreter.prototype['stepConditionalExpression'] =
 };
 
 Interpreter.prototype['stepContinueStatement'] = function(stack, state, node) {
-  stack.pop();
-  var label = null;
-  if (node['label']) {
-    label = node['label']['name'];
-  }
-  state = stack[stack.length - 1];
-  while (state &&
-         state.node['type'] !== 'CallExpression' &&
-         state.node['type'] !== 'NewExpression') {
-    if (state.isLoop) {
-      if (!label || (state.labels && state.labels.indexOf(label) !== -1)) {
-        return;
-      }
-    }
-    stack.pop();
-    state = stack[stack.length - 1];
-  }
-  // Syntax error, do not allow this error to be trapped.
-  throw SyntaxError('Illegal continue statement');
+  var label = node['label'] && node['label']['name'];
+  this.unwind(Interpreter.Completion.CONTINUE, undefined, label);
 };
 
 Interpreter.prototype['stepDebuggerStatement'] = function(stack, state, node) {
@@ -3222,22 +3226,7 @@ Interpreter.prototype['stepReturnStatement'] = function(stack, state, node) {
     state.done_ = true;
     return new Interpreter.State(node['argument'], state.scope);
   }
-  var value = state.value;
-  var i = stack.length - 1;
-  state = stack[i];
-  while (state.node['type'] !== 'CallExpression' &&
-         state.node['type'] !== 'NewExpression') {
-    if (state.node['type'] !== 'TryStatement') {
-      stack.splice(i, 1);
-    }
-    i--;
-    if (i < 0) {
-      // Syntax error, do not allow this error to be trapped.
-      throw SyntaxError('Illegal return statement');
-    }
-    state = stack[i];
-  }
-  state.value = value;
+  this.unwind(Interpreter.Completion.RETURN, state.value, undefined);
 };
 
 Interpreter.prototype['stepSequenceExpression'] = function(stack, state, node) {
@@ -3323,23 +3312,23 @@ Interpreter.prototype['stepTryStatement'] = function(stack, state, node) {
     state.doneBlock_ = true;
     return new Interpreter.State(node['block'], state.scope);
   }
-  if (state.throwValue && !state.doneHandler_ && node['handler']) {
+  if (state.cv && state.cv.type === Interpreter.Completion.THROW &&
+      !state.doneHandler_ && node['handler']) {
     state.doneHandler_ = true;
     var nextState = new Interpreter.State(node['handler'], state.scope);
-    nextState.throwValue = state.throwValue;
-    state.throwValue = null;  // This error has been handled, don't rethrow.
+    nextState.throwValue = state.cv.value;
+    state.cv = undefined;  // This error has been handled, don't rethrow.
     return nextState;
   }
   if (!state.doneFinalizer_ && node['finalizer']) {
     state.doneFinalizer_ = true;
     return new Interpreter.State(node['finalizer'], state.scope);
   }
-  if (state.throwValue) {
+  stack.pop();
+  if (state.cv) {
     // There was no catch handler, or the catch/finally threw an error.
     // Throw the error up to a higher try.
-    this.executeException(state.throwValue);
-  } else {
-    stack.pop();
+    this.unwind(state.cv.type, state.cv.value, state.cv.label);
   }
 };
 
