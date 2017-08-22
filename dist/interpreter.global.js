@@ -1945,7 +1945,7 @@ var Interpreter =
                 realError = type(message);
             }
             else {
-                realError = error.toString();
+                realError = String(error);
             }
             this.stateStack = stateStack; // recover the original state stack
             throw realError;
