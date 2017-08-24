@@ -323,24 +323,26 @@ Interpreter.prototype.initFunction = function(scope) {
     } else {
       var code = '';
     }
-    var args = [];
-    for (var i = 0; i < arguments.length - 1; i++) {
-      var name = String(arguments[i]);
-      if (!name.match(identifierRegexp)) {
-        thisInterpreter.throwException(thisInterpreter.SYNTAX_ERROR,
-            'Invalid function argument: ' + name);
+    var argsStr = Array.prototype.slice.call(arguments, 0, -1).join(',').trim();
+    if (argsStr) {
+      var args = argsStr.split(/\s*,\s*/);
+      for (var i = 0; i < args.length; i++) {
+        var name = args[i];
+        if (!identifierRegexp.test(name)) {
+          thisInterpreter.throwException(thisInterpreter.SYNTAX_ERROR,
+              'Invalid function argument: ' + name);
+        }
       }
-      args.push(name);
+      argsStr = args.join(', ');
     }
-    args = args.join(', ');
     // Interestingly, the scope for constructed functions is the global scope,
     // even if they were constructed in some other scope.
     newFunc.parentScope = thisInterpreter.global;
     // Acorn needs to parse code in the context of a function or else 'return'
     // statements will be syntax errors.
     try {
-    var ast = acorn.parse('$ = function(' + args + ') {' + code + '};',
-        Interpreter.PARSE_OPTIONS);
+      var ast = acorn.parse('(function(' + argsStr + ') {' + code + '})',
+          Interpreter.PARSE_OPTIONS);
     } catch (e) {
       // Acorn threw a SyntaxError.  Rethrow as a trappable error.
       thisInterpreter.throwException(thisInterpreter.SYNTAX_ERROR,
@@ -351,7 +353,7 @@ Interpreter.prototype.initFunction = function(scope) {
       thisInterpreter.throwException(thisInterpreter.SYNTAX_ERROR,
           'Invalid code in function body.');
     }
-    newFunc.node = ast['body'][0]['expression']['right'];
+    newFunc.node = ast['body'][0]['expression'];
     thisInterpreter.setProperty(newFunc, 'length', newFunc.node['length'],
         Interpreter.READONLY_DESCRIPTOR);
     return newFunc;
@@ -1064,9 +1066,9 @@ Interpreter.prototype.initString = function(scope) {
 
   // Instance methods on String.
   // Methods with exclusively primitive arguments.
-  var functions = ['trim', 'toLowerCase', 'toUpperCase',
-      'toLocaleLowerCase', 'toLocaleUpperCase', 'charAt', 'charCodeAt',
-      'substring', 'slice', 'substr', 'indexOf', 'lastIndexOf', 'concat'];
+  var functions = ['charAt', 'charCodeAt', 'concat', 'indexOf', 'lastIndexOf',
+      'slice', 'substr', 'substring', 'toLocaleLowerCase', 'toLocaleUpperCase',
+      'toLowerCase', 'toUpperCase', 'trim'];
   for (var i = 0; i < functions.length; i++) {
     this.setNativeFunctionPrototype(this.STRING, functions[i],
                                     String.prototype[functions[i]]);
@@ -1089,11 +1091,10 @@ Interpreter.prototype.initString = function(scope) {
   this.setNativeFunctionPrototype(this.STRING, 'split', wrapper);
 
   wrapper = function(regexp) {
-    regexp = regexp ? regexp.data : undefined;
-    var match = String(this).match(regexp);
-    if (!match) {
-      return null;
+    if (thisInterpreter.isa(regexp, thisInterpreter.REGEXP)) {
+      regexp = regexp.data;
     }
+    var match = String(this).match(regexp);
     return thisInterpreter.nativeToPseudo(match);
   };
   this.setNativeFunctionPrototype(this.STRING, 'match', wrapper);
@@ -1108,7 +1109,10 @@ Interpreter.prototype.initString = function(scope) {
 
   wrapper = function(substr, newSubstr) {
     // Support for function replacements is the responsibility of a polyfill.
-    return String(this).replace(substr.data || substr, newSubstr);
+    if (thisInterpreter.isa(substr, thisInterpreter.REGEXP)) {
+      substr = substr.data;
+    }
+    return String(this).replace(substr, newSubstr);
   };
   this.setNativeFunctionPrototype(this.STRING, 'replace', wrapper);
   // Add a polyfill to handle replace's second argument being a function.
