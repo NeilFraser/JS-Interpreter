@@ -403,7 +403,7 @@ Interpreter.prototype.initFunction = function(scope) {
     state.arguments_ = [];
     if (args !== null && args !== undefined) {
       if (args.isObject) {
-        state.arguments_ = thisInterpreter.pseudoToNative(args);
+        state.arguments_ = thisInterpreter.arrayPseudoToNative(args);
       } else {
         thisInterpreter.throwException(thisInterpreter.TYPE_ERROR,
             'CreateListFromArrayLike called on non-object');
@@ -413,7 +413,7 @@ Interpreter.prototype.initFunction = function(scope) {
   };
   this.setNativeFunctionPrototype(this.FUNCTION, 'apply', wrapper);
 
-  wrapper = function(thisArg, var_args) {
+  wrapper = function(thisArg /*, var_args */) {
     var state =
         thisInterpreter.stateStack[thisInterpreter.stateStack.length - 1];
     // Rewrite the current 'CallExpression' to call a different function.
@@ -525,7 +525,8 @@ Interpreter.prototype.initObject = function(scope) {
   wrapper = function(obj) {
     throwIfNullUndefined(obj);
     var props = obj.isObject ? obj.properties : obj;
-    return thisInterpreter.nativeToPseudo(Object.getOwnPropertyNames(props));
+    return thisInterpreter.arrayNativeToPseudo(
+        Object.getOwnPropertyNames(props));
   };
   this.setProperty(this.OBJECT, 'getOwnPropertyNames',
       this.createNativeFunction(wrapper, false),
@@ -533,10 +534,10 @@ Interpreter.prototype.initObject = function(scope) {
 
   wrapper = function(obj) {
     throwIfNullUndefined(obj);
-    if (!obj.isObject) {
-      return thisInterpreter.nativeToPseudo(Object.keys(obj));
+    if (obj.isObject) {
+      obj = obj.properties;
     }
-    return thisInterpreter.nativeToPseudo(Object.keys(obj.properties));
+    return thisInterpreter.arrayNativeToPseudo(Object.keys(obj));
   };
   this.setProperty(this.OBJECT, 'keys',
       this.createNativeFunction(wrapper, false),
@@ -795,13 +796,13 @@ Interpreter.prototype.initArray = function(scope) {
 
   wrapper = function(index, howmany /*, var_args*/) {
     var list = Array.prototype.splice.apply(this.properties, arguments);
-    return thisInterpreter.nativeToPseudo(list);
+    return thisInterpreter.arrayNativeToPseudo(list);
   };
   this.setNativeFunctionPrototype(this.ARRAY, 'splice', wrapper);
 
   wrapper = function(opt_begin, opt_end) {
     var list = Array.prototype.slice.call(this.properties, opt_begin, opt_end);
-    return thisInterpreter.nativeToPseudo(list);
+    return thisInterpreter.arrayNativeToPseudo(list);
   };
   this.setNativeFunctionPrototype(this.ARRAY, 'slice', wrapper);
 
@@ -837,7 +838,7 @@ Interpreter.prototype.initArray = function(scope) {
         list[length] = value;
       }
     }
-    return thisInterpreter.nativeToPseudo(list);
+    return thisInterpreter.arrayNativeToPseudo(list);
   };
   this.setNativeFunctionPrototype(this.ARRAY, 'concat', wrapper);
 
@@ -1086,7 +1087,7 @@ Interpreter.prototype.initString = function(scope) {
       separator = separator.data;
     }
     var jsList = String(this).split(separator, limit);
-    return thisInterpreter.nativeToPseudo(jsList);
+    return thisInterpreter.arrayNativeToPseudo(jsList);
   };
   this.setNativeFunctionPrototype(this.STRING, 'split', wrapper);
 
@@ -1095,7 +1096,7 @@ Interpreter.prototype.initString = function(scope) {
       regexp = regexp.data;
     }
     var match = String(this).match(regexp);
-    return thisInterpreter.nativeToPseudo(match);
+    return thisInterpreter.arrayNativeToPseudo(match);
   };
   this.setNativeFunctionPrototype(this.STRING, 'match', wrapper);
 
@@ -1867,6 +1868,40 @@ Interpreter.prototype.pseudoToNative = function(pseudoObj, opt_cycles) {
   cycles.pseudo.pop();
   cycles.native.pop();
   return nativeObj;
+};
+
+/**
+ * Converts from a native JS array to a JS interpreter array.
+ * Does NOT recurse into the array's contents.
+ * @param {!Array} nativeArray The JS array to be converted.
+ * @return {!Interpreter.Object} The equivalent JS interpreter array.
+ */
+Interpreter.prototype.arrayNativeToPseudo = function(nativeArray) {
+  var pseudoArray = this.createObjectProto(this.ARRAY_PROTO);
+  var props = Object.getOwnPropertyNames(nativeArray);
+  for (var i = 0; i < props.length; i++) {
+    this.setProperty(pseudoArray, props[i], nativeArray[props[i]]);
+  }
+  return pseudoArray;
+};
+
+/**
+ * Converts from a JS interpreter array to native JS array.
+ * Does NOT recurse into the array's contents.
+ * @param {Interpreter.Value} pseudoObj The JS interpreter array to
+ *     be converted.
+ * @return {!Array} The equivalent native JS array.
+ */
+Interpreter.prototype.arrayPseudoToNative = function(pseudoArray) {
+  var nativeArray = [];
+  for (var key in pseudoArray.properties) {
+    nativeArray[key] = this.getProperty(pseudoArray, key);
+  }
+  // pseudoArray might be an object pretending to be an array.  In this case
+  // it's possible that length is non-existent, invalid, or smaller than the
+  // largest defined numeric property.  Set length explicitly here.
+  nativeArray.length = this.getProperty(pseudoArray, 'length') || 0;
+  return nativeArray;
 };
 
 /**
