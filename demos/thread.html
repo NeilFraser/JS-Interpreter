@@ -14,14 +14,17 @@
       interpreter.setProperty(scope, 'alert',
           interpreter.createNativeFunction(wrapper));
     }
+    // Create an interpreter whose global scope will be the cross-thread global.
     var myInterpreter = new Interpreter('', initAlert);
     var threads = [];
 
     function parseButton(n) {
       var code = document.getElementById('code' + n).value;
-      var thread = new Interpreter(code).stateStack;
-      thread[0].scope = myInterpreter.global;
-      threads[n] = thread;
+      var intrp = new Interpreter('');
+      // Replace this thread's global scope with the cross-thread global.
+      intrp.stateStack[0].scope = myInterpreter.global;
+      intrp.appendCode(code);
+      threads[n] = intrp.stateStack;
       disable(n, '');
     }
 
