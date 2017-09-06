@@ -141,6 +141,13 @@ Interpreter.STEP_ERROR = {};
 Interpreter.SCOPE_REFERENCE = {};
 
 /**
+ * Unique symbol for indicating, when used as the value of the value
+ * parameter in calls to setProperty and friends, that the value
+ * should be taken from the property descriptor instead.
+ */
+Interpreter.VALUE_IN_DESCRIPTOR = {};
+
+/**
  * For cycle detection in array to string and error conversion;
  * see spec bug github.com/tc39/ecma262/issues/289
  * Since this is for atomic actions only, it can be a class property.
@@ -586,7 +593,7 @@ Interpreter.prototype.initObject = function(scope) {
     }
     // The polyfill guarantees no inheritance and no getter functions.
     // Therefore the descriptor properties map is the native object needed.
-    thisInterpreter.setProperty(obj, prop, ReferenceError,
+    thisInterpreter.setProperty(obj, prop, Interpreter.VALUE_IN_DESCRIPTOR,
                                 descriptor.properties);
     return obj;
   };
@@ -1886,7 +1893,7 @@ Interpreter.prototype.arrayNativeToPseudo = function(nativeArray) {
  * Converts from a JS interpreter array to native JS array.
  * Does handle non-numeric properties (like str.match's index prop).
  * Does NOT recurse into the array's contents.
- * @param {Interpreter.Object} pseudoObj The JS interpreter array,
+ * @param {!Interpreter.Object} pseudoArray The JS interpreter array,
  *     or JS interpreter object pretending to be an array.
  * @return {!Array} The equivalent native JS array.
  */
@@ -1898,8 +1905,8 @@ Interpreter.prototype.arrayPseudoToNative = function(pseudoArray) {
   // pseudoArray might be an object pretending to be an array.  In this case
   // it's possible that length is non-existent, invalid, or smaller than the
   // largest defined numeric property.  Set length explicitly here.
-  nativeArray.length =
-      Interpreter.legalArrayLength(this.getProperty(pseudoArray, 'length'));
+  nativeArray.length = Interpreter.legalArrayLength(
+      this.getProperty(pseudoArray, 'length')) || 0;
   return nativeArray;
 };
 
@@ -1997,8 +2004,9 @@ Interpreter.prototype.hasProperty = function(obj, name) {
  * Set a property value on a data object.
  * @param {!Interpreter.Object} obj Data object.
  * @param {Interpreter.Value} name Name of property.
- * @param {Interpreter.Value|ReferenceError} value New property value.
- *   Use ReferenceError if value is handled by descriptor instead.
+ * @param {Interpreter.Value} value New property value.
+ *     Use Interpreter.VALUE_IN_DESCRIPTOR if value is handled by
+ *     descriptor instead.
  * @param {Object=} opt_descriptor Optional descriptor object.
  * @return {!Interpreter.Object|undefined} Returns a setter function if one
  *     needs to be called, otherwise undefined.
@@ -2095,7 +2103,7 @@ Interpreter.prototype.setProperty = function(obj, name, value, opt_descriptor) {
       descriptor.value = opt_descriptor.value;
       delete obj.getter[name];
       delete obj.setter[name];
-    } else if (value !== ReferenceError) {
+    } else if (value !== Interpreter.VALUE_IN_DESCRIPTOR) {
       descriptor.value = value;
       delete obj.getter[name];
       delete obj.setter[name];
@@ -2107,7 +2115,7 @@ Interpreter.prototype.setProperty = function(obj, name, value, opt_descriptor) {
     }
   } else {
     // Set the property.
-    if (value === ReferenceError) {
+    if (value === Interpreter.VALUE_IN_DESCRIPTOR) {
       throw ReferenceError('Value not specified.');
     }
     // Determine the parent (possibly self) where the property is defined.
