@@ -1102,8 +1102,8 @@ Interpreter.prototype.initString = function(scope) {
     if (thisInterpreter.isa(regexp, thisInterpreter.REGEXP)) {
       regexp = regexp.data;
     }
-    var match = String(this).match(regexp);
-    return thisInterpreter.arrayNativeToPseudo(match);
+    var m = String(this).match(regexp);
+    return m && thisInterpreter.arrayNativeToPseudo(m);
   };
   this.setNativeFunctionPrototype(this.STRING, 'match', wrapper);
 
