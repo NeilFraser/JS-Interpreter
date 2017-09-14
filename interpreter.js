@@ -1281,6 +1281,7 @@ Interpreter.prototype.initDate = function(scope) {
     return this;
   };
   this.DATE = this.createNativeFunction(wrapper, true);
+  this.DATE_PROTO = this.DATE.properties['prototype'];
   this.setProperty(scope, 'Date', this.DATE);
 
   // Static methods on Date.
@@ -1789,6 +1790,12 @@ Interpreter.prototype.nativeToPseudo = function(nativeObj) {
     return pseudoRegexp;
   }
 
+  if (nativeObj instanceof Date) {
+    var pseudoDate = this.createObjectProto(this.DATE_PROTO);
+    pseudoDate.data = nativeObj;
+    return pseudoDate;
+  }
+
   if (nativeObj instanceof Function) {
     var interpreter = this;
     var wrapper = function() {
@@ -1838,6 +1845,10 @@ Interpreter.prototype.pseudoToNative = function(pseudoObj, opt_cycles) {
   if (this.isa(pseudoObj, this.REGEXP)) {  // Regular expression.
     return pseudoObj.data;
   }
+
+    if (this.isa(pseudoObj, this.DATE)) {  // Date
+      return pseudoObj.data;
+    }
 
   var cycles = opt_cycles || {
     pseudo: [],
