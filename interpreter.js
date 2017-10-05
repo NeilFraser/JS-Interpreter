@@ -78,6 +78,7 @@ var Interpreter = function(code, opt_initFunc) {
   this['FUNCTION'] = this.FUNCTION; this['FUNCTION_PROTO'] = this.FUNCTION_PROTO;
   this['ARRAY'] = this.ARRAY; this['ARRAY_PROTO'] = this.ARRAY_PROTO;
   this['REGEXP'] = this.REGEXP; this['REGEXP_PROTO'] = this.REGEXP_PROTO;
+  this['DATE'] = this.DATE; this['DATE_PROTO'] = this.DATE_PROTO;
   // The following properties are obsolete.  Do not use.
   this['UNDEFINED'] = undefined; this['NULL'] = null; this['NAN'] = NaN;
   this['TRUE'] = true; this['FALSE'] = false; this['STRING_EMPTY'] = '';
@@ -1846,9 +1847,9 @@ Interpreter.prototype.pseudoToNative = function(pseudoObj, opt_cycles) {
     return pseudoObj.data;
   }
 
-    if (this.isa(pseudoObj, this.DATE)) {  // Date
-      return pseudoObj.data;
-    }
+  if (this.isa(pseudoObj, this.DATE)) {  // Date.
+    return pseudoObj.data;
+  }
 
   var cycles = opt_cycles || {
     pseudo: [],
