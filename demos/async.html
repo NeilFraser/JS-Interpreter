@@ -15,7 +15,7 @@
       interpreter.setProperty(scope, 'alert',
           interpreter.createNativeFunction(wrapper));
 
-      var wrapper = function getXhr(href, callback) {
+      var wrapper = function(href, callback) {
         var req = new XMLHttpRequest();
         req.open('GET', href, true);
         req.onreadystatechange = function() {
