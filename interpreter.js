@@ -2059,7 +2059,13 @@ Interpreter.prototype.setProperty = function(obj, name, value, opt_descriptor) {
     var i;
     if (name === 'length') {
       // Delete elements if length is smaller.
-      var value = Interpreter.legalArrayLength(value);
+      if (opt_descriptor) {
+        if (!('value' in opt_descriptor)) {
+          return;
+        }
+        value = opt_descriptor.value;
+      }
+      value = Interpreter.legalArrayLength(value);
       if (isNaN(value)) {
         this.throwException(this.RANGE_ERROR, 'Invalid array length');
       }
