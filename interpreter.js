@@ -649,9 +649,13 @@ Interpreter.prototype.initObject = function(scope) {
       delete descriptor.value;
       delete descriptor.writable;
     }
+    // Preserve value, but remove it for the nativeToPseudo call.
+    var value = descriptor.value;
+    var hasValue = 'value' in descriptor;
+    delete descriptor.value;
     var pseudoDescriptor = thisInterpreter.nativeToPseudo(descriptor);
-    if ('value' in descriptor) {
-      thisInterpreter.setProperty(pseudoDescriptor, 'value', descriptor.value);
+    if (hasValue) {
+      thisInterpreter.setProperty(pseudoDescriptor, 'value', value);
     }
     return pseudoDescriptor;
   };
