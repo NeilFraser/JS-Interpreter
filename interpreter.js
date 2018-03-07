@@ -1678,6 +1678,9 @@ Interpreter.prototype.createObject = function(constructor) {
  * @return {!Interpreter.Object} New data object.
  */
 Interpreter.prototype.createObjectProto = function(proto) {
+  if (typeof proto !== 'object') {
+    throw Error('Non object prototype');
+  }
   var obj = new Interpreter.Object(proto);
   // Functions have prototype objects.
   if (this.isa(obj, this.FUNCTION)) {
@@ -2777,7 +2780,12 @@ Interpreter.prototype['stepCallExpression'] = function(stack, state, node) {
         this.throwException(this.TYPE_ERROR, func + ' is not a constructor');
       }
       // Constructor, 'this' is new object.
-      state.funcThis_ = this.createObject(func);
+      var proto = func.properties['prototype'];
+      if (typeof proto !== 'object' || proto === null) {
+        // Non-object prototypes default to Object.prototype.
+        proto = this.OBJECT_PROTO;
+      }
+      state.funcThis_ = this.createObjectProto(proto);
       state.isConstructor = true;
     } else if (state.funcThis_ === undefined) {
       // Global function, 'this' is global object (or 'undefined' if strict).
