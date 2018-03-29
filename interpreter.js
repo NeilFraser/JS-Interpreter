@@ -736,14 +736,6 @@ Interpreter.prototype.initObject = function(scope) {
  */
 Interpreter.prototype.initArray = function(scope) {
   var thisInterpreter = this;
-  var getInt = function(obj, def) {
-    // Return an integer, or the default.
-    var n = obj ? Math.floor(obj) : def;
-    if (isNaN(n)) {
-      n = def;
-    }
-    return n;
-  };
   var wrapper;
   // Array constructor.
   wrapper = function(var_args) {
