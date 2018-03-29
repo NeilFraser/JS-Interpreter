@@ -707,6 +707,9 @@ Interpreter.prototype.initObject = function(scope) {
 
   wrapper = function(prop) {
     throwIfNullUndefined(this);
+    if (!this.isObject) {
+      return this.propertyIsEnumerable(prop);
+    }
     return Object.prototype.propertyIsEnumerable.call(this.properties, prop);
   };
   this.setNativeFunctionPrototype(this.OBJECT, 'propertyIsEnumerable', wrapper);
