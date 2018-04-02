@@ -2630,7 +2630,7 @@ Interpreter.prototype['stepAssignmentExpression'] =
     // Setter method on property has completed.
     // Ignore its return value, and use the original set value instead.
     stack.pop();
-    stack[stack.length - 1].value = state.doneSetter_;
+    stack[stack.length - 1].value = state.setterValue_;
     return;
   }
   var value = state.leftValue_;
@@ -2653,7 +2653,8 @@ Interpreter.prototype['stepAssignmentExpression'] =
   }
   var setter = this.setValue(state.leftReference_, value);
   if (setter) {
-    state.doneSetter_ = value;
+    state.doneSetter_ = true;
+    state.setterValue_ = value;
     return this.createSetter_(setter, state.leftReference_, value);
   }
   // Return if no setter function.
@@ -3487,7 +3488,7 @@ Interpreter.prototype['stepUpdateExpression'] = function(stack, state, node) {
     // Setter method on property has completed.
     // Ignore its return value, and use the original set value instead.
     stack.pop();
-    stack[stack.length - 1].value = state.doneSetter_;
+    stack[stack.length - 1].value = state.setterValue_;
     return;
   }
   var leftValue = Number(state.leftValue_);
@@ -3502,7 +3503,8 @@ Interpreter.prototype['stepUpdateExpression'] = function(stack, state, node) {
   var returnValue = node['prefix'] ? changeValue : leftValue;
   var setter = this.setValue(state.leftSide_, changeValue);
   if (setter) {
-    state.doneSetter_ = returnValue;
+    state.doneSetter_ = true;
+    state.setterValue_ = returnValue;
     return this.createSetter_(setter, state.leftSide_, changeValue);
   }
   // Return if no setter function.
