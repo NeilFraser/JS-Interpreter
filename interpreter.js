@@ -3286,11 +3286,9 @@ Interpreter.prototype['stepObjectExpression'] = function(stack, state, node) {
 };
 
 Interpreter.prototype['stepProgram'] = function(stack, state, node) {
-  var n = state.n_ || 0;
-  var expression = node['body'][n];
+  var expression = node['body'].shift();
   if (expression) {
     state.done = false;
-    state.n_ = n + 1;
     return new Interpreter.State(expression, state.scope);
   }
   state.done = true;
