@@ -3324,6 +3324,7 @@ Interpreter.prototype['stepSwitchStatement'] = function(stack, state, node) {
     state.test_ = 2;
     // Preserve switch value between case tests.
     state.switchValue_ = state.value;
+    state.defaultCase_ = -1;
   }
 
   while (true) {
@@ -3336,7 +3337,7 @@ Interpreter.prototype['stepSwitchStatement'] = function(stack, state, node) {
       state.index_ = index + 1;
       continue;
     }
-    if (!switchCase && !state.matched_ && state.defaultCase_) {
+    if (!switchCase && !state.matched_ && state.defaultCase_ !== -1) {
       // Ran through all cases, no match.  Jump to the default.
       state.matched_ = true;
       state.index_ = state.defaultCase_;
