@@ -243,7 +243,8 @@ Interpreter.prototype.initGlobalScope = function(scope) {
   // Note that in a browser this would be 'Window', whereas in Node.js it would
   // be 'Object'.  This interpreter is closer to Node in that it has no DOM.
   scope.proto = this.OBJECT_PROTO;
-  this.setProperty(scope, 'constructor', this.OBJECT);
+  this.setProperty(scope, 'constructor', this.OBJECT,
+                   Interpreter.NONENUMERABLE_DESCRIPTOR);
   this.initArray(scope);
   this.initString(scope);
   this.initBoolean(scope);
@@ -516,7 +517,8 @@ Interpreter.prototype.initObject = function(scope) {
   this.OBJECT = this.createNativeFunction(wrapper, true);
   // Throw away the created prototype and use the root prototype.
   this.setProperty(this.OBJECT, 'prototype', this.OBJECT_PROTO);
-  this.setProperty(this.OBJECT_PROTO, 'constructor', this.OBJECT);
+  this.setProperty(this.OBJECT_PROTO, 'constructor', this.OBJECT,
+                   Interpreter.NONENUMERABLE_DESCRIPTOR);
   this.setProperty(scope, 'Object', this.OBJECT);
 
   /**
@@ -1754,8 +1756,8 @@ Interpreter.prototype.createNativeFunction =
   this.setProperty(func, 'length', nativeFunc.length,
       Interpreter.READONLY_DESCRIPTOR);
   if (opt_constructor) {
-    this.setProperty(func.properties['prototype'], 'constructor',
-        func, Interpreter.NONENUMERABLE_DESCRIPTOR);
+    this.setProperty(func.properties['prototype'], 'constructor', func,
+                     Interpreter.NONENUMERABLE_DESCRIPTOR);
   } else if (opt_constructor === false) {
     func.illegalConstructor = true;
     this.setProperty(func, 'prototype', undefined);
