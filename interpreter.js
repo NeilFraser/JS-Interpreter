@@ -3011,44 +3011,57 @@ Interpreter.prototype['stepForInStatement'] = function(stack, state, node) {
   }
   // Third, find the property name for this iteration.
   if (state.name_ === undefined) {
-    done: do {
+    gotPropName: while (true) {
       if (state.object_ && state.object_.isObject) {
         if (!state.props_) {
           state.props_ = Object.getOwnPropertyNames(state.object_.properties);
         }
-        do {
+        while (true) {
           var prop = state.props_.shift();
-        } while (prop && (state.visited_[prop] ||
-            !Object.prototype.hasOwnProperty.call(state.object_.properties,
-                                                  prop)));
-        if (prop) {
-          state.visited_[prop] = true;
-          if (Object.prototype.propertyIsEnumerable.call(
-              state.object_.properties, prop)) {
-            state.name_ = prop;
-            break done;
+          if (prop === undefined) {
+            break;  // Reached end of this object's properties.
           }
+          if (!Object.prototype.hasOwnProperty.call(state.object_.properties,
+                prop)) {
+            continue;  // Property has been deleted in the loop.
+          }
+          if (state.visited_[prop]) {
+            continue;  // Already seen this property on a child.
+          }
+          state.visited_[prop] = true;
+          if (!Object.prototype.propertyIsEnumerable.call(
+                state.object_.properties, prop)) {
+            continue;  // Skip non-enumerable property.
+          }
+          state.name_ = prop;
+          break gotPropName;
         }
-      } else if (state.object_ !== null) {
+      } else if (state.object_ !== null && state.object_ !== undefined) {
+        // Primitive value (other than null or undefined).
         if (!state.props_) {
           state.props_ = Object.getOwnPropertyNames(state.object_);
         }
-        do {
+        while (true) {
           var prop = state.props_.shift();
-        } while (prop && state.visited_[prop]);
-        if (prop) {
+          if (prop === undefined) {
+            break;  // Reached end of this value's properties.
+          }
           state.visited_[prop] = true;
+          if (!Object.prototype.propertyIsEnumerable.call(
+                state.object_, prop)) {
+            continue;  // Skip non-enumerable property.
+          }
           state.name_ = prop;
-          break done;
+          break gotPropName;
         }
       }
       state.object_ = this.getPrototype(state.object_);
       state.props_ = null;
-    } while (state.object_ !== null);
-    if (state.object_ === null) {
-      // Done, exit loop.
-      stack.pop();
-      return;
+      if (state.object_ === null) {
+        // Done, exit loop.
+        stack.pop();
+        return;
+      }
     }
   }
   // Fourth, find the variable
