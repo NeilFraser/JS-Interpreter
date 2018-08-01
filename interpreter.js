@@ -366,7 +366,7 @@ Interpreter.prototype.initFunction = function(scope) {
     }
     newFunc.node = ast['body'][0]['expression'];
     thisInterpreter.setProperty(newFunc, 'length', newFunc.node['length'],
-        Interpreter.READONLY_DESCRIPTOR);
+        Interpreter.READONLY_NONENUMERABLE_DESCRIPTOR);
     return newFunc;
   };
   wrapper.id = this.functionCounter_++;
@@ -375,7 +375,8 @@ Interpreter.prototype.initFunction = function(scope) {
   this.setProperty(scope, 'Function', this.FUNCTION);
   // Manually setup type and prototype because createObj doesn't recognize
   // this object as a function (this.FUNCTION did not exist).
-  this.setProperty(this.FUNCTION, 'prototype', this.FUNCTION_PROTO);
+  this.setProperty(this.FUNCTION, 'prototype', this.FUNCTION_PROTO,
+                   Interpreter.NONENUMERABLE_DESCRIPTOR);
   this.FUNCTION.nativeFunc = wrapper;
 
   // Configure Function.prototype.
@@ -384,7 +385,7 @@ Interpreter.prototype.initFunction = function(scope) {
   this.FUNCTION_PROTO.nativeFunc = function() {};
   this.FUNCTION_PROTO.nativeFunc.id = this.functionCounter_++;
   this.setProperty(this.FUNCTION_PROTO, 'length', 0,
-      Interpreter.READONLY_DESCRIPTOR);
+      Interpreter.READONLY_NONENUMERABLE_DESCRIPTOR);
 
   var boxThis = function(value) {
     // In non-strict mode 'this' must be an object.
@@ -516,7 +517,8 @@ Interpreter.prototype.initObject = function(scope) {
   };
   this.OBJECT = this.createNativeFunction(wrapper, true);
   // Throw away the created prototype and use the root prototype.
-  this.setProperty(this.OBJECT, 'prototype', this.OBJECT_PROTO);
+  this.setProperty(this.OBJECT, 'prototype', this.OBJECT_PROTO,
+                   Interpreter.NONENUMERABLE_DESCRIPTOR);
   this.setProperty(this.OBJECT_PROTO, 'constructor', this.OBJECT,
                    Interpreter.NONENUMERABLE_DESCRIPTOR);
   this.setProperty(scope, 'Object', this.OBJECT);
@@ -1433,7 +1435,8 @@ Interpreter.prototype.initError = function(scope) {
           return newError;
         }, true);
     thisInterpreter.setProperty(constructor, 'prototype',
-        thisInterpreter.createObject(thisInterpreter.ERROR));
+        thisInterpreter.createObject(thisInterpreter.ERROR),
+        Interpreter.NONENUMERABLE_DESCRIPTOR);
     thisInterpreter.setProperty(constructor.properties['prototype'], 'name',
         name, Interpreter.NONENUMERABLE_DESCRIPTOR);
     thisInterpreter.setProperty(scope, name, constructor);
@@ -1688,7 +1691,8 @@ Interpreter.prototype.createObjectProto = function(proto) {
   // Functions have prototype objects.
   if (this.isa(obj, this.FUNCTION)) {
     this.setProperty(obj, 'prototype',
-                     this.createObjectProto(this.OBJECT_PROTO || null));
+                     this.createObjectProto(this.OBJECT_PROTO || null),
+                     Interpreter.NONENUMERABLE_DESCRIPTOR);
     obj.class = 'Function';
   }
   // Arrays have length.
@@ -1735,7 +1739,7 @@ Interpreter.prototype.createFunction = function(node, scope) {
   func.parentScope = scope;
   func.node = node;
   this.setProperty(func, 'length', func.node['params'].length,
-      Interpreter.READONLY_DESCRIPTOR);
+      Interpreter.READONLY_NONENUMERABLE_DESCRIPTOR);
   return func;
 };
 
@@ -1754,13 +1758,14 @@ Interpreter.prototype.createNativeFunction =
   func.nativeFunc = nativeFunc;
   nativeFunc.id = this.functionCounter_++;
   this.setProperty(func, 'length', nativeFunc.length,
-      Interpreter.READONLY_DESCRIPTOR);
+      Interpreter.READONLY_NONENUMERABLE_DESCRIPTOR);
   if (opt_constructor) {
     this.setProperty(func.properties['prototype'], 'constructor', func,
                      Interpreter.NONENUMERABLE_DESCRIPTOR);
   } else if (opt_constructor === false) {
     func.illegalConstructor = true;
-    this.setProperty(func, 'prototype', undefined);
+    this.setProperty(func, 'prototype', undefined,
+                     Interpreter.NONENUMERABLE_DESCRIPTOR);
   }
   return func;
 };
@@ -1775,7 +1780,7 @@ Interpreter.prototype.createAsyncFunction = function(asyncFunc) {
   func.asyncFunc = asyncFunc;
   asyncFunc.id = this.functionCounter_++;
   this.setProperty(func, 'length', asyncFunc.length,
-      Interpreter.READONLY_DESCRIPTOR);
+      Interpreter.READONLY_NONENUMERABLE_DESCRIPTOR);
   return func;
 };
 
