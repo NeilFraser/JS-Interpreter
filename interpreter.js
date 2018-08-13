@@ -2529,7 +2529,7 @@ Interpreter.prototype.createGetter_ = function(func, left) {
   // Normally 'this' will be specified as the object component (o.x).
   // Sometimes 'this' is explicitly provided (o).
   var funcThis = Array.isArray(left) ? left[0] : left;
-  var node = new this.nodeConstructor();
+  var node = new this.nodeConstructor({options:{}});
   node['type'] = 'CallExpression';
   var state = new Interpreter.State(node,
       this.stateStack[this.stateStack.length - 1].scope);
@@ -2553,7 +2553,7 @@ Interpreter.prototype.createSetter_ = function(func, left, value) {
   // Normally 'this' will be specified as the object component (o.x).
   // Sometimes 'this' is implicitly the global object (x).
   var funcThis = Array.isArray(left) ? left[0] : this.global;
-  var node = new this.nodeConstructor();
+  var node = new this.nodeConstructor({options:{}});
   node['type'] = 'CallExpression';
   var state = new Interpreter.State(node,
       this.stateStack[this.stateStack.length - 1].scope);
@@ -2845,7 +2845,7 @@ Interpreter.prototype['stepCallExpression'] = function(stack, state, node) {
           // Acorn threw a SyntaxError.  Rethrow as a trappable error.
           this.throwException(this.SYNTAX_ERROR, 'Invalid code: ' + e.message);
         }
-        var evalNode = new this.nodeConstructor();
+        var evalNode = new this.nodeConstructor({options:{}});
         evalNode['type'] = 'EvalProgram_';
         evalNode['body'] = ast['body'];
         this.stripLocations_(evalNode, node['start'], node['end']);
