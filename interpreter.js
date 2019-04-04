@@ -2869,7 +2869,11 @@ Interpreter.prototype['stepCallExpression'] = function(stack, state, node) {
         state.value = value;
         thisInterpreter.paused_ = false;
       };
-      var argsWithCallback = state.arguments_.concat(callback);
+      // Force the argument lengths to match, then append the callback.
+      var argLength = func.asyncFunc.length - 1;
+      var argsWithCallback = state.arguments_.concat(
+          new Array(argLength)).slice(0, argLength);
+      argsWithCallback.push(callback);
       this.paused_ = true;
       func.asyncFunc.apply(state.funcThis_, argsWithCallback);
       return;
