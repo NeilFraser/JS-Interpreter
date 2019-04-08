@@ -218,6 +218,7 @@ function serialize(interpreter) {
       case Object.prototype:
         if (obj === Interpreter.SCOPE_REFERENCE) {
           jsonObj['type'] = 'ScopeReference';
+          continue;  // No need to index properties.
         } else {
           jsonObj['type'] = 'Object';
         }

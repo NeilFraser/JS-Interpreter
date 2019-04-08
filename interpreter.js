@@ -124,20 +124,20 @@ Interpreter.VARIABLE_DESCRIPTOR = {
  * added it to the stack, and will be thrown within the user's program.
  * When STEP_ERROR is thrown in the JS-Interpreter, the error can be ignored.
  */
-Interpreter.STEP_ERROR = {};
+Interpreter.STEP_ERROR = {'STEP_ERROR': true};
 
 /**
  * Unique symbol for indicating that a reference is a variable on the scope,
  * not an object property.
  */
-Interpreter.SCOPE_REFERENCE = {};
+Interpreter.SCOPE_REFERENCE = {'SCOPE_REFERENCE': true};
 
 /**
  * Unique symbol for indicating, when used as the value of the value
  * parameter in calls to setProperty and friends, that the value
  * should be taken from the property descriptor instead.
  */
-Interpreter.VALUE_IN_DESCRIPTOR = {};
+Interpreter.VALUE_IN_DESCRIPTOR = {'VALUE_IN_DESCRIPTOR': true};
 
 /**
  * For cycle detection in array to string and error conversion;
@@ -2460,8 +2460,8 @@ Interpreter.prototype.throwException = function(errorClass, opt_message) {
  * the stack being completely unwound the thread will be terminated
  * and the appropriate error being thrown.
  * @param {Interpreter.Completion} type Completion type.
- * @param {Interpreter.Value=} value Value computed, returned or thrown.
- * @param {string=} label Target label for break or return.
+ * @param {Interpreter.Value} value Value computed, returned or thrown.
+ * @param {string|undefined} label Target label for break or return.
  */
 Interpreter.prototype.unwind = function(type, value, label) {
   if (type === Interpreter.Completion.NORMAL) {
@@ -2510,8 +2510,8 @@ Interpreter.prototype.unwind = function(type, value, label) {
     };
     var name = this.getProperty(value, 'name').toString();
     var message = this.getProperty(value, 'message').valueOf();
-    var type = errorTable[name] || Error;
-    realError = type(message);
+    var errorConstructor = errorTable[name] || Error;
+    realError = errorConstructor(message);
   } else {
     realError = String(value);
   }
