@@ -147,6 +147,44 @@ Interpreter.VALUE_IN_DESCRIPTOR = {'VALUE_IN_DESCRIPTOR': true};
 Interpreter.toStringCycles_ = [];
 
 /**
+ * Data URI encoded code for handling regular expressions in a thread.
+ * Using a separate file violates the same origin policy in Chrome if the
+ * interpreter is being loaded from a file:// URI.  A data: URI solves this.
+ */
+Interpreter.WORKER_CODE = 'data:application/javascript,' + encodeURIComponent([
+  "onmessage = function(e) {",
+    "var result;",
+    "var data = e.data;",
+    "switch (data[0]) {",
+      "case 'split':",
+        // ['split', string, separator, limit]
+        "result = data[1].split(data[2], data[3]);",
+        "break;",
+      "case 'match':",
+        // ['match', string, regexp]
+        "result = data[1].match(data[2]);",
+        "break;",
+      "case 'search':",
+        // ['search', string, regexp]
+        "result = data[1].search(data[2]);",
+        "break;",
+      "case 'replace':",
+        // ['replace', string, regexp, newSubstr]
+        "result = data[1].replace(data[2], data[3]);",
+        "break;",
+      "case 'exec':",
+        // ['exec', regexp, lastIndex, string]
+        "var regexp = data[1];",
+        "regexp.lastIndex = data[2];",
+        "result = [regexp.exec(data[3]), data[1].lastIndex];",
+        "break;",
+      "default:",
+        "throw 'Unknown RegExp operation: ' + data[0];",
+    "}",
+    "postMessage(result);",
+  "};"].join('\n'));
+
+/**
  * Some pathological regular expressions can take geometric time.
  * Regular expressions are handled in one of three ways:
  * 0 - throw as invalid.
@@ -1120,7 +1158,7 @@ Interpreter.prototype.initString = function(scope) {
       thisInterpreter.maybeThrowRegExp(separator, callback);
       if (thisInterpreter.REGEXP_MODE === 2) {
         // Run split in separate thread.
-        var splitWorker = new Worker('regexp_worker.js');
+        var splitWorker = new Worker(Interpreter.WORKER_CODE);
         var pid = thisInterpreter.regExpTimeout(separator, splitWorker,
             callback);
         splitWorker.onmessage = function(e) {
@@ -1149,7 +1187,7 @@ Interpreter.prototype.initString = function(scope) {
     thisInterpreter.maybeThrowRegExp(regexp, callback);
     if (thisInterpreter.REGEXP_MODE === 2) {
       // Run match in separate thread.
-      var matchWorker = new Worker('regexp_worker.js');
+      var matchWorker = new Worker(Interpreter.WORKER_CODE);
       var pid = thisInterpreter.regExpTimeout(regexp, matchWorker,
           callback);
       matchWorker.onmessage = function(e) {
@@ -1177,7 +1215,7 @@ Interpreter.prototype.initString = function(scope) {
     thisInterpreter.maybeThrowRegExp(regexp, callback);
     if (thisInterpreter.REGEXP_MODE === 2) {
       // Run search in separate thread.
-      var searchWorker = new Worker('regexp_worker.js');
+      var searchWorker = new Worker(Interpreter.WORKER_CODE);
       var pid = thisInterpreter.regExpTimeout(regexp, searchWorker,
           callback);
       searchWorker.onmessage = function(e) {
@@ -1203,7 +1241,7 @@ Interpreter.prototype.initString = function(scope) {
       thisInterpreter.maybeThrowRegExp(substr, callback);
       if (thisInterpreter.REGEXP_MODE === 2) {
         // Run replace in separate thread.
-        var replaceWorker = new Worker('regexp_worker.js');
+        var replaceWorker = new Worker(Interpreter.WORKER_CODE);
         var pid = thisInterpreter.regExpTimeout(substr, replaceWorker,
             callback);
         replaceWorker.onmessage = function(e) {
@@ -1474,7 +1512,7 @@ Interpreter.prototype.initRegExp = function(scope) {
       // Run exec in separate thread.
       // Note that lastIndex is not preserved when a RegExp is passed to a
       // Web Worker.  Thus it needs to be passed back and forth separately.
-      var execWorker = new Worker('regexp_worker.js');
+      var execWorker = new Worker(Interpreter.WORKER_CODE);
       var pid = thisInterpreter.regExpTimeout(regexp, execWorker,
           callback);
       execWorker.onmessage = function(e) {
