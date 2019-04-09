@@ -471,7 +471,7 @@ Interpreter.prototype.initFunction = function(scope) {
   // Function has no parent to inherit from, so it needs its own mandatory
   // toString and valueOf functions.
   wrapper = function() {
-    return this.toString();
+    return String(this);
   };
   this.setNativeFunctionPrototype(this.FUNCTION, 'toString', wrapper);
   this.setProperty(this.FUNCTION, 'toString',
@@ -1344,8 +1344,8 @@ Interpreter.prototype.initRegExp = function(scope) {
       // Called as RegExp().
       var rgx = thisInterpreter.createObjectProto(thisInterpreter.REGEXP_PROTO);
     }
-    pattern = pattern ? pattern.toString() : '';
-    flags = flags ? flags.toString() : '';
+    pattern = pattern ? String(pattern) : '';
+    flags = flags ? String(flags) : '';
     thisInterpreter.populateRegExp(rgx, new RegExp(pattern, flags));
     return rgx;
   };
@@ -1487,7 +1487,7 @@ Interpreter.prototype.initJSON = function(scope) {
 
   var wrapper = function(text) {
     try {
-      var nativeObj = JSON.parse(text.toString());
+      var nativeObj = JSON.parse(String(text));
     } catch (e) {
       thisInterpreter.throwException(thisInterpreter.SYNTAX_ERROR, e.message);
     }
@@ -1635,8 +1635,8 @@ Interpreter.Object.prototype.toString = function() {
     } while ((obj = obj.proto));
     cycles.push(this);
     try {
-      name = name && name.toString();
-      message = message && message.toString();
+      name = name && String(name);
+      message = message && String(message);
     } finally {
       cycles.pop();
     }
@@ -2508,7 +2508,7 @@ Interpreter.prototype.unwind = function(type, value, label) {
       'TypeError': TypeError,
       'URIError': URIError
     };
-    var name = this.getProperty(value, 'name').toString();
+    var name = String(this.getProperty(value, 'name'));
     var message = this.getProperty(value, 'message').valueOf();
     var errorConstructor = errorTable[name] || Error;
     realError = errorConstructor(message);
@@ -2840,7 +2840,7 @@ Interpreter.prototype['stepCallExpression'] = function(stack, state, node) {
         state.value = code;
       } else {
         try {
-          var ast = acorn.parse(code.toString(), Interpreter.PARSE_OPTIONS);
+          var ast = acorn.parse(String(code), Interpreter.PARSE_OPTIONS);
         } catch (e) {
           // Acorn threw a SyntaxError.  Rethrow as a trappable error.
           this.throwException(this.SYNTAX_ERROR, 'Invalid code: ' + e.message);
