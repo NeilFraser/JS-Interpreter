@@ -56,7 +56,10 @@
 
     function runButton() {
       disable('disabled');
-      myInterpreter.run();
+      if (myInterpreter.run()) {
+        // Async function hit.  There's more code to run.
+        disable('');
+      }
     }
 
     function disable(disabled) {

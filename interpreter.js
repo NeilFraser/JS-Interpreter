@@ -147,6 +147,21 @@ Interpreter.VALUE_IN_DESCRIPTOR = {'VALUE_IN_DESCRIPTOR': true};
 Interpreter.toStringCycles_ = [];
 
 /**
+ * Some pathological regular expressions can take geometric time.
+ * Regular expressions are handled in one of three ways:
+ * 0 - throw as invalid.
+ * 1 - execute natively (risk of unresponsive program).
+ * 2 - execute in separate thread (not supported by IE 9).
+ */
+Interpreter.prototype.REGEXP_MODE = 1;
+
+/**
+ * If REGEXP_MODE = 2, the length of time (in ms) to allow a RegExp
+ * thread to execute before terminating it.
+ */
+Interpreter.prototype.REGEXP_THREAD_TIMEOUT = 10000;
+
+/**
  * Add more code to the interpreter.
  * @param {string|!Object} code Raw JavaScript text or AST.
  */
@@ -1095,40 +1110,114 @@ Interpreter.prototype.initString = function(scope) {
   };
   this.setNativeFunctionPrototype(this.STRING, 'localeCompare', wrapper);
 
-  wrapper = function(separator, limit) {
+  wrapper = function(separator, limit, callback) {
+    var string = String(this);
+    limit = limit ? Number(limit) : undefined;
+    // Example of catastrophic split RegExp:
+    // 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaac'.split(/^(a+)+b/)
     if (thisInterpreter.isa(separator, thisInterpreter.REGEXP)) {
       separator = separator.data;
+      thisInterpreter.maybeThrowRegExp(separator, callback);
+      if (thisInterpreter.REGEXP_MODE === 2) {
+        // Run split in separate thread.
+        var splitWorker = new Worker('regexp_worker.js');
+        var pid = thisInterpreter.regExpTimeout(separator, splitWorker,
+            callback);
+        splitWorker.onmessage = function(e) {
+          clearTimeout(pid);
+          callback(thisInterpreter.arrayNativeToPseudo(e.data));
+        };
+        splitWorker.postMessage(['split', string, separator, limit]);
+        return;
+      }
     }
-    var jsList = String(this).split(separator, limit);
-    return thisInterpreter.arrayNativeToPseudo(jsList);
+    // Run split natively.
+    var jsList = string.split(separator, limit);
+    callback(thisInterpreter.arrayNativeToPseudo(jsList));
   };
-  this.setNativeFunctionPrototype(this.STRING, 'split', wrapper);
+  this.setAsyncFunctionPrototype(this.STRING, 'split', wrapper);
 
-  wrapper = function(regexp) {
+  wrapper = function(regexp, callback) {
+    var string = String(this);
     if (thisInterpreter.isa(regexp, thisInterpreter.REGEXP)) {
       regexp = regexp.data;
+    } else {
+      regexp = new RegExp(regexp);
     }
-    var m = String(this).match(regexp);
-    return m && thisInterpreter.arrayNativeToPseudo(m);
+    // Example of catastrophic match RegExp:
+    // 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaac'.match(/^(a+)+b/)
+    thisInterpreter.maybeThrowRegExp(regexp, callback);
+    if (thisInterpreter.REGEXP_MODE === 2) {
+      // Run match in separate thread.
+      var matchWorker = new Worker('regexp_worker.js');
+      var pid = thisInterpreter.regExpTimeout(regexp, matchWorker,
+          callback);
+      matchWorker.onmessage = function(e) {
+        clearTimeout(pid);
+        callback(e.data && thisInterpreter.arrayNativeToPseudo(e.data));
+      };
+      matchWorker.postMessage(['match', string, regexp]);
+      return;
+    }
+    // Run match natively.
+    var m = string.match(regexp);
+    callback(m && thisInterpreter.arrayNativeToPseudo(m));
   };
-  this.setNativeFunctionPrototype(this.STRING, 'match', wrapper);
+  this.setAsyncFunctionPrototype(this.STRING, 'match', wrapper);
 
-  wrapper = function(regexp) {
+  wrapper = function(regexp, callback) {
+    var string = String(this);
     if (thisInterpreter.isa(regexp, thisInterpreter.REGEXP)) {
       regexp = regexp.data;
+    } else {
+      regexp = new RegExp(regexp);
     }
-    return String(this).search(regexp);
+    // Example of catastrophic search RegExp:
+    // 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaac'.search(/^(a+)+b/)
+    thisInterpreter.maybeThrowRegExp(regexp, callback);
+    if (thisInterpreter.REGEXP_MODE === 2) {
+      // Run search in separate thread.
+      var searchWorker = new Worker('regexp_worker.js');
+      var pid = thisInterpreter.regExpTimeout(regexp, searchWorker,
+          callback);
+      searchWorker.onmessage = function(e) {
+        clearTimeout(pid);
+        callback(e.data);
+      };
+      searchWorker.postMessage(['search', string, regexp]);
+      return;
+    }
+    // Run search natively.
+    callback(string.search(regexp));
   };
-  this.setNativeFunctionPrototype(this.STRING, 'search', wrapper);
+  this.setAsyncFunctionPrototype(this.STRING, 'search', wrapper);
 
-  wrapper = function(substr, newSubstr) {
+  wrapper = function(substr, newSubstr, callback) {
     // Support for function replacements is the responsibility of a polyfill.
+    var string = String(this);
+    newSubstr = String(newSubstr);
+    // Example of catastrophic replace RegExp:
+    // 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaac'.replace(/^(a+)+b/, '')
     if (thisInterpreter.isa(substr, thisInterpreter.REGEXP)) {
       substr = substr.data;
+      thisInterpreter.maybeThrowRegExp(substr, callback);
+      if (thisInterpreter.REGEXP_MODE === 2) {
+        // Run replace in separate thread.
+        var replaceWorker = new Worker('regexp_worker.js');
+        var pid = thisInterpreter.regExpTimeout(substr, replaceWorker,
+            callback);
+        replaceWorker.onmessage = function(e) {
+          clearTimeout(pid);
+          callback(e.data);
+        };
+        replaceWorker.postMessage(['replace', string, substr, newSubstr]);
+        return;
+      }
     }
-    return String(this).replace(substr, newSubstr);
+    // Run replace natively.
+    callback(string.replace(substr, newSubstr));
   };
-  this.setNativeFunctionPrototype(this.STRING, 'replace', wrapper);
+  this.setAsyncFunctionPrototype(this.STRING, 'replace', wrapper);
   // Add a polyfill to handle replace's second argument being a function.
   this.polyfills_.push(
 "(function() {",
@@ -1362,33 +1451,60 @@ Interpreter.prototype.initRegExp = function(scope) {
   this.setProperty(this.REGEXP.properties['prototype'], 'source', '(?:)',
       Interpreter.READONLY_NONENUMERABLE_DESCRIPTOR);
 
-  wrapper = function(str) {
-    return this.data.test(str);
-  };
-  this.setNativeFunctionPrototype(this.REGEXP, 'test', wrapper);
+  // Use polyfill to avoid complexity of regexp threads.
+  this.polyfills_.push(
+"Object.defineProperty(RegExp.prototype, 'test',",
+    "{configurable: true, writable: true, value:",
+  "function(str) {",
+    "return String(str).search(this) !== -1",
+  "}",
+"});");
 
-  wrapper = function(str) {
-    str = str.toString();
+  wrapper = function(string, callback) {
+    var thisPseudoRegExp = this;
+    var regexp = this.data;
+    string = String(string);
     // Get lastIndex from wrapped regex, since this is settable.
-    this.data.lastIndex =
+    regexp.lastIndex =
         Number(thisInterpreter.getProperty(this, 'lastIndex'));
-    var match = this.data.exec(str);
-    thisInterpreter.setProperty(this, 'lastIndex', this.data.lastIndex);
-
-    if (match) {
-      var result =
-          thisInterpreter.createObjectProto(thisInterpreter.ARRAY_PROTO);
-      for (var i = 0; i < match.length; i++) {
-        thisInterpreter.setProperty(result, i, match[i]);
-      }
-      // match has additional properties.
-      thisInterpreter.setProperty(result, 'index', match.index);
-      thisInterpreter.setProperty(result, 'input', match.input);
-      return result;
+    // Example of catastrophic exec RegExp:
+    // /^(a+)+b/.exec('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaac')
+    thisInterpreter.maybeThrowRegExp(regexp, callback);
+    if (thisInterpreter.REGEXP_MODE === 2) {
+      // Run exec in separate thread.
+      // Note that lastIndex is not preserved when a RegExp is passed to a
+      // Web Worker.  Thus it needs to be passed back and forth separately.
+      var execWorker = new Worker('regexp_worker.js');
+      var pid = thisInterpreter.regExpTimeout(regexp, execWorker,
+          callback);
+      execWorker.onmessage = function(e) {
+        clearTimeout(pid);
+        // Return tuple: [result, lastIndex]
+        thisInterpreter.setProperty(thisPseudoRegExp, 'lastIndex',
+            e.data[1]);
+        callback(matchToPseudo(e.data[0]));
+      };
+      execWorker.postMessage(['exec', regexp, regexp.lastIndex, string]);
+      return;
     }
-    return null;
+    // Run exec natively.
+    var match = regexp.exec(string);
+    thisInterpreter.setProperty(thisPseudoRegExp, 'lastIndex',
+        regexp.lastIndex);
+    callback(matchToPseudo(match));
+
+    function matchToPseudo(match) {
+      if (match) {
+        var result = thisInterpreter.arrayNativeToPseudo(match);
+        // match has additional properties.
+        thisInterpreter.setProperty(result, 'index', match.index);
+        thisInterpreter.setProperty(result, 'input', match.input);
+        return result;
+      }
+      return null;
+    }
   };
-  this.setNativeFunctionPrototype(this.REGEXP, 'exec', wrapper);
+  this.setAsyncFunctionPrototype(this.REGEXP, 'exec', wrapper);
 };
 
 /**
@@ -1533,6 +1649,43 @@ Interpreter.prototype.isa = function(child, constructor) {
     child = child.proto;
   }
   return false;
+};
+
+/**
+ * If REGEXP_MODE is 0, then throw an error.
+ * Also throw if REGEXP_MODE is 2 and JS doesn't support Web Workers.
+ * @param {!RegExp} nativeRegExp Regular expression.
+ * @param {Function} callback Asynchronous callback function.
+ */
+Interpreter.prototype.maybeThrowRegExp = function(nativeRegExp, callback) {
+  if (this.REGEXP_MODE === 0 ||
+      (this.REGEXP_MODE === 2 && typeof Worker !== 'function')) {
+    callback && callback(null);
+    this.throwException(this.ERROR, 'Regular expressions not supported: ' +
+        nativeRegExp);
+  }
+};
+
+/**
+ * Set a timeout for regular expression threads.  Unless cancelled, this will
+ * terminate the thread and throw an error.
+ * @param {!RegExp} nativeRegExp Regular expression (used for error message).
+ * @param {!Worker} worker Thread to terminate.
+ * @param {!Function} callback Async callback function to continue execution.
+ * @return {number} PID of timeout.  Used to cancel if thread completes.
+ */
+Interpreter.prototype.regExpTimeout = function(nativeRegExp, worker, callback) {
+  var thisInterpreter = this;
+  return setTimeout(function() {
+      worker.terminate();
+      callback(null);
+      try {
+        thisInterpreter.throwException(thisInterpreter.ERROR,
+            'RegExp Timeout: ' + nativeRegExp);
+      } catch (e) {
+        // Eat the expected Interpreter.STEP_ERROR.
+      }
+  }, this.REGEXP_THREAD_TIMEOUT);
 };
 
 /**
@@ -2190,6 +2343,20 @@ Interpreter.prototype.setNativeFunctionPrototype =
     function(obj, name, wrapper) {
   this.setProperty(obj.properties['prototype'], name,
       this.createNativeFunction(wrapper, false),
+      Interpreter.NONENUMERABLE_DESCRIPTOR);
+};
+
+/**
+ * Convenience method for adding an async function as a non-enumerable property
+ * onto an object's prototype.
+ * @param {!Interpreter.Object} obj Data object.
+ * @param {Interpreter.Value} name Name of property.
+ * @param {!Function} wrapper Function object.
+ */
+Interpreter.prototype.setAsyncFunctionPrototype =
+    function(obj, name, wrapper) {
+  this.setProperty(obj.properties['prototype'], name,
+      this.createAsyncFunction(wrapper),
       Interpreter.NONENUMERABLE_DESCRIPTOR);
 };
 
