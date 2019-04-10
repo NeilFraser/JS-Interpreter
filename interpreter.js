@@ -147,11 +147,12 @@ Interpreter.VALUE_IN_DESCRIPTOR = {'VALUE_IN_DESCRIPTOR': true};
 Interpreter.toStringCycles_ = [];
 
 /**
- * Data URI encoded code for handling regular expressions in a thread.
- * Using a separate file violates the same origin policy in Chrome if the
- * interpreter is being loaded from a file:// URI.  A data: URI solves this.
+ * Code for executing regular expressions in a thread.
+ * Using a separate file fails in Chrome when run locally on a file:// URI.
+ * Using a data encoded URI fails in IE and Edge.
+ * Using a blob works in IE11 and all other browsers.
  */
-Interpreter.WORKER_CODE = 'data:application/javascript,' + encodeURIComponent([
+Interpreter.WORKER_CODE = URL.createObjectURL(new Blob([[
   "onmessage = function(e) {",
     "var result;",
     "var data = e.data;",
@@ -182,8 +183,7 @@ Interpreter.WORKER_CODE = 'data:application/javascript,' + encodeURIComponent([
         "throw 'Unknown RegExp operation: ' + data[0];",
     "}",
     "postMessage(result);",
-  "};"].join('\n'));
-
+  "};"].join('\n')], {type: 'application/javascript'}));
 /**
  * Some pathological regular expressions can take geometric time.
  * Regular expressions are handled in one of three ways:
