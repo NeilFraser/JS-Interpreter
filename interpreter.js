@@ -148,11 +148,8 @@ Interpreter.toStringCycles_ = [];
 
 /**
  * Code for executing regular expressions in a thread.
- * Using a separate file fails in Chrome when run locally on a file:// URI.
- * Using a data encoded URI fails in IE and Edge.
- * Using a blob works in IE11 and all other browsers.
  */
-Interpreter.WORKER_CODE = URL.createObjectURL(new Blob([[
+Interpreter.WORKER_CODE = [
   "onmessage = function(e) {",
     "var result;",
     "var data = e.data;",
@@ -183,7 +180,8 @@ Interpreter.WORKER_CODE = URL.createObjectURL(new Blob([[
         "throw 'Unknown RegExp operation: ' + data[0];",
     "}",
     "postMessage(result);",
-  "};"].join('\n')], {type: 'application/javascript'}));
+  "};"];
+
 /**
  * Some pathological regular expressions can take geometric time.
  * Regular expressions are handled in one of three ways:
@@ -1158,7 +1156,7 @@ Interpreter.prototype.initString = function(scope) {
       thisInterpreter.maybeThrowRegExp(separator, callback);
       if (thisInterpreter.REGEXP_MODE === 2) {
         // Run split in separate thread.
-        var splitWorker = new Worker(Interpreter.WORKER_CODE);
+        var splitWorker = thisInterpreter.createWorker();
         var pid = thisInterpreter.regExpTimeout(separator, splitWorker,
             callback);
         splitWorker.onmessage = function(e) {
@@ -1187,7 +1185,7 @@ Interpreter.prototype.initString = function(scope) {
     thisInterpreter.maybeThrowRegExp(regexp, callback);
     if (thisInterpreter.REGEXP_MODE === 2) {
       // Run match in separate thread.
-      var matchWorker = new Worker(Interpreter.WORKER_CODE);
+      var matchWorker = thisInterpreter.createWorker();
       var pid = thisInterpreter.regExpTimeout(regexp, matchWorker,
           callback);
       matchWorker.onmessage = function(e) {
@@ -1215,7 +1213,7 @@ Interpreter.prototype.initString = function(scope) {
     thisInterpreter.maybeThrowRegExp(regexp, callback);
     if (thisInterpreter.REGEXP_MODE === 2) {
       // Run search in separate thread.
-      var searchWorker = new Worker(Interpreter.WORKER_CODE);
+      var searchWorker = thisInterpreter.createWorker();
       var pid = thisInterpreter.regExpTimeout(regexp, searchWorker,
           callback);
       searchWorker.onmessage = function(e) {
@@ -1241,7 +1239,7 @@ Interpreter.prototype.initString = function(scope) {
       thisInterpreter.maybeThrowRegExp(substr, callback);
       if (thisInterpreter.REGEXP_MODE === 2) {
         // Run replace in separate thread.
-        var replaceWorker = new Worker(Interpreter.WORKER_CODE);
+        var replaceWorker = thisInterpreter.createWorker();
         var pid = thisInterpreter.regExpTimeout(substr, replaceWorker,
             callback);
         replaceWorker.onmessage = function(e) {
@@ -1512,7 +1510,7 @@ Interpreter.prototype.initRegExp = function(scope) {
       // Run exec in separate thread.
       // Note that lastIndex is not preserved when a RegExp is passed to a
       // Web Worker.  Thus it needs to be passed back and forth separately.
-      var execWorker = new Worker(Interpreter.WORKER_CODE);
+      var execWorker = thisInterpreter.createWorker();
       var pid = thisInterpreter.regExpTimeout(regexp, execWorker,
           callback);
       execWorker.onmessage = function(e) {
@@ -1690,14 +1688,53 @@ Interpreter.prototype.isa = function(child, constructor) {
 };
 
 /**
+ * Initialize a pseudo regular expression object based on a native regular
+ * expression object.
+ * @param {!Interpreter.Object} pseudoRegexp The existing object to set.
+ * @param {!RegExp} nativeRegexp The native regular expression.
+ */
+Interpreter.prototype.populateRegExp = function(pseudoRegexp, nativeRegexp) {
+  pseudoRegexp.data = nativeRegexp;
+  // lastIndex is settable, all others are read-only attributes
+  this.setProperty(pseudoRegexp, 'lastIndex', nativeRegexp.lastIndex,
+      Interpreter.NONENUMERABLE_DESCRIPTOR);
+  this.setProperty(pseudoRegexp, 'source', nativeRegexp.source,
+      Interpreter.READONLY_NONENUMERABLE_DESCRIPTOR);
+  this.setProperty(pseudoRegexp, 'global', nativeRegexp.global,
+      Interpreter.READONLY_NONENUMERABLE_DESCRIPTOR);
+  this.setProperty(pseudoRegexp, 'ignoreCase', nativeRegexp.ignoreCase,
+      Interpreter.READONLY_NONENUMERABLE_DESCRIPTOR);
+  this.setProperty(pseudoRegexp, 'multiline', nativeRegexp.multiline,
+      Interpreter.READONLY_NONENUMERABLE_DESCRIPTOR);
+};
+
+/**
+ * Create a Web Worker to execute regular expressions.
+ * Using a separate file fails in Chrome when run locally on a file:// URI.
+ * Using a data encoded URI fails in IE and Edge.
+ * Using a blob works in IE11 and all other browsers.
+ * @return {!Worker} Web Worker with regexp execution code loaded.
+ */
+Interpreter.prototype.createWorker = function() {
+  var blob = this.createWorker.blob_;
+  if (!blob) {
+    blob = new Blob([Interpreter.WORKER_CODE.join('\n')],
+        {type: 'application/javascript'});
+    // Cache the blob, so it doesn't need to be created next time.
+    this.createWorker.blob_ = blob;
+  }
+  return new Worker(URL.createObjectURL(blob));
+};
+
+/**
  * If REGEXP_MODE is 0, then throw an error.
  * Also throw if REGEXP_MODE is 2 and JS doesn't support Web Workers.
  * @param {!RegExp} nativeRegExp Regular expression.
  * @param {Function} callback Asynchronous callback function.
  */
 Interpreter.prototype.maybeThrowRegExp = function(nativeRegExp, callback) {
-  if (this.REGEXP_MODE === 0 ||
-      (this.REGEXP_MODE === 2 && typeof Worker !== 'function')) {
+  if (this.REGEXP_MODE === 0 || (this.REGEXP_MODE === 2 &&
+      (typeof Worker !== 'function' || typeof URL !== 'function'))) {
     callback && callback(null);
     this.throwException(this.ERROR, 'Regular expressions not supported: ' +
         nativeRegExp);
@@ -1896,27 +1933,6 @@ Interpreter.prototype.createObjectProto = function(proto) {
     obj.class = 'Error';
   }
   return obj;
-};
-
-/**
- * Initialize a pseudo regular expression object based on a native regular
- * expression object.
- * @param {!Interpreter.Object} pseudoRegexp The existing object to set.
- * @param {!RegExp} nativeRegexp The native regular expression.
- */
-Interpreter.prototype.populateRegExp = function(pseudoRegexp, nativeRegexp) {
-  pseudoRegexp.data = nativeRegexp;
-  // lastIndex is settable, all others are read-only attributes
-  this.setProperty(pseudoRegexp, 'lastIndex', nativeRegexp.lastIndex,
-      Interpreter.NONENUMERABLE_DESCRIPTOR);
-  this.setProperty(pseudoRegexp, 'source', nativeRegexp.source,
-      Interpreter.READONLY_NONENUMERABLE_DESCRIPTOR);
-  this.setProperty(pseudoRegexp, 'global', nativeRegexp.global,
-      Interpreter.READONLY_NONENUMERABLE_DESCRIPTOR);
-  this.setProperty(pseudoRegexp, 'ignoreCase', nativeRegexp.ignoreCase,
-      Interpreter.READONLY_NONENUMERABLE_DESCRIPTOR);
-  this.setProperty(pseudoRegexp, 'multiline', nativeRegexp.multiline,
-      Interpreter.READONLY_NONENUMERABLE_DESCRIPTOR);
 };
 
 /**
