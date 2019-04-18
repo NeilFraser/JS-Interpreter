@@ -140,11 +140,22 @@ Interpreter.SCOPE_REFERENCE = {'SCOPE_REFERENCE': true};
 Interpreter.VALUE_IN_DESCRIPTOR = {'VALUE_IN_DESCRIPTOR': true};
 
 /**
+ * Unique symbol for indicating that a RegExp timeout has occurred in a VM.
+ */
+Interpreter.REGEXP_TIMEOUT = {'REGEXP_TIMEOUT': true};
+
+/**
  * For cycle detection in array to string and error conversion;
  * see spec bug github.com/tc39/ecma262/issues/289
  * Since this is for atomic actions only, it can be a class property.
  */
 Interpreter.toStringCycles_ = [];
+
+/**
+ * Node's vm module, if loaded and required.
+ * @type {Object}
+ */
+Interpreter.vm = undefined;
 
 /**
  * Code for executing regular expressions in a thread.
@@ -1155,15 +1166,30 @@ Interpreter.prototype.initString = function(scope) {
       separator = separator.data;
       thisInterpreter.maybeThrowRegExp(separator, callback);
       if (thisInterpreter.REGEXP_MODE === 2) {
-        // Run split in separate thread.
-        var splitWorker = thisInterpreter.createWorker();
-        var pid = thisInterpreter.regExpTimeout(separator, splitWorker,
-            callback);
-        splitWorker.onmessage = function(e) {
-          clearTimeout(pid);
-          callback(thisInterpreter.arrayNativeToPseudo(e.data));
-        };
-        splitWorker.postMessage(['split', string, separator, limit]);
+        if (Interpreter.vm) {
+          // Run split in vm.
+          var sandbox = {
+            'string': string,
+            'separator': separator,
+            'limit': limit
+          };
+          var code = 'string.split(separator, limit)';
+          var jsList =
+              thisInterpreter.vmCall(code, sandbox, separator, callback);
+          if (jsList !== Interpreter.REGEXP_TIMEOUT) {
+            callback(thisInterpreter.arrayNativeToPseudo(jsList));
+          }
+        } else {
+          // Run split in separate thread.
+          var splitWorker = thisInterpreter.createWorker();
+          var pid = thisInterpreter.regExpTimeout(separator, splitWorker,
+              callback);
+          splitWorker.onmessage = function(e) {
+            clearTimeout(pid);
+            callback(thisInterpreter.arrayNativeToPseudo(e.data));
+          };
+          splitWorker.postMessage(['split', string, separator, limit]);
+        }
         return;
       }
     }
@@ -1184,15 +1210,27 @@ Interpreter.prototype.initString = function(scope) {
     // 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaac'.match(/^(a+)+b/)
     thisInterpreter.maybeThrowRegExp(regexp, callback);
     if (thisInterpreter.REGEXP_MODE === 2) {
-      // Run match in separate thread.
-      var matchWorker = thisInterpreter.createWorker();
-      var pid = thisInterpreter.regExpTimeout(regexp, matchWorker,
-          callback);
-      matchWorker.onmessage = function(e) {
-        clearTimeout(pid);
-        callback(e.data && thisInterpreter.arrayNativeToPseudo(e.data));
-      };
-      matchWorker.postMessage(['match', string, regexp]);
+      if (Interpreter.vm) {
+        // Run match in vm.
+        var sandbox = {
+          'string': string,
+          'regexp': regexp
+        };
+        var code = 'string.match(regexp)';
+        var m = thisInterpreter.vmCall(code, sandbox, regexp, callback);
+        if (m !== Interpreter.REGEXP_TIMEOUT) {
+          callback(m && thisInterpreter.arrayNativeToPseudo(m));
+        }
+      } else {
+        // Run match in separate thread.
+        var matchWorker = thisInterpreter.createWorker();
+        var pid = thisInterpreter.regExpTimeout(regexp, matchWorker, callback);
+        matchWorker.onmessage = function(e) {
+          clearTimeout(pid);
+          callback(e.data && thisInterpreter.arrayNativeToPseudo(e.data));
+        };
+        matchWorker.postMessage(['match', string, regexp]);
+      }
       return;
     }
     // Run match natively.
@@ -1212,15 +1250,27 @@ Interpreter.prototype.initString = function(scope) {
     // 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaac'.search(/^(a+)+b/)
     thisInterpreter.maybeThrowRegExp(regexp, callback);
     if (thisInterpreter.REGEXP_MODE === 2) {
-      // Run search in separate thread.
-      var searchWorker = thisInterpreter.createWorker();
-      var pid = thisInterpreter.regExpTimeout(regexp, searchWorker,
-          callback);
-      searchWorker.onmessage = function(e) {
-        clearTimeout(pid);
-        callback(e.data);
-      };
-      searchWorker.postMessage(['search', string, regexp]);
+      if (Interpreter.vm) {
+        // Run search in vm.
+        var sandbox = {
+          'string': string,
+          'regexp': regexp
+        };
+        var code = 'string.search(regexp)';
+        var n = thisInterpreter.vmCall(code, sandbox, regexp, callback);
+        if (n !== Interpreter.REGEXP_TIMEOUT) {
+          callback(n);
+        }
+      } else {
+        // Run search in separate thread.
+        var searchWorker = thisInterpreter.createWorker();
+        var pid = thisInterpreter.regExpTimeout(regexp, searchWorker, callback);
+        searchWorker.onmessage = function(e) {
+          clearTimeout(pid);
+          callback(e.data);
+        };
+        searchWorker.postMessage(['search', string, regexp]);
+      }
       return;
     }
     // Run search natively.
@@ -1238,15 +1288,29 @@ Interpreter.prototype.initString = function(scope) {
       substr = substr.data;
       thisInterpreter.maybeThrowRegExp(substr, callback);
       if (thisInterpreter.REGEXP_MODE === 2) {
-        // Run replace in separate thread.
-        var replaceWorker = thisInterpreter.createWorker();
-        var pid = thisInterpreter.regExpTimeout(substr, replaceWorker,
-            callback);
-        replaceWorker.onmessage = function(e) {
-          clearTimeout(pid);
-          callback(e.data);
-        };
-        replaceWorker.postMessage(['replace', string, substr, newSubstr]);
+        if (Interpreter.vm) {
+          // Run replace in vm.
+          var sandbox = {
+            'string': string,
+            'substr': substr,
+            'newSubstr': newSubstr
+          };
+          var code = 'string.replace(substr, newSubstr)';
+          var str = thisInterpreter.vmCall(code, sandbox, substr, callback);
+          if (str !== Interpreter.REGEXP_TIMEOUT) {
+            callback(str);
+          }
+        } else {
+          // Run replace in separate thread.
+          var replaceWorker = thisInterpreter.createWorker();
+          var pid = thisInterpreter.regExpTimeout(substr, replaceWorker,
+              callback);
+          replaceWorker.onmessage = function(e) {
+            clearTimeout(pid);
+            callback(e.data);
+          };
+          replaceWorker.postMessage(['replace', string, substr, newSubstr]);
+        }
         return;
       }
     }
@@ -1498,7 +1562,7 @@ Interpreter.prototype.initRegExp = function(scope) {
 
   wrapper = function(string, callback) {
     var thisPseudoRegExp = this;
-    var regexp = this.data;
+    var regexp = thisPseudoRegExp.data;
     string = String(string);
     // Get lastIndex from wrapped regex, since this is settable.
     regexp.lastIndex =
@@ -1507,20 +1571,34 @@ Interpreter.prototype.initRegExp = function(scope) {
     // /^(a+)+b/.exec('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaac')
     thisInterpreter.maybeThrowRegExp(regexp, callback);
     if (thisInterpreter.REGEXP_MODE === 2) {
-      // Run exec in separate thread.
-      // Note that lastIndex is not preserved when a RegExp is passed to a
-      // Web Worker.  Thus it needs to be passed back and forth separately.
-      var execWorker = thisInterpreter.createWorker();
-      var pid = thisInterpreter.regExpTimeout(regexp, execWorker,
-          callback);
-      execWorker.onmessage = function(e) {
-        clearTimeout(pid);
-        // Return tuple: [result, lastIndex]
-        thisInterpreter.setProperty(thisPseudoRegExp, 'lastIndex',
-            e.data[1]);
-        callback(matchToPseudo(e.data[0]));
-      };
-      execWorker.postMessage(['exec', regexp, regexp.lastIndex, string]);
+      if (Interpreter.vm) {
+        // Run exec in vm.
+        var sandbox = {
+          'string': string,
+          'regexp': regexp
+        };
+        var code = 'regexp.exec(string)';
+        var match = thisInterpreter.vmCall(code, sandbox, regexp, callback);
+        if (match !== Interpreter.REGEXP_TIMEOUT) {
+          thisInterpreter.setProperty(thisPseudoRegExp, 'lastIndex',
+              regexp.lastIndex);
+          callback(matchToPseudo(match));
+        }
+      } else {
+        // Run exec in separate thread.
+        // Note that lastIndex is not preserved when a RegExp is passed to a
+        // Web Worker.  Thus it needs to be passed back and forth separately.
+        var execWorker = thisInterpreter.createWorker();
+        var pid = thisInterpreter.regExpTimeout(regexp, execWorker, callback);
+        execWorker.onmessage = function(e) {
+          clearTimeout(pid);
+          // Return tuple: [result, lastIndex]
+          thisInterpreter.setProperty(thisPseudoRegExp, 'lastIndex',
+              e.data[1]);
+          callback(matchToPseudo(e.data[0]));
+        };
+        execWorker.postMessage(['exec', regexp, regexp.lastIndex, string]);
+      }
       return;
     }
     // Run exec natively.
@@ -1727,15 +1805,58 @@ Interpreter.prototype.createWorker = function() {
 };
 
 /**
- * If REGEXP_MODE is 0, then throw an error.
- * Also throw if REGEXP_MODE is 2 and JS doesn't support Web Workers.
+ * Execute regular expressions in a node vm.
+ * @param {string} code Code to execute.
+ * @param {!Object} sandbox Global variables for new vm.
  * @param {!RegExp} nativeRegExp Regular expression.
- * @param {Function} callback Asynchronous callback function.
+ * @param {!Function} callback Asynchronous callback function.
+ */
+Interpreter.prototype.vmCall = function(code, sandbox, regexp, callback) {
+  var options = {'timeout': this.REGEXP_THREAD_TIMEOUT};
+  try {
+    return Interpreter.vm.runInNewContext(code, sandbox, options);
+  } catch (e) {
+    callback(null);
+    this.throwException(this.ERROR, 'RegExp Timeout: ' + regexp);
+  }
+  return Interpreter.REGEXP_TIMEOUT;
+};
+
+/**
+ * If REGEXP_MODE is 0, then throw an error.
+ * Also throw if REGEXP_MODE is 2 and JS doesn't support Web Workers or vm.
+ * @param {!RegExp} nativeRegExp Regular expression.
+ * @param {!Function} callback Asynchronous callback function.
  */
 Interpreter.prototype.maybeThrowRegExp = function(nativeRegExp, callback) {
-  if (this.REGEXP_MODE === 0 || (this.REGEXP_MODE === 2 &&
-      (typeof Worker !== 'function' || typeof URL !== 'function'))) {
-    callback && callback(null);
+  var ok;
+  if (this.REGEXP_MODE === 0) {
+    // Fail: No RegExp support.
+    ok = false;
+  } else if (this.REGEXP_MODE === 1) {
+    // Ok: Native RegExp support.
+    ok = true;
+  } else {
+    // Sandboxed RegExp handling.
+    if (Interpreter.vm) {
+      // Ok: Node's vm module already loaded.
+      ok = true;
+    } else if (typeof Worker === 'function' && typeof URL === 'function') {
+      // Ok: Web Workers available.
+      ok = true;
+    } else if (typeof require === 'function') {
+      // Try to load Node's vm module.
+      try {
+        Interpreter.vm = require('vm');
+      } catch (e) {};
+      ok = !!Interpreter.vm;
+    } else {
+      // Fail: Neither Web Workers nor vm available.
+      ok = false;
+    }
+  }
+  if (!ok) {
+    callback(null);
     this.throwException(this.ERROR, 'Regular expressions not supported: ' +
         nativeRegExp);
   }
