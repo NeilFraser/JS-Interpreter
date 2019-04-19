@@ -194,6 +194,14 @@
   by periodically serializing the interpereter into a JSON string, and aborting
   execution if the string length is too long.</p>
 
+  <h2>Regular Expressions</h2>
+
+  <p>Pathological regular expressions can execute in geometric time.  For example
+  <code>'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaac'.match(/^(a+)+b/)</code>
+  will effectively crash any JavaScript runtime.  JS-Interpreter has a
+  variety of methods for <a href="demos/regexp.html">safely dealing with
+  regular expressions</a> depending on the platform.</p>
+
   <h2>Limitations</h2>
 
   <p>The version of JavaScript implemented by the interpreter has a few
@@ -213,6 +221,11 @@
     200 times slower than native JavaScript.</dd>
   </dl>
 
+  <h2>Node.js</h2>
+
+  <p>JS-Intepreter can be run server-side using Node.js.  For a minimal demo,
+  just run: <code>node <a href="demos/node.js">demos/node.js</a></code></p>
+
   <h2>Dependency</h2>
 
   <p>The only dependency is <a href="http://marijnhaverbeke.nl/acorn/">Acorn</a>,
@@ -230,9 +243,14 @@
     <li>Chrome 5</li>
     <li>Firefox 4.0</li>
     <li>IE 9</li>
+    <li>Edge (all versions)</li>
     <li>Opera 11.6</li>
     <li>Safari 5</li>
+    <li>Node.js (all versions)</li>
   </ul>
+
+  <p>Additionally, if safely executing regular expressions is required, then
+  IE 11 is the minimum version of IE that supports Web Workers via Blobs.</p>
 
   <h2>Disclaimer</h2>
 

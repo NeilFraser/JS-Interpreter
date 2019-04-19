@@ -8,7 +8,7 @@ a:hover {
 h1, h2, h3 {
   font-weight: normal;
 }
-#code {
+textarea {
   font-family: monospace;
   font-size: larger;
   height: 15em;

@@ -155,7 +155,7 @@ Interpreter.toStringCycles_ = [];
  * Node's vm module, if loaded and required.
  * @type {Object}
  */
-Interpreter.vm = undefined;
+Interpreter.vm = null;
 
 /**
  * Code for executing regular expressions in a thread.
@@ -200,13 +200,13 @@ Interpreter.WORKER_CODE = [
  * 1 - execute natively (risk of unresponsive program).
  * 2 - execute in separate thread (not supported by IE 9).
  */
-Interpreter.prototype.REGEXP_MODE = 1;
+Interpreter.prototype.REGEXP_MODE = 2;
 
 /**
  * If REGEXP_MODE = 2, the length of time (in ms) to allow a RegExp
  * thread to execute before terminating it.
  */
-Interpreter.prototype.REGEXP_THREAD_TIMEOUT = 10000;
+Interpreter.prototype.REGEXP_THREAD_TIMEOUT = 1000;
 
 /**
  * Add more code to the interpreter.
@@ -1811,13 +1811,13 @@ Interpreter.prototype.createWorker = function() {
  * @param {!RegExp} nativeRegExp Regular expression.
  * @param {!Function} callback Asynchronous callback function.
  */
-Interpreter.prototype.vmCall = function(code, sandbox, regexp, callback) {
+Interpreter.prototype.vmCall = function(code, sandbox, nativeRegExp, callback) {
   var options = {'timeout': this.REGEXP_THREAD_TIMEOUT};
   try {
-    return Interpreter.vm.runInNewContext(code, sandbox, options);
+    return Interpreter.vm['runInNewContext'](code, sandbox, options);
   } catch (e) {
     callback(null);
-    this.throwException(this.ERROR, 'RegExp Timeout: ' + regexp);
+    this.throwException(this.ERROR, 'RegExp Timeout: ' + nativeRegExp);
   }
   return Interpreter.REGEXP_TIMEOUT;
 };

@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>JS-Interpreter RegExp Demo</title>
+  <link href="style.css" rel="stylesheet" type="text/css">
+  <script src="../acorn.js"></script>
+  <script src="../interpreter.js"></script>
+  <script>
+    var myInterpreter = [];
+    function initAlert(interpreter, scope) {
+      var wrapper = function(text) {
+        return alert(arguments.length ? text : '');
+      };
+      interpreter.setProperty(scope, 'alert',
+          interpreter.createNativeFunction(wrapper));
+
+      var wrapper = function(href, callback) {
+        var req = new XMLHttpRequest();
+        req.open('GET', href, true);
+        req.onreadystatechange = function() {
+          if (req.readyState == 4 && req.status == 200) {
+            callback(req.responseText);
+          }
+        };
+        req.send(null);
+      };
+      interpreter.setProperty(scope, 'getXhr',
+          interpreter.createAsyncFunction(wrapper));
+    }
+
+    function parseButton(n) {
+      var code = document.getElementById('code' + n).value;
+      myInterpreter[n] = new Interpreter(code, initAlert);
+      myInterpreter[n].REGEXP_MODE = n;
+      disable(n, '');
+    }
+
+    function stepButton(n) {
+      if (myInterpreter[n].stateStack.length) {
+        var node =
+            myInterpreter[n].stateStack[myInterpreter[n].stateStack.length - 1].node;
+        var start = node.start;
+        var end = node.end;
+      } else {
+        var start = 0;
+        var end = 0;
+      }
+      createSelection(n, start, end);
+      try {
+        var ok = myInterpreter[n].step();
+      } finally {
+        if (!ok) {
+          disable(n, 'disabled');
+        }
+      }
+    }
+
+    function runButton(n) {
+      disable(n, 'disabled');
+      if (myInterpreter[n].run()) {
+        // Ran until an async call.  Give this call a chance to run.
+        // Then start running again later.
+        setTimeout(runButton, 100, n);
+      }
+    }
+
+    function disable(n, disabled) {
+      document.getElementById('stepButton' + n).disabled = disabled;
+      document.getElementById('runButton' + n).disabled = disabled;
+    }
+
+    function createSelection(n, start, end) {
+      var field = document.getElementById('code' + n);
+      if (field.createTextRange) {
+        var selRange = field.createTextRange();
+        selRange.collapse(true);
+        selRange.moveStart('character', start);
+        selRange.moveEnd('character', end);
+        selRange.select();
+      } else if (field.setSelectionRange) {
+        field.setSelectionRange(start, end);
+      } else if (field.selectionStart) {
+        field.selectionStart = start;
+        field.selectionEnd = end;
+      }
+      field.focus();
+    }
+  </script>
+</head>
+<body>
+  <h1>JS-Interpreter RegExp Demo</h1>
+
+  <p>Pathological regular expressions can execute in geometric time.
+  For example <code>'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaac'.match(/^(a+)+b/)</code>
+  will effectively crash any JavaScript runtime.  JS-Interpreter has three modes
+  for handling regular expressions.</p>
+
+  <h2>REGEXP_MODE = 0</h2>
+
+  <p>In mode 0, all regular expressions are disabled and throw an error.  This
+  is safe and works in every environment.</p>
+
+  <p><textarea id="code0">
+// All regular expressions will fail here.
+try {
+  alert('hello'.search(/(.)\1+/));
+} catch (e) {
+  alert(e);
+}
+</textarea><br>
+  <button onclick="parseButton(0)">Parse</button>
+  <button onclick="stepButton(0)" id="stepButton0" disabled="disabled">Step</button>
+  <button onclick="runButton(0)" id="runButton0" disabled="disabled">Run</button>
+  </p>
+
+  <h2>REGEXP_MODE = 1</h2>
+
+  <p>In mode 1, all regular expressions are executed natively.  This
+  is potentially <i>unsafe</i> and works in every environment.</p>
+
+  <p><textarea id="code1">
+// This regular expression is fine and returns 'll'.
+alert('hello'.match(/(.)\1+/)[0]);
+</textarea><br>
+  <button onclick="parseButton(1)">Parse</button>
+  <button onclick="stepButton(1)" id="stepButton1" disabled="disabled">Step</button>
+  <button onclick="runButton(1)" id="runButton1" disabled="disabled">Run</button>
+  </p>
+
+  <h2>REGEXP_MODE = 2 (default mode)</h2>
+
+  <p>In mode 2, all regular expressions are executed in a separate environment.
+  In web browsers this means asynchronously in a Web Worker thread, in Node.js
+  this means synchronously in a VM.  If a regular expression takes more than
+  REGEXP_THREAD_TIMEOUT (default 1000 ms) then it is terminated and an error
+  thrown.  This is safe and works in most environments.  If Web Workers or VM
+  is not supported (meaning IE 9 or IE 10), then all regular expressions throw
+  an error.</p>
+
+  <p><textarea id="code2">
+// This regular expression is fine and returns 'aaac'.
+alert('aaac'.split(/^(a+)+b/));
+try {
+  // This regular expression is pathological and hits the timeout.
+  alert('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaac'.split(/^(a+)+b/));
+} catch (e) {
+  alert(e);
+}
+</textarea><br>
+  <button onclick="parseButton(2)">Parse</button>
+  <button onclick="stepButton(2)" id="stepButton2" disabled="disabled">Step</button>
+  <button onclick="runButton(2)" id="runButton2" disabled="disabled">Run</button>
+  </p>
+
+  <p>Back to the <a href="../docs.html">JS-Interpreter documentation</a>.</p>
+
+</body>
+</html>
