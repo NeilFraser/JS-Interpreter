@@ -2810,7 +2810,7 @@ Interpreter.prototype.unwind = function(type, value, label) {
     throw TypeError('Should not unwind for NORMAL completions');
   }
 
-  for (var stack = this.stateStack; stack.length > 0; stack.pop()) {
+  loop: for (var stack = this.stateStack; stack.length > 0; stack.pop()) {
     var state = stack[stack.length - 1];
     switch (state.node['type']) {
       case 'TryStatement':
@@ -2824,6 +2824,12 @@ Interpreter.prototype.unwind = function(type, value, label) {
         } else if (type !== Interpreter.Completion.THROW) {
           throw Error('Unsynatctic break/continue not rejected by Acorn');
         }
+        break;
+      case 'Program':
+        // Don't pop the stateStack.
+        // Leave the root scope on the tree in case the program is appended to.
+        state.done = true;
+        break loop;
     }
     if (type === Interpreter.Completion.BREAK) {
       if (label ? (state.labels && state.labels.indexOf(label) !== -1) :
