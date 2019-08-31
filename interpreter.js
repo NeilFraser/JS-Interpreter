@@ -3944,3 +3944,7 @@ Interpreter.prototype['nativeToPseudo'] = Interpreter.prototype.nativeToPseudo;
 Interpreter.prototype['pseudoToNative'] = Interpreter.prototype.pseudoToNative;
 // Obsolete.  Do not use.
 Interpreter.prototype['createPrimitive'] = function(x) {return x;};
+
+if (typeof exports === 'object' && typeof module === 'object') {
+  module.exports = Interpreter;
+}
