@@ -3647,7 +3647,8 @@ Interpreter.prototype['stepObjectExpression'] = function(stack, state, node) {
         get: kinds['get'],
         set: kinds['set']
       };
-      this.setProperty(state.object_, key, null, descriptor);
+      this.setProperty(state.object_, key, Interpreter.VALUE_IN_DESCRIPTOR,
+                       descriptor);
     } else {
       // Set a normal property with a value.
       this.setProperty(state.object_, key, kinds['init']);
