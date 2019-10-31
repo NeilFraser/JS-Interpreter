@@ -1,8 +1,6 @@
 /**
  * @license
- * JavaScript Interpreter
- *
- * Copyright 2013 Google Inc.
+ * Copyright 2013 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -200,13 +198,13 @@ Interpreter.WORKER_CODE = [
  * 1 - execute natively (risk of unresponsive program).
  * 2 - execute in separate thread (not supported by IE 9).
  */
-Interpreter.prototype.REGEXP_MODE = 2;
+Interpreter.prototype['REGEXP_MODE'] = 2;
 
 /**
  * If REGEXP_MODE = 2, the length of time (in ms) to allow a RegExp
  * thread to execute before terminating it.
  */
-Interpreter.prototype.REGEXP_THREAD_TIMEOUT = 1000;
+Interpreter.prototype['REGEXP_THREAD_TIMEOUT'] = 1000;
 
 /**
  * Add more code to the interpreter.
@@ -1165,7 +1163,7 @@ Interpreter.prototype.initString = function(scope) {
     if (thisInterpreter.isa(separator, thisInterpreter.REGEXP)) {
       separator = separator.data;
       thisInterpreter.maybeThrowRegExp(separator, callback);
-      if (thisInterpreter.REGEXP_MODE === 2) {
+      if (thisInterpreter['REGEXP_MODE'] === 2) {
         if (Interpreter.vm) {
           // Run split in vm.
           var sandbox = {
@@ -1209,7 +1207,7 @@ Interpreter.prototype.initString = function(scope) {
     // Example of catastrophic match RegExp:
     // 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaac'.match(/^(a+)+b/)
     thisInterpreter.maybeThrowRegExp(regexp, callback);
-    if (thisInterpreter.REGEXP_MODE === 2) {
+    if (thisInterpreter['REGEXP_MODE'] === 2) {
       if (Interpreter.vm) {
         // Run match in vm.
         var sandbox = {
@@ -1249,7 +1247,7 @@ Interpreter.prototype.initString = function(scope) {
     // Example of catastrophic search RegExp:
     // 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaac'.search(/^(a+)+b/)
     thisInterpreter.maybeThrowRegExp(regexp, callback);
-    if (thisInterpreter.REGEXP_MODE === 2) {
+    if (thisInterpreter['REGEXP_MODE'] === 2) {
       if (Interpreter.vm) {
         // Run search in vm.
         var sandbox = {
@@ -1287,7 +1285,7 @@ Interpreter.prototype.initString = function(scope) {
     if (thisInterpreter.isa(substr, thisInterpreter.REGEXP)) {
       substr = substr.data;
       thisInterpreter.maybeThrowRegExp(substr, callback);
-      if (thisInterpreter.REGEXP_MODE === 2) {
+      if (thisInterpreter['REGEXP_MODE'] === 2) {
         if (Interpreter.vm) {
           // Run replace in vm.
           var sandbox = {
@@ -1570,7 +1568,7 @@ Interpreter.prototype.initRegExp = function(scope) {
     // Example of catastrophic exec RegExp:
     // /^(a+)+b/.exec('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaac')
     thisInterpreter.maybeThrowRegExp(regexp, callback);
-    if (thisInterpreter.REGEXP_MODE === 2) {
+    if (thisInterpreter['REGEXP_MODE'] === 2) {
       if (Interpreter.vm) {
         // Run exec in vm.
         var sandbox = {
@@ -1812,7 +1810,7 @@ Interpreter.prototype.createWorker = function() {
  * @param {!Function} callback Asynchronous callback function.
  */
 Interpreter.prototype.vmCall = function(code, sandbox, nativeRegExp, callback) {
-  var options = {'timeout': this.REGEXP_THREAD_TIMEOUT};
+  var options = {'timeout': this['REGEXP_THREAD_TIMEOUT']};
   try {
     return Interpreter.vm['runInNewContext'](code, sandbox, options);
   } catch (e) {
@@ -1830,10 +1828,10 @@ Interpreter.prototype.vmCall = function(code, sandbox, nativeRegExp, callback) {
  */
 Interpreter.prototype.maybeThrowRegExp = function(nativeRegExp, callback) {
   var ok;
-  if (this.REGEXP_MODE === 0) {
+  if (this['REGEXP_MODE'] === 0) {
     // Fail: No RegExp support.
     ok = false;
-  } else if (this.REGEXP_MODE === 1) {
+  } else if (this['REGEXP_MODE'] === 1) {
     // Ok: Native RegExp support.
     ok = true;
   } else {
@@ -1881,7 +1879,7 @@ Interpreter.prototype.regExpTimeout = function(nativeRegExp, worker, callback) {
       } catch (e) {
         // Eat the expected Interpreter.STEP_ERROR.
       }
-  }, this.REGEXP_THREAD_TIMEOUT);
+  }, this['REGEXP_THREAD_TIMEOUT']);
 };
 
 /**
