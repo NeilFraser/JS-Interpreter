@@ -3061,7 +3061,8 @@ Interpreter.prototype['stepBinaryExpression'] = function(stack, state, node) {
         this.throwException(this.TYPE_ERROR,
             'Right-hand side of instanceof is not an object');
       }
-      value = leftValue.isObject ? this.isa(leftValue, rightValue) : false;
+      value = (leftValue && leftValue.isObject) ?
+          this.isa(leftValue, rightValue) : false;
       break;
     default:
       throw SyntaxError('Unknown binary operator: ' + node['operator']);
