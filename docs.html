@@ -83,9 +83,9 @@
     alert(myInterpreter.value);
   </pre>
 
-  <p>Additionally, API calls may be added to the interpreter during creation.
-  Here is the addition of <code>alert()</code> and a <code>url</code>
-  variable:</p>
+  <p>Additionally, API calls may be added to the interpreter's global scope
+  during creation. Here is the addition of <code>alert()</code> and a
+  <code>url</code> variable:</p>
 
   <pre>
     var myCode = 'alert(url);';
@@ -101,10 +101,33 @@
     var myInterpreter = new Interpreter(myCode, initFunc);
   </pre>
 
-  <p>See the <a href="demos/json.html">JSON demo</a> for an example of
-  exchanging JSON between the browser and the interpreter.
-  For more complicated examples, see the <code>initGlobalScope</code> function
-  which creates APIs for Math, Array, Function, and other globals.</p>
+  <p>Alternatively, API calls may be added to an object:</p>
+
+  <pre>
+    var myCode = 'robot.forwards(robot.fast);';
+    var initFunc = function(interpreter, scope) {
+      // Create 'robot' global object.
+      var robot = interpreter.createObjectProto(interpreter.OBJECT_PROTO);
+      interpreter.setProperty(scope, 'robot', robot);
+
+      // Define 'robot.fast' property.
+      interpreter.setProperty(robot, 'fast', 99);
+
+      // Define 'robot.forwards' function.
+      var wrapper = function(speed) {
+        return realRobot.forwards(speed);
+      };
+      interpreter.setProperty(robot, 'forwards',
+          interpreter.createNativeFunction(wrapper));
+    };
+    var myInterpreter = new Interpreter(myCode, initFunc);
+  </pre>
+
+  <p>Only primitives (numbers, strings, booleans, null and undefined) may be
+  passed in and out of the interpreter during execution.  Objects and functions
+  are not compatible between native and interpreted code.
+  See the <a href="demos/json.html">JSON demo</a> for an example of exchanging
+  JSON between the browser and the interpreter.</p>
 
   <p>Asynchronous API functions may wrapped so that they appear to be
   synchronous to interpreter.  For example, a <code>getXhr(url)</code> function
@@ -215,7 +238,8 @@
     sandbox.  If you need these, write your own interfaces.</dd>
     <dt>ES6</dt>
     <dd>More recent additions to JavaScript such as <code>let</code> or
-    <code>Set</code> aren't implemented.  Feel free to fork the project if you need more than ES5.</dd>
+    <code>Set</code> aren't implemented.  <a href="https://babeljs.io/">Babel</a>
+    is a good method of transpiling newer versions of JavaScript to ES5.</dd>
     <dt>toString &amp; valueOf</dt>
     <dd>User-created functions are not called when casting objects to primitives.</dd>
     <dt>Performance</dt>
