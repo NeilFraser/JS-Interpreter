@@ -107,7 +107,7 @@
     var myCode = 'robot.forwards(robot.fast);';
     var initFunc = function(interpreter, scope) {
       // Create 'robot' global object.
-      var robot = interpreter.createObjectProto(interpreter.OBJECT_PROTO);
+      var robot = interpreter.nativeToPseudo({});
       interpreter.setProperty(scope, 'robot', robot);
 
       // Define 'robot.fast' property.
