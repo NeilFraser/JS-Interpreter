@@ -810,8 +810,7 @@ Interpreter.prototype.initArray = function(scope) {
       var newArray = this;
     } else {
       // Called as Array().
-      var newArray =
-          thisInterpreter.createObjectProto(thisInterpreter.ARRAY_PROTO);
+      var newArray = thisInterpreter.createArray();
     }
     var first = arguments[0];
     if (arguments.length === 1 && typeof first === 'number') {
@@ -841,6 +840,10 @@ Interpreter.prototype.initArray = function(scope) {
                    Interpreter.NONENUMERABLE_DESCRIPTOR);
 
   // Instance methods on Array.
+  this.setProperty(this.ARRAY_PROTO, 'length', 0,
+      {configurable: false, enumerable: false, writable: true});
+  this.ARRAY_PROTO.class = 'Array';
+
   wrapper = function() {
     return Array.prototype.pop.call(this.properties);
   };
@@ -2042,16 +2045,23 @@ Interpreter.prototype.createObjectProto = function(proto) {
                      Interpreter.NONENUMERABLE_DESCRIPTOR);
     obj.class = 'Function';
   }
-  // Arrays have length.
-  if (this.isa(obj, this.ARRAY)) {
-    this.setProperty(obj, 'length', 0,
-        {configurable: false, enumerable: false, writable: true});
-    obj.class = 'Array';
-  }
   if (this.isa(obj, this.ERROR)) {
     obj.class = 'Error';
   }
   return obj;
+};
+
+/**
+ * Create a new array.
+ * @return {!Interpreter.Object} New array.
+ */
+Interpreter.prototype.createArray = function() {
+  var array = this.createObjectProto(this.ARRAY_PROTO);
+  // Arrays have length.
+  this.setProperty(array, 'length', 0,
+      {configurable: false, enumerable: false, writable: true});
+  array.class = 'Array';
+  return array;
 };
 
 /**
@@ -2151,7 +2161,7 @@ Interpreter.prototype.nativeToPseudo = function(nativeObj) {
 
   var pseudoObj;
   if (Array.isArray(nativeObj)) {  // Array.
-    pseudoObj = this.createObjectProto(this.ARRAY_PROTO);
+    pseudoObj = this.createArray();
     for (var i = 0; i < nativeObj.length; i++) {
       if (i in nativeObj) {
         this.setProperty(pseudoObj, i, this.nativeToPseudo(nativeObj[i]));
@@ -2230,7 +2240,7 @@ Interpreter.prototype.pseudoToNative = function(pseudoObj, opt_cycles) {
  * @return {!Interpreter.Object} The equivalent JS interpreter array.
  */
 Interpreter.prototype.arrayNativeToPseudo = function(nativeArray) {
-  var pseudoArray = this.createObjectProto(this.ARRAY_PROTO);
+  var pseudoArray = this.createArray();
   var props = Object.getOwnPropertyNames(nativeArray);
   for (var i = 0; i < props.length; i++) {
     this.setProperty(pseudoArray, props[i], nativeArray[props[i]]);
@@ -2931,7 +2941,7 @@ Interpreter.prototype['stepArrayExpression'] = function(stack, state, node) {
   var elements = node['elements'];
   var n = state.n_ || 0;
   if (!state.array_) {
-    state.array_ = this.createObjectProto(this.ARRAY_PROTO);
+    state.array_ = this.createArray();
     state.array_.properties.length = elements.length;
   } else {
     this.setProperty(state.array_, n, state.value);
@@ -3136,12 +3146,16 @@ Interpreter.prototype['stepCallExpression'] = function(stack, state, node) {
         this.throwException(this.TYPE_ERROR, func + ' is not a constructor');
       }
       // Constructor, 'this' is new object.
-      var proto = func.properties['prototype'];
-      if (typeof proto !== 'object' || proto === null) {
-        // Non-object prototypes default to Object.prototype.
-        proto = this.OBJECT_PROTO;
+      if (func === this.ARRAY) {
+        state.funcThis_ = this.createArray();
+      } else {
+        var proto = func.properties['prototype'];
+        if (typeof proto !== 'object' || proto === null) {
+          // Non-object prototypes default to Object.prototype.
+          proto = this.OBJECT_PROTO;
+        }
+        state.funcThis_ = this.createObjectProto(proto);
       }
-      state.funcThis_ = this.createObjectProto(proto);
       state.isConstructor = true;
     } else if (state.funcThis_ === undefined) {
       // Global function, 'this' is global object (or 'undefined' if strict).
@@ -3165,7 +3179,7 @@ Interpreter.prototype['stepCallExpression'] = function(stack, state, node) {
         this.setProperty(scope, paramName, paramValue);
       }
       // Build arguments variable.
-      var argsList = this.createObjectProto(this.ARRAY_PROTO);
+      var argsList = this.createArray();
       for (var i = 0; i < state.arguments_.length; i++) {
         this.setProperty(argsList, i, state.arguments_[i]);
       }
