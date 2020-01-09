@@ -300,8 +300,8 @@ Interpreter.prototype.initGlobalScope = function(scope) {
   this.initFunction(scope);
   this.initObject(scope);
   // Unable to set scope's parent prior (OBJECT did not exist).
-  // Note that in a browser this would be 'Window', whereas in Node.js it would
-  // be 'Object'.  This interpreter is closer to Node in that it has no DOM.
+  // Note that in a browser this would be `Window`, whereas in Node.js it would
+  // be `Object`.  This interpreter is closer to Node in that it has no DOM.
   scope.proto = this.OBJECT_PROTO;
   this.setProperty(scope, 'constructor', this.OBJECT,
                    Interpreter.NONENUMERABLE_DESCRIPTOR);
@@ -409,7 +409,7 @@ Interpreter.prototype.initFunction = function(scope) {
     // Interestingly, the scope for constructed functions is the global scope,
     // even if they were constructed in some other scope.
     newFunc.parentScope = thisInterpreter.global;
-    // Acorn needs to parse code in the context of a function or else 'return'
+    // Acorn needs to parse code in the context of a function or else `return`
     // statements will be syntax errors.
     try {
       var ast = acorn.parse('(function(' + argsStr + ') {' + code + '})',
@@ -448,10 +448,10 @@ Interpreter.prototype.initFunction = function(scope) {
       Interpreter.READONLY_NONENUMERABLE_DESCRIPTOR);
 
   var boxThis = function(value) {
-    // In non-strict mode 'this' must be an object.
+    // In non-strict mode `this` must be an object.
     if ((!value || !value.isObject) && !thisInterpreter.getScope().strict) {
       if (value === undefined || value === null) {
-        // 'Undefined' and 'null' are changed to global object.
+        // `Undefined` and `null` are changed to global object.
         value = thisInterpreter.global;
       } else {
         // Primitives must be boxed in non-strict mode.
@@ -467,9 +467,9 @@ Interpreter.prototype.initFunction = function(scope) {
   wrapper = function(thisArg, args) {
     var state =
         thisInterpreter.stateStack[thisInterpreter.stateStack.length - 1];
-    // Rewrite the current 'CallExpression' to apply a different function.
+    // Rewrite the current CallExpression state to apply a different function.
     state.func_ = this;
-    // Assign the 'this' object.
+    // Assign the `this` object.
     state.funcThis_ = boxThis(thisArg);
     // Bind any provided arguments.
     state.arguments_ = [];
@@ -488,9 +488,9 @@ Interpreter.prototype.initFunction = function(scope) {
   wrapper = function(thisArg /*, var_args */) {
     var state =
         thisInterpreter.stateStack[thisInterpreter.stateStack.length - 1];
-    // Rewrite the current 'CallExpression' to call a different function.
+    // Rewrite the current CallExpression state to call a different function.
     state.func_ = this;
-    // Assign the 'this' object.
+    // Assign the `this` object.
     state.funcThis_ = boxThis(thisArg);
     // Bind any provided arguments.
     state.arguments_ = [];
@@ -558,10 +558,10 @@ Interpreter.prototype.initObject = function(scope) {
     if (value === undefined || value === null) {
       // Create a new object.
       if (thisInterpreter.calledWithNew()) {
-        // Called as new Object().
+        // Called as `new Object()`.
         return this;
       } else {
-        // Called as Object().
+        // Called as `Object()`.
         return thisInterpreter.createObjectProto(thisInterpreter.OBJECT_PROTO);
       }
     }
@@ -806,10 +806,10 @@ Interpreter.prototype.initArray = function(scope) {
   // Array constructor.
   wrapper = function(var_args) {
     if (thisInterpreter.calledWithNew()) {
-      // Called as new Array().
+      // Called as `new Array()`.
       var newArray = this;
     } else {
-      // Called as Array().
+      // Called as `Array()`.
       var newArray = thisInterpreter.createArray();
     }
     var first = arguments[0];
@@ -1125,11 +1125,11 @@ Interpreter.prototype.initString = function(scope) {
   wrapper = function(value) {
     value = String(value);
     if (thisInterpreter.calledWithNew()) {
-      // Called as new String().
+      // Called as `new String()`.
       this.data = value;
       return this;
     } else {
-      // Called as String().
+      // Called as `String()`.
       return value;
     }
   };
@@ -1367,11 +1367,11 @@ Interpreter.prototype.initBoolean = function(scope) {
   wrapper = function(value) {
     value = Boolean(value);
     if (thisInterpreter.calledWithNew()) {
-      // Called as new Boolean().
+      // Called as `new Boolean()`.
       this.data = value;
       return this;
     } else {
-      // Called as Boolean().
+      // Called as `Boolean()`.
       return value;
     }
   };
@@ -1390,11 +1390,11 @@ Interpreter.prototype.initNumber = function(scope) {
   wrapper = function(value) {
     value = Number(value);
     if (thisInterpreter.calledWithNew()) {
-      // Called as new Number().
+      // Called as `new Number()`.
       this.data = value;
       return this;
     } else {
-      // Called as Number().
+      // Called as `Number()`.
       return value;
     }
   };
@@ -1467,11 +1467,11 @@ Interpreter.prototype.initDate = function(scope) {
   // Date constructor.
   wrapper = function(value, var_args) {
     if (!thisInterpreter.calledWithNew()) {
-      // Called as Date().
+      // Called as `Date()`.
       // Calling Date() as a function returns a string, no arguments are heeded.
       return Date();
     }
-    // Called as new Date().
+    // Called as `new Date()`.
     var args = [null].concat(Array.from(arguments));
     this.data = new (Function.prototype.bind.apply(Date, args));
     return this;
@@ -1528,10 +1528,10 @@ Interpreter.prototype.initRegExp = function(scope) {
   // RegExp constructor.
   wrapper = function(pattern, flags) {
     if (thisInterpreter.calledWithNew()) {
-      // Called as new RegExp().
+      // Called as `new RegExp()`.
       var rgx = this;
     } else {
-      // Called as RegExp().
+      // Called as `RegExp()`.
       var rgx = thisInterpreter.createObjectProto(thisInterpreter.REGEXP_PROTO);
     }
     pattern = pattern ? String(pattern) : '';
@@ -1631,10 +1631,10 @@ Interpreter.prototype.initError = function(scope) {
   // Error constructor.
   this.ERROR = this.createNativeFunction(function(opt_message) {
     if (thisInterpreter.calledWithNew()) {
-      // Called as new Error().
+      // Called as `new Error()`.
       var newError = this;
     } else {
-      // Called as Error().
+      // Called as `Error()`.
       var newError = thisInterpreter.createObject(thisInterpreter.ERROR);
     }
     if (opt_message) {
@@ -1653,10 +1653,10 @@ Interpreter.prototype.initError = function(scope) {
     var constructor = thisInterpreter.createNativeFunction(
         function(opt_message) {
           if (thisInterpreter.calledWithNew()) {
-            // Called as new XyzError().
+            // Called as `new XyzError()`.
             var newError = this;
           } else {
-            // Called as XyzError().
+            // Called as `XyzError()`.
             var newError = thisInterpreter.createObject(constructor);
           }
           if (opt_message) {
@@ -2570,7 +2570,7 @@ Interpreter.prototype.createScope = function(node, parentScope) {
   }
   this.populateScope_(node, scope);
 
-  // Determine if this scope starts with 'use strict'.
+  // Determine if this scope starts with `use strict`.
   scope.strict = false;
   if (parentScope && parentScope.strict) {
     scope.strict = true;
@@ -2882,8 +2882,8 @@ Interpreter.prototype.unwind = function(type, value, label) {
  * @private
  */
 Interpreter.prototype.createGetter_ = function(func, left) {
-  // Normally 'this' will be specified as the object component (o.x).
-  // Sometimes 'this' is explicitly provided (o).
+  // Normally `this` will be specified as the object component (o.x).
+  // Sometimes `this` is explicitly provided (o).
   var funcThis = Array.isArray(left) ? left[0] : left;
   var node = new this.nodeConstructor({options:{}});
   node['type'] = 'CallExpression';
@@ -2906,8 +2906,8 @@ Interpreter.prototype.createGetter_ = function(func, left) {
  * @private
  */
 Interpreter.prototype.createSetter_ = function(func, left, value) {
-  // Normally 'this' will be specified as the object component (o.x).
-  // Sometimes 'this' is implicitly the global object (x).
+  // Normally `this` will be specified as the object component (o.x).
+  // Sometimes `this` is implicitly the global object (x).
   var funcThis = Array.isArray(left) ? left[0] : this.global;
   var node = new this.nodeConstructor({options:{}});
   node['type'] = 'CallExpression';
@@ -3098,7 +3098,7 @@ Interpreter.prototype['stepBreakStatement'] = function(stack, state, node) {
 Interpreter.prototype['stepCallExpression'] = function(stack, state, node) {
   if (!state.doneCallee_) {
     state.doneCallee_ = 1;
-    // Components needed to determine value of 'this'.
+    // Components needed to determine value of `this`.
     var nextState = new Interpreter.State(node['callee'], state.scope);
     nextState.components = true;
     return nextState;
@@ -3113,7 +3113,7 @@ Interpreter.prototype['stepCallExpression'] = function(stack, state, node) {
         // (Globally or locally) named function.  Is it named 'eval'?
         state.directEval_ = (func[1] === 'eval');
       } else {
-        // Method function, 'this' is object (ignored if invoked as 'new').
+        // Method function, `this` is object (ignored if invoked as `new`).
         state.funcThis_ = func[0];
       }
       func = state.func_;
@@ -3139,26 +3139,26 @@ Interpreter.prototype['stepCallExpression'] = function(stack, state, node) {
     if (node['arguments'][state.n_]) {
       return new Interpreter.State(node['arguments'][state.n_++], state.scope);
     }
-    // Determine value of 'this' in function.
+    // Determine value of `this` in function.
     if (node['type'] === 'NewExpression') {
       if (func.illegalConstructor) {
         // Illegal: new escape();
         this.throwException(this.TYPE_ERROR, func + ' is not a constructor');
       }
-      // Constructor, 'this' is new object.
+      // Constructor, `this` is new object.
       if (func === this.ARRAY) {
         state.funcThis_ = this.createArray();
       } else {
         var proto = func.properties['prototype'];
         if (typeof proto !== 'object' || proto === null) {
-          // Non-object prototypes default to Object.prototype.
+          // Non-object prototypes default to `Object.prototype`.
           proto = this.OBJECT_PROTO;
         }
         state.funcThis_ = this.createObjectProto(proto);
       }
       state.isConstructor = true;
     } else if (state.funcThis_ === undefined) {
-      // Global function, 'this' is global object (or 'undefined' if strict).
+      // Global function, `this` is global object (or `undefined` if strict).
       state.funcThis_ = state.scope.strict ? undefined : this.global;
     }
     state.doneArgs_ = true;
@@ -3251,8 +3251,11 @@ Interpreter.prototype['stepCallExpression'] = function(stack, state, node) {
     // Execution complete.  Put the return value on the stack.
     stack.pop();
     if (state.isConstructor && typeof state.value !== 'object') {
+      // Normal case for a constructor is to use the `this` value.
       stack[stack.length - 1].value = state.funcThis_;
     } else {
+      // Non-constructors or constructions explicitly returning objects use
+      // the return value.
       stack[stack.length - 1].value = state.value;
     }
   }
@@ -3283,10 +3286,10 @@ Interpreter.prototype['stepConditionalExpression'] =
     state.mode_ = 2;
     var value = Boolean(state.value);
     if (value && node['consequent']) {
-      // Execute 'if' block.
+      // Execute `if` block.
       return new Interpreter.State(node['consequent'], state.scope);
     } else if (!value && node['alternate']) {
-      // Execute 'else' block.
+      // Execute `else` block.
       return new Interpreter.State(node['alternate'], state.scope);
     }
     // eval('1;if(false){2}') -> undefined
@@ -3593,11 +3596,11 @@ Interpreter.prototype['stepMemberExpression'] = function(stack, state, node) {
   var propName;
   if (!node['computed']) {
     state.object_ = state.value;
-    // obj.foo -- Just access 'foo' directly.
+    // obj.foo -- Just access `foo` directly.
     propName = node['property']['name'];
   } else if (!state.doneProperty_) {
     state.object_ = state.value;
-    // obj[foo] -- Compute value of 'foo'.
+    // obj[foo] -- Compute value of `foo`.
     state.doneProperty_ = true;
     return new Interpreter.State(node['property'], state.scope);
   } else {
@@ -3818,7 +3821,7 @@ Interpreter.prototype['stepUnaryExpression'] = function(stack, state, node) {
     if (Array.isArray(value)) {
       var obj = value[0];
       if (obj === Interpreter.SCOPE_REFERENCE) {
-        // 'delete foo;' is the same as 'delete window.foo'.
+        // `delete foo;` is the same as `delete window.foo;`.
         obj = state.scope;
       }
       var name = String(value[1]);
@@ -3940,7 +3943,7 @@ Interpreter.prototype['stepWhileStatement'] =
 
 // Preserve top-level API functions from being pruned/renamed by JS compilers.
 // Add others as needed.
-// The global object ('window' in a browser, 'global' in node.js) is 'this'.
+// The global object (`window` in a browser, `global` in node.js) is `this`.
 this['Interpreter'] = Interpreter;
 Interpreter.prototype['step'] = Interpreter.prototype.step;
 Interpreter.prototype['run'] = Interpreter.prototype.run;
