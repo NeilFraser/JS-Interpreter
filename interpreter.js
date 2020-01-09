@@ -355,14 +355,14 @@ Interpreter.prototype.initGlobalScope = function(scope) {
   }
   // Preserve publicly properties from being pruned/renamed by JS compilers.
   // Add others as needed.
-  this['OBJECT'] = this.OBJECT; this['OBJECT_PROTO'] = this.OBJECT_PROTO;
+  this['OBJECT'] = this.OBJECT;     this['OBJECT_PROTO'] = this.OBJECT_PROTO;
   this['FUNCTION'] = this.FUNCTION; this['FUNCTION_PROTO'] = this.FUNCTION_PROTO;
-  this['ARRAY'] = this.ARRAY; this['ARRAY_PROTO'] = this.ARRAY_PROTO;
-  this['REGEXP'] = this.REGEXP; this['REGEXP_PROTO'] = this.REGEXP_PROTO;
-  this['DATE'] = this.DATE; this['DATE_PROTO'] = this.DATE_PROTO;
+  this['ARRAY'] = this.ARRAY;       this['ARRAY_PROTO'] = this.ARRAY_PROTO;
+  this['REGEXP'] = this.REGEXP;     this['REGEXP_PROTO'] = this.REGEXP_PROTO;
+  this['DATE'] = this.DATE;         this['DATE_PROTO'] = this.DATE_PROTO;
   // The following properties are obsolete.  Do not use.
-  this['UNDEFINED'] = undefined; this['NULL'] = null; this['NAN'] = NaN;
-  this['TRUE'] = true; this['FALSE'] = false; this['STRING_EMPTY'] = '';
+  this['NULL'] = null; this['NAN'] = NaN; this['STRING_EMPTY'] = '';
+  this['TRUE'] = true; this['FALSE'] = false;
   this['NUMBER_ZERO'] = 0; this['NUMBER_ONE'] = 1;
 
   // Run any user-provided initialization.
