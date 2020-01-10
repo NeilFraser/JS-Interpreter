@@ -1950,7 +1950,7 @@ Interpreter.Object.prototype.toString = function() {
     }
     return strs.join(',');
   }
-  if (this.class === 'Error') {
+  if (this.isa(obj, this.ERROR)) {
     var cycles = Interpreter.toStringCycles_;
     if (cycles.indexOf(this) !== -1) {
       return '[object Error]';
@@ -2025,11 +2025,7 @@ Interpreter.prototype.createObjectProto = function(proto) {
   if (typeof proto !== 'object') {
     throw Error('Non object prototype');
   }
-  var obj = new Interpreter.Object(proto);
-  if (this.isa(obj, this.ERROR)) {
-    obj.class = 'Error';
-  }
-  return obj;
+  return new Interpreter.Object(proto);
 };
 
 /**
