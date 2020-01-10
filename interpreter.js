@@ -381,14 +381,6 @@ Interpreter.prototype.initFunction = function(scope) {
   var identifierRegexp = /^[A-Za-z_$][\w$]*$/;
   // Function constructor.
   wrapper = function(var_args) {
-    if (thisInterpreter.calledWithNew()) {
-      // Called as new Function().
-      var newFunc = this;
-    } else {
-      // Called as Function().
-      var newFunc =
-          thisInterpreter.createObjectProto(thisInterpreter.FUNCTION_PROTO);
-    }
     if (arguments.length) {
       var code = String(arguments[arguments.length - 1]);
     } else {
@@ -406,9 +398,6 @@ Interpreter.prototype.initFunction = function(scope) {
       }
       argsStr = args.join(', ');
     }
-    // Interestingly, the scope for constructed functions is the global scope,
-    // even if they were constructed in some other scope.
-    newFunc.parentScope = thisInterpreter.global;
     // Acorn needs to parse code in the context of a function or else `return`
     // statements will be syntax errors.
     try {
@@ -424,20 +413,19 @@ Interpreter.prototype.initFunction = function(scope) {
       thisInterpreter.throwException(thisInterpreter.SYNTAX_ERROR,
           'Invalid code in function body.');
     }
-    newFunc.node = ast['body'][0]['expression'];
-    thisInterpreter.setProperty(newFunc, 'length', newFunc.node['length'],
-        Interpreter.READONLY_NONENUMERABLE_DESCRIPTOR);
-    return newFunc;
+    var node = ast['body'][0]['expression'];
+    // Note that if this constructor is called as `new Function()` the function
+    // object created by stepCallExpression and assigned to `this` is discarded.
+    // Interestingly, the scope for constructed functions is the global scope,
+    // even if they were constructed in some other scope.
+    return thisInterpreter.createFunction(node, thisInterpreter.global);
   };
-  wrapper.id = this.functionCounter_++;
-  this.FUNCTION = this.createObjectProto(this.FUNCTION_PROTO);
+  this.FUNCTION = this.createNativeFunction(wrapper, true);
 
   this.setProperty(scope, 'Function', this.FUNCTION);
-  // Manually setup type and prototype because createObj doesn't recognize
-  // this object as a function (this.FUNCTION did not exist).
+  // Throw away the created prototype and use the root prototype.
   this.setProperty(this.FUNCTION, 'prototype', this.FUNCTION_PROTO,
                    Interpreter.NONENUMERABLE_DESCRIPTOR);
-  this.FUNCTION.nativeFunc = wrapper;
 
   // Configure Function.prototype.
   this.setProperty(this.FUNCTION_PROTO, 'constructor', this.FUNCTION,
@@ -2038,13 +2026,6 @@ Interpreter.prototype.createObjectProto = function(proto) {
     throw Error('Non object prototype');
   }
   var obj = new Interpreter.Object(proto);
-  // Functions have prototype objects.
-  if (this.isa(obj, this.FUNCTION)) {
-    this.setProperty(obj, 'prototype',
-                     this.createObjectProto(this.OBJECT_PROTO || null),
-                     Interpreter.NONENUMERABLE_DESCRIPTOR);
-    obj.class = 'Function';
-  }
   if (this.isa(obj, this.ERROR)) {
     obj.class = 'Error';
   }
@@ -2065,17 +2046,32 @@ Interpreter.prototype.createArray = function() {
 };
 
 /**
- * Create a new function.
+ * Create a new function object (could become interpreted or native or async).
+ * @param {number} argumentLength Number of arguments.
+ * @return {!Interpreter.Object} New function.
+ * @private
+ */
+Interpreter.prototype.createFunctionBase_ = function(argumentLength) {
+  var func = this.createObjectProto(this.FUNCTION_PROTO);
+  this.setProperty(func, 'prototype',
+                   this.createObjectProto(this.OBJECT_PROTO),
+                   Interpreter.NONENUMERABLE_DESCRIPTOR);
+  this.setProperty(func, 'length', argumentLength,
+      Interpreter.READONLY_NONENUMERABLE_DESCRIPTOR);
+  func.class = 'Function';
+  return func;
+};
+
+/**
+ * Create a new interpreted function.
  * @param {!Object} node AST node defining the function.
  * @param {!Object} scope Parent scope.
  * @return {!Interpreter.Object} New function.
  */
 Interpreter.prototype.createFunction = function(node, scope) {
-  var func = this.createObjectProto(this.FUNCTION_PROTO);
+  var func = this.createFunctionBase_(node['params'].length);
   func.parentScope = scope;
   func.node = node;
-  this.setProperty(func, 'length', func.node['params'].length,
-      Interpreter.READONLY_NONENUMERABLE_DESCRIPTOR);
   return func;
 };
 
@@ -2090,11 +2086,9 @@ Interpreter.prototype.createFunction = function(node, scope) {
  */
 Interpreter.prototype.createNativeFunction =
     function(nativeFunc, opt_constructor) {
-  var func = this.createObjectProto(this.FUNCTION_PROTO);
+  var func = this.createFunctionBase_(nativeFunc.length);
   func.nativeFunc = nativeFunc;
   nativeFunc.id = this.functionCounter_++;
-  this.setProperty(func, 'length', nativeFunc.length,
-      Interpreter.READONLY_NONENUMERABLE_DESCRIPTOR);
   if (opt_constructor) {
     this.setProperty(func.properties['prototype'], 'constructor', func,
                      Interpreter.NONENUMERABLE_DESCRIPTOR);
@@ -2112,11 +2106,9 @@ Interpreter.prototype.createNativeFunction =
  * @return {!Interpreter.Object} New function.
  */
 Interpreter.prototype.createAsyncFunction = function(asyncFunc) {
-  var func = this.createObjectProto(this.FUNCTION_PROTO);
+  var func = this.createFunctionBase_(asyncFunc.length);
   func.asyncFunc = asyncFunc;
   asyncFunc.id = this.functionCounter_++;
-  this.setProperty(func, 'length', asyncFunc.length,
-      Interpreter.READONLY_NONENUMERABLE_DESCRIPTOR);
   return func;
 };
 
