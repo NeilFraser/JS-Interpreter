@@ -1761,7 +1761,7 @@ Interpreter.prototype.isa = function(child, constructor) {
  * @param {!RegExp} nativeRegexp The native regular expression.
  */
 Interpreter.prototype.populateRegExp = function(pseudoRegexp, nativeRegexp) {
-  pseudoRegexp.data = nativeRegexp;
+  pseudoRegexp.data = new RegExp(nativeRegexp.source, nativeRegexp.flags);
   // lastIndex is settable, all others are read-only attributes
   this.setProperty(pseudoRegexp, 'lastIndex', nativeRegexp.lastIndex,
       Interpreter.NONENUMERABLE_DESCRIPTOR);
@@ -2129,12 +2129,12 @@ Interpreter.prototype.nativeToPseudo = function(nativeObj) {
 
   if (nativeObj instanceof Date) {
     var pseudoDate = this.createObjectProto(this.DATE_PROTO);
-    pseudoDate.data = nativeObj;
+    pseudoDate.data = new Date(nativeObj.valueOf());
     return pseudoDate;
   }
 
-  if (nativeObj instanceof Function) {
-    var interpreter = this;
+  if (typeof nativeObj === 'function') {
+    var thisInterpreter = this;
     var wrapper = function() {
       var args = Array.prototype.slice.call(arguments).map(function(i) {
           return thisInterpreter.pseudoToNative(i);
@@ -2179,11 +2179,13 @@ Interpreter.prototype.pseudoToNative = function(pseudoObj, opt_cycles) {
   }
 
   if (this.isa(pseudoObj, this.REGEXP)) {  // Regular expression.
-    return pseudoObj.data;
+    var nativeRegExp = new RegExp(pseudoObj.data.source, pseudoObj.data.flags);
+    nativeRegExp.lastIndex = pseudoObj.data.lastIndex;
+    return nativeRegExp;
   }
 
   if (this.isa(pseudoObj, this.DATE)) {  // Date.
-    return pseudoObj.data;
+    return new Date(pseudoObj.data.valueOf());
   }
 
   var cycles = opt_cycles || {
