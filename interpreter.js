@@ -2109,10 +2109,11 @@ Interpreter.prototype.createAsyncFunction = function(asyncFunc) {
 };
 
 /**
- * Converts from a native JS object or value to a JS interpreter object.
- * Can handle JSON-style values, does NOT handle cycles.
- * @param {*} nativeObj The native JS object to be converted.
- * @return {Interpreter.Value} The equivalent JS interpreter object.
+ * Converts from a native JavaScript object or value to a JS-Interpreter object.
+ * Can handle JSON-style values, regular expressions, dates and functions.
+ * Does NOT handle cycles.
+ * @param {*} nativeObj The native JavaScript object to be converted.
+ * @return {Interpreter.Value} The equivalent JS-Interpreter object.
  */
 Interpreter.prototype.nativeToPseudo = function(nativeObj) {
   if ((typeof nativeObj !== 'object' && typeof nativeObj !== 'function') ||
@@ -2135,42 +2136,41 @@ Interpreter.prototype.nativeToPseudo = function(nativeObj) {
   if (nativeObj instanceof Function) {
     var interpreter = this;
     var wrapper = function() {
-      return interpreter.nativeToPseudo(
-        nativeObj.apply(interpreter,
-          Array.prototype.slice.call(arguments)
-          .map(function(i) {
-            return interpreter.pseudoToNative(i);
-          })
-        )
-      );
+      var args = Array.prototype.slice.call(arguments).map(function(i) {
+          return thisInterpreter.pseudoToNative(i);
+      });
+      var value = nativeObj.apply(thisInterpreter, args);
+      return thisInterpreter.nativeToPseudo(value);
     };
     return this.createNativeFunction(wrapper, undefined);
   }
 
-  var pseudoObj;
   if (Array.isArray(nativeObj)) {  // Array.
-    pseudoObj = this.createArray();
+    var pseudoArray = this.createArray();
     for (var i = 0; i < nativeObj.length; i++) {
       if (i in nativeObj) {
-        this.setProperty(pseudoObj, i, this.nativeToPseudo(nativeObj[i]));
+        this.setProperty(pseudoArray, i, this.nativeToPseudo(nativeObj[i]));
       }
     }
-  } else {  // Object.
-    pseudoObj = this.createObjectProto(this.OBJECT_PROTO);
-    for (var key in nativeObj) {
-      this.setProperty(pseudoObj, key, this.nativeToPseudo(nativeObj[key]));
-    }
+    return pseudoArray;
+  }
+
+  // Object.
+  var pseudoObj = this.createObjectProto(this.OBJECT_PROTO);
+  for (var key in nativeObj) {
+    this.setProperty(pseudoObj, key, this.nativeToPseudo(nativeObj[key]));
   }
   return pseudoObj;
 };
 
 /**
- * Converts from a JS interpreter object to native JS object.
- * Can handle JSON-style values, plus cycles.
- * @param {Interpreter.Value} pseudoObj The JS interpreter object to be
+ * Converts from a JS-Interpreter object to native JavaScript object.
+ * Can handle JSON-style values, regular expressions, and dates.
+ * Does handle cycles.
+ * @param {Interpreter.Value} pseudoObj The JS-Interpreter object to be
  * converted.
  * @param {Object=} opt_cycles Cycle detection (used in recursive calls).
- * @return {*} The equivalent native JS object or value.
+ * @return {*} The equivalent native JavaScript object or value.
  */
 Interpreter.prototype.pseudoToNative = function(pseudoObj, opt_cycles) {
   if ((typeof pseudoObj !== 'object' && typeof pseudoObj !== 'function') ||
@@ -2221,11 +2221,11 @@ Interpreter.prototype.pseudoToNative = function(pseudoObj, opt_cycles) {
 };
 
 /**
- * Converts from a native JS array to a JS interpreter array.
+ * Converts from a native JavaScript array to a JS-Interpreter array.
  * Does handle non-numeric properties (like str.match's index prop).
  * Does NOT recurse into the array's contents.
- * @param {!Array} nativeArray The JS array to be converted.
- * @return {!Interpreter.Object} The equivalent JS interpreter array.
+ * @param {!Array} nativeArray The JavaScript array to be converted.
+ * @return {!Interpreter.Object} The equivalent JS-Interpreter array.
  */
 Interpreter.prototype.arrayNativeToPseudo = function(nativeArray) {
   var pseudoArray = this.createArray();
@@ -2237,12 +2237,12 @@ Interpreter.prototype.arrayNativeToPseudo = function(nativeArray) {
 };
 
 /**
- * Converts from a JS interpreter array to native JS array.
+ * Converts from a JS-Interpreter array to native JavaScript array.
  * Does handle non-numeric properties (like str.match's index prop).
  * Does NOT recurse into the array's contents.
- * @param {!Interpreter.Object} pseudoArray The JS interpreter array,
- *     or JS interpreter object pretending to be an array.
- * @return {!Array} The equivalent native JS array.
+ * @param {!Interpreter.Object} pseudoArray The JS-Interpreter array,
+ *     or JS-Interpreter object pretending to be an array.
+ * @return {!Array} The equivalent native JavaScript array.
  */
 Interpreter.prototype.arrayPseudoToNative = function(pseudoArray) {
   var nativeArray = [];

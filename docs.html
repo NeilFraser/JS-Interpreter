@@ -171,13 +171,13 @@
   a server reboot, loading a stack image that has been computed up to a certain
   point, forking execution, or rolling back to a stored state.</p>
 
-  <p>One drawback is that the serialized format is not human-readable, and it is
-  also not guaranteed that future versions of the JS-Interpreter will be able to
-  parse the serialization from older versions.  Another drawback is that
-  serialization reaches beyond the public API, and thus does not work with the
-  compressed bundle (acorn_interpreter.js).  Yet another drawback is that the
-  serialization format is rather large; it has a 60 kb overhead due to the
-  standard polyfills.</p>
+  <p>Serialization has several limitations.  One is that the serialized format
+  is not human-readable.  It is also not guaranteed that future versions of the
+  JS-Interpreter will be able to parse the serialization from older versions.
+  Another limitation is that serialization reaches beyond the public API, and
+  thus does not work with the compressed bundle (acorn_interpreter.js).  Yet
+  another limitation is that the serialization format is rather large; it has a
+  60 kb overhead due to the standard polyfills.</p>
 
   <p>For a working example, see the
   <a href="demos/serialize.html">serialization demo</a>.</p>
