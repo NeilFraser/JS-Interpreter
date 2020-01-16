@@ -33,7 +33,14 @@ var Interpreter = function(code, opt_initFunc) {
   if (typeof code === 'string') {
     code = acorn.parse(code, Interpreter.PARSE_OPTIONS);
   }
-  this.ast = code;
+  // Get a handle on Acorn's node_t object.
+  this.nodeConstructor = code.constructor;
+  // Clone the root 'Program' node so that the AST may be modified.
+  var ast = new this.nodeConstructor({options:{}});
+  for (var prop in code) {
+    ast[prop] = (prop === 'body') ? code[prop].slice() : code[prop];
+  }
+  this.ast = ast;
   this.initFunc_ = opt_initFunc;
   this.paused_ = false;
   this.polyfills_ = [];
@@ -62,13 +69,11 @@ var Interpreter = function(code, opt_initFunc) {
   this.run();
   this.value = undefined;
   // Point at the main program.
-  this.ast = code;
+  this.ast = ast;
   var state = new Interpreter.State(this.ast, this.global);
   state.done = false;
   this.stateStack.length = 0;
   this.stateStack[0] = state;
-  // Get a handle on Acorn's node_t object.  It's tricky to access.
-  this.nodeConstructor = state.node.constructor;
   // Preserve publicly properties from being pruned/renamed by JS compilers.
   // Add others as needed.
   this['stateStack'] = this.stateStack;
@@ -223,9 +228,7 @@ Interpreter.prototype.appendCode = function(code) {
   }
   this.populateScope_(code, state.scope);
   // Append the new program to the old one.
-  for (var i = 0, node; (node = code['body'][i]); i++) {
-    state.node['body'].push(node);
-  }
+  Array.prototype.push.apply(state.node['body'], code['body']);
   state.done = false;
 };
 
