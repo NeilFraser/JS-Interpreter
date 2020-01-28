@@ -1952,7 +1952,7 @@ Interpreter.Object.prototype.toString = function() {
     }
     return strs.join(',');
   }
-  if (this.isa(obj, this.ERROR)) {
+  if (this.class === 'Error') {
     var cycles = Interpreter.toStringCycles_;
     if (cycles.indexOf(this) !== -1) {
       return '[object Error]';
@@ -2027,7 +2027,14 @@ Interpreter.prototype.createObjectProto = function(proto) {
   if (typeof proto !== 'object') {
     throw Error('Non object prototype');
   }
-  return new Interpreter.Object(proto);
+  var obj = new Interpreter.Object(proto);
+  if (this.isa(obj, this.ERROR)) {
+    // Record this object as being an error so that its toString function can
+    // process it correctly (toString has no access to the interpreter and could
+    // not otherwise determine that the object is an error).
+    obj.class = 'Error';
+  }
+  return obj;
 };
 
 /**
