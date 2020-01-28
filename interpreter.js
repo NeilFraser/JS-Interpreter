@@ -238,32 +238,31 @@ Interpreter.prototype.appendCode = function(code) {
  */
 Interpreter.prototype.step = function() {
   var stack = this.stateStack;
-  var state = stack[stack.length - 1];
-  if (!state) {
-    return false;
-  }
-  var node = state.node, type = node['type'];
-  if (type === 'Program' && state.done) {
-    return false;
-  } else if (this.paused_) {
-    return true;
-  }
-  try {
-    var nextState = this.stepFunctions_[type](stack, state, node);
-  } catch (e) {
-    // Eat any step errors.  They have been thrown on the stack.
-    if (e !== Interpreter.STEP_ERROR) {
-      // Uh oh.  This is a real error in the JS-Interpreter.  Rethrow.
-      throw e;
+  do {
+    var state = stack[stack.length - 1];
+    if (!state) {
+      return false;
     }
-  }
-  if (nextState) {
-    stack.push(nextState);
-  }
-  if (!node['end']) {
-    // This is polyfill code.  Keep executing until we arrive at user code.
-    return this.step();
-  }
+    var node = state.node, type = node['type'];
+    if (type === 'Program' && state.done) {
+      return false;
+    } else if (this.paused_) {
+      return true;
+    }
+    try {
+      var nextState = this.stepFunctions_[type](stack, state, node);
+    } catch (e) {
+      // Eat any step errors.  They have been thrown on the stack.
+      if (e !== Interpreter.STEP_ERROR) {
+        // Uh oh.  This is a real error in the JS-Interpreter.  Rethrow.
+        throw e;
+      }
+    }
+    if (nextState) {
+      stack.push(nextState);
+    }
+    // This may be polyfill code.  Keep executing until we arrive at user code.
+  } while (!node['end']);
   return true;
 };
 
