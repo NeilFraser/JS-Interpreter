@@ -2060,15 +2060,18 @@ Interpreter.prototype.createArray = function() {
 /**
  * Create a new function object (could become interpreted or native or async).
  * @param {number} argumentLength Number of arguments.
- * @param {boolean} hasProto True if function can be used with 'new'.
+ * @param {boolean} isConstructor True if function can be used with 'new'.
  * @return {!Interpreter.Object} New function.
  * @private
  */
-Interpreter.prototype.createFunctionBase_ = function(argumentLength, hasProto) {
+Interpreter.prototype.createFunctionBase_ = function(argumentLength,
+                                                     isConstructor) {
   var func = this.createObjectProto(this.FUNCTION_PROTO);
-  if (hasProto) {
-    this.setProperty(func, 'prototype',
-                     this.createObjectProto(this.OBJECT_PROTO),
+  if (isConstructor) {
+    var proto = this.createObjectProto(this.OBJECT_PROTO);
+    this.setProperty(func, 'prototype', proto,
+                     Interpreter.NONENUMERABLE_DESCRIPTOR);
+    this.setProperty(proto, 'constructor', func,
                      Interpreter.NONENUMERABLE_DESCRIPTOR);
   } else {
     func.illegalConstructor = true;
@@ -2095,22 +2098,14 @@ Interpreter.prototype.createFunction = function(node, scope) {
 /**
  * Create a new native function.
  * @param {!Function} nativeFunc JavaScript function.
- * @param {boolean=} opt_constructor If true, the function's
- * prototype will have its constructor property set to the function.
- * If false, the function cannot be called as a constructor (e.g. escape).
- * Defaults to undefined.
+ * @param {boolean} isConstructor True if function can be used with 'new'.
  * @return {!Interpreter.Object} New function.
  */
-Interpreter.prototype.createNativeFunction =
-    function(nativeFunc, opt_constructor) {
-  var func = this.createFunctionBase_(nativeFunc.length,
-                                      opt_constructor !== false);
+Interpreter.prototype.createNativeFunction = function(nativeFunc,
+                                                      isConstructor) {
+  var func = this.createFunctionBase_(nativeFunc.length, isConstructor);
   func.nativeFunc = nativeFunc;
   nativeFunc.id = this.functionCounter_++;
-  if (opt_constructor) {
-    this.setProperty(func.properties['prototype'], 'constructor', func,
-                     Interpreter.NONENUMERABLE_DESCRIPTOR);
-  }
   return func;
 };
 
@@ -2160,7 +2155,8 @@ Interpreter.prototype.nativeToPseudo = function(nativeObj) {
       var value = nativeObj.apply(thisInterpreter, args);
       return thisInterpreter.nativeToPseudo(value);
     };
-    return this.createNativeFunction(wrapper, undefined);
+    var prototype = Object.getOwnPropertyDescriptor(nativeObj, 'prototype');
+    return this.createNativeFunction(wrapper, !!prototype);
   }
 
   if (Array.isArray(nativeObj)) {  // Array.
