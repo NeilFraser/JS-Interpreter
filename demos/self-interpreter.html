@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>JS-Interpreter Async Demo</title>
+  <link href="style.css" rel="stylesheet" type="text/css">
+  <script src="../acorn.js"></script>
+  <script src="../interpreter.js"></script>
+  <script>
+    var myInterpreter;
+    function initAlert(interpreter, scope) {
+      var wrapper = function(text) {
+        return alert(arguments.length ? text : '');
+      };
+      interpreter.setProperty(scope, 'alert',
+          interpreter.createNativeFunction(wrapper));
+    }
+
+    function parseButton() {
+      var code = document.getElementById('code').value;
+      myInterpreter = new Interpreter(code, initAlert);
+      disable('');
+    }
+
+    function stepButton() {
+      if (myInterpreter.stateStack.length) {
+        var node =
+            myInterpreter.stateStack[myInterpreter.stateStack.length - 1].node;
+        var start = node.start;
+        var end = node.end;
+      } else {
+        var start = 0;
+        var end = 0;
+      }
+      createSelection(start, end);
+      try {
+        var ok = myInterpreter.step();
+      } finally {
+        if (!ok) {
+          disable('disabled');
+        }
+      }
+    }
+
+    function runButton() {
+      disable('disabled');
+      if (myInterpreter.run()) {
+        // Async function hit.  There's more code to run.
+        // There will be a lot of restarts due to regular expressions in Acorn.
+        setTimeout(runButton, 0);
+      }
+    }
+
+    function disable(disabled) {
+      document.getElementById('stepButton').disabled = disabled;
+      document.getElementById('runButton').disabled = disabled;
+    }
+
+    function createSelection(start, end) {
+      var field = document.getElementById('code');
+      if (field.createTextRange) {
+        var selRange = field.createTextRange();
+        selRange.collapse(true);
+        selRange.moveStart('character', start);
+        selRange.moveEnd('character', end);
+        selRange.select();
+      } else if (field.setSelectionRange) {
+        field.setSelectionRange(start, end);
+      } else if (field.selectionStart) {
+        field.selectionStart = start;
+        field.selectionEnd = end;
+      }
+      field.focus();
+    }
+  </script>
+</head>
+<body>
+  <h1>JS-Interpreter Self-interpreter Demo</h1>
+
+  <p>The JS-Interpreter can run itself.  To run the demo you <strong>must</strong>
+  first open <a href="../acorn_interpreter.js">acorn_interpreter.js</a>, copy the
+  entire file, then paste it at the top of the text area below.</p>
+
+  <p>Click <em>Parse</em>, then click <em>Run</em> once and wait a few seconds.
+  Open your browser's console for errors.</p>
+
+  <p><textarea id="code">
+// DO THIS FIRST!
+// PASTE CONTENTS OF acorn_interpreter.js HERE.
+
+var code = [
+  "var result = [];",
+  "function fibonacci(n, output) {",
+  "  var a = 1, b = 1, sum;",
+  "  for (var i = 0; i < n; i++) {",
+  "    output.push(a);",
+  "    sum = a + b;",
+  "    a = b;",
+  "    b = sum;",
+  "  }",
+  "}",
+  "fibonacci(16, result);",
+  "alert(result.join(', '));"
+].join('\n');
+
+function initAlert(interpreter, scope) {
+  var wrapper = function(text) {
+    return alert(arguments.length ? text : '');
+  };
+  interpreter.setProperty(scope, 'alert',
+      interpreter.createNativeFunction(wrapper));
+}
+
+myInterpreter = new Interpreter(code, initAlert);
+myInterpreter.REGEXP_MODE = 1;
+myInterpreter.run();
+</textarea><br>
+  <button onclick="parseButton()">Parse</button>
+  <button onclick="stepButton()" id="stepButton" disabled="disabled">Step</button>
+  <button onclick="runButton()" id="runButton" disabled="disabled">Run</button>
+  </p>
+
+  <p>Back to the <a href="../docs.html">JS-Interpreter documentation</a>.</p>
+</body>
+</html>
