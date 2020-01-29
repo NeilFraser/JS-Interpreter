@@ -1923,7 +1923,7 @@ Interpreter.Object.prototype.isObject = true;
 /** @type {string} */
 Interpreter.Object.prototype.class = 'Object';
 
-/** @type {Date|RegExp|boolean|number|string|undefined|null} */
+/** @type {Date|RegExp|boolean|number|string|null} */
 Interpreter.Object.prototype.data = null;
 
 /**
@@ -1932,14 +1932,13 @@ Interpreter.Object.prototype.data = null;
  * @override
  */
 Interpreter.Object.prototype.toString = function() {
-  if ((typeof this !== 'object' && typeof this !== 'function') ||
-      this === null) {
-    // Primitive value (but numbers override with their own radix function).
+  if (!(this instanceof Interpreter.Object)) {
+    // Primitive value.
     return String(this);
   }
 
   if (this.class === 'Array') {
-    // Array
+    // Array contents must not have cycles.
     var cycles = Interpreter.toStringCycles_;
     cycles.push(this);
     try {
@@ -1956,6 +1955,7 @@ Interpreter.Object.prototype.toString = function() {
   }
 
   if (this.class === 'Error') {
+    // Error name and message properties must not have cycles.
     var cycles = Interpreter.toStringCycles_;
     if (cycles.indexOf(this) !== -1) {
       return '[object Error]';
@@ -1986,8 +1986,8 @@ Interpreter.Object.prototype.toString = function() {
     return message ? name + ': ' + message : String(name);
   }
 
-  // RegExp, Date, and boxed primitives.
   if (this.data !== null) {
+    // RegExp, Date, and boxed primitives.
     return String(this.data);
   }
 
