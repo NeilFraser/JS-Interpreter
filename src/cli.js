@@ -1,4 +1,4 @@
-import { Interpreter } from '../original-repo/interpreter.js';
+import { Interpreter } from '../original-repo/interpreter';
 import fs from 'fs';
 import readline from 'readline';
 import minimist from 'minimist';
