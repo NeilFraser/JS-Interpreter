@@ -30,7 +30,11 @@ module.exports = [
         plugins: [
             new webpack.ProvidePlugin({
                 'acorn': path.resolve(__dirname, 'original-repo', 'acorn.js')
-            })
+            }),
+            new webpack.BannerPlugin({
+                banner: '#!/usr/bin/env node',
+                raw   : true,
+            }),
         ],
     },
 ];
