@@ -292,7 +292,7 @@ Interpreter.prototype.initGlobalScope = function(scope) {
                    Interpreter.READONLY_DESCRIPTOR);
   this.setProperty(scope, 'this', scope,
                    Interpreter.READONLY_DESCRIPTOR);
-  this.setProperty(scope, 'self', scope); // Editable.
+  this.setProperty(scope, 'self', scope);  // Editable.
 
   // Create the objects which will become Object.prototype and
   // Function.prototype, which are needed to bootstrap everything else.
@@ -1999,7 +1999,7 @@ Interpreter.Object.prototype.toString = function() {
 Interpreter.Object.prototype.valueOf = function() {
   if (this.data === undefined || this.data === null ||
       this.data instanceof RegExp) {
-    return this; // An Object.
+    return this;  // An Object.
   }
   if (this.data instanceof Date) {
     return this.data.valueOf();  // Milliseconds.
@@ -2053,14 +2053,19 @@ Interpreter.prototype.createArray = function() {
 /**
  * Create a new function object (could become interpreted or native or async).
  * @param {number} argumentLength Number of arguments.
+ * @param {boolean} hasProto True if function can be used with 'new'.
  * @return {!Interpreter.Object} New function.
  * @private
  */
-Interpreter.prototype.createFunctionBase_ = function(argumentLength) {
+Interpreter.prototype.createFunctionBase_ = function(argumentLength, hasProto) {
   var func = this.createObjectProto(this.FUNCTION_PROTO);
-  this.setProperty(func, 'prototype',
-                   this.createObjectProto(this.OBJECT_PROTO),
-                   Interpreter.NONENUMERABLE_DESCRIPTOR);
+  if (hasProto) {
+    this.setProperty(func, 'prototype',
+                     this.createObjectProto(this.OBJECT_PROTO),
+                     Interpreter.NONENUMERABLE_DESCRIPTOR);
+  } else {
+    func.illegalConstructor = true;
+  }
   this.setProperty(func, 'length', argumentLength,
       Interpreter.READONLY_NONENUMERABLE_DESCRIPTOR);
   func.class = 'Function';
@@ -2074,7 +2079,7 @@ Interpreter.prototype.createFunctionBase_ = function(argumentLength) {
  * @return {!Interpreter.Object} New function.
  */
 Interpreter.prototype.createFunction = function(node, scope) {
-  var func = this.createFunctionBase_(node['params'].length);
+  var func = this.createFunctionBase_(node['params'].length, true);
   func.parentScope = scope;
   func.node = node;
   return func;
@@ -2091,15 +2096,12 @@ Interpreter.prototype.createFunction = function(node, scope) {
  */
 Interpreter.prototype.createNativeFunction =
     function(nativeFunc, opt_constructor) {
-  var func = this.createFunctionBase_(nativeFunc.length);
+  var func = this.createFunctionBase_(nativeFunc.length,
+                                      opt_constructor !== false);
   func.nativeFunc = nativeFunc;
   nativeFunc.id = this.functionCounter_++;
   if (opt_constructor) {
     this.setProperty(func.properties['prototype'], 'constructor', func,
-                     Interpreter.NONENUMERABLE_DESCRIPTOR);
-  } else if (opt_constructor === false) {
-    func.illegalConstructor = true;
-    this.setProperty(func, 'prototype', undefined,
                      Interpreter.NONENUMERABLE_DESCRIPTOR);
   }
   return func;
@@ -2111,7 +2113,7 @@ Interpreter.prototype.createNativeFunction =
  * @return {!Interpreter.Object} New function.
  */
 Interpreter.prototype.createAsyncFunction = function(asyncFunc) {
-  var func = this.createFunctionBase_(asyncFunc.length);
+  var func = this.createFunctionBase_(asyncFunc.length, true);
   func.asyncFunc = asyncFunc;
   asyncFunc.id = this.functionCounter_++;
   return func;
