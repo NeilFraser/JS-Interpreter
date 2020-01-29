@@ -1,7 +1,13 @@
 js-interpreter
 ==============
 
-An npm package for the [JS-Interpreter](https://github.com/NeilFraser/JS-Interpreter)
+An npm package for the [Neil Fraser's JS-Interpreter](https://github.com/NeilFraser/JS-Interpreter)
+
+This repository is not a fork of the original repository anymore, instead it
+clones it as a `gitmodule` and packs it using `webpack` to an npm package.
+
+Additional to the original library, this package contains a cli version which
+can be used for testing the interpreter from terminal.
 
 # Installation
 
