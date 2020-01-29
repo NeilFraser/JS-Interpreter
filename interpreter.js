@@ -1936,6 +1936,12 @@ Interpreter.Object.prototype.data = null;
  * @override
  */
 Interpreter.Object.prototype.toString = function() {
+  if ((typeof this !== 'object' && typeof this !== 'function') ||
+      this === null) {
+    // Primitive value (but numbers override with their own radix function).
+    return String(this);
+  }
+
   if (this.class === 'Array') {
     // Array
     var cycles = Interpreter.toStringCycles_;
@@ -1952,6 +1958,7 @@ Interpreter.Object.prototype.toString = function() {
     }
     return strs.join(',');
   }
+
   if (this.class === 'Error') {
     var cycles = Interpreter.toStringCycles_;
     if (cycles.indexOf(this) !== -1) {
@@ -1999,7 +2006,7 @@ Interpreter.Object.prototype.toString = function() {
 Interpreter.Object.prototype.valueOf = function() {
   if (this.data === undefined || this.data === null ||
       this.data instanceof RegExp) {
-    return this;  // An Object.
+    return this;  // An Object, RegExp, or primitive.
   }
   if (this.data instanceof Date) {
     return this.data.valueOf();  // Milliseconds.
