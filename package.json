@@ -1,12 +1,12 @@
 {
   "name": "js-interpreter",
-  "version": "1.4.6",
+  "version": "2.0.0-beta.0",
   "description": "NPM package for https://github.com/NeilFraser/JS-Interpreter",
-  "main": "lib/index.js",
-  "module": "src/interpreter.js",
-  "bin": "bin/js-interpreter",
+  "main": "lib/js-interpreter.js",
+  "bin": "lib/cli.js",
+  "module": "src/js-interpreter.js",
   "scripts": {
-    "build": "webpack --config webpack.config.cli.js",
+    "build": "webpack --config webpack.config.js",
     "prepublish": "webpack && npm run build"
   },
   "repository": {
@@ -20,13 +20,10 @@
   },
   "homepage": "https://github.com/aminmarashi/JS-Interpreter#readme",
   "devDependencies": {
-    "babel-core": "^6.24.0",
-    "babel-loader": "^6.4.1",
-    "babel-preset-es2015": "^6.24.0",
-    "webpack": "^2.2.1"
+    "@babel/core": "^7.8.3",
+    "babel-loader": "^8.0.6",
+    "webpack": "^4.41.5",
+    "webpack-cli": "^3.3.10"
   },
-  "dependencies": {
-    "acorn": "^4.0.11",
-    "clone": "aminmarashi/clone#d97b4f"
-  }
+  "dependencies": {}
 }

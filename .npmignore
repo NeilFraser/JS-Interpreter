@@ -1,4 +1,12 @@
 .DS_Store
-src
 node_modules
 webpack*
+.gitmodules
+LICENSE
+README.md
+original-repo/CONTRIBUTING.md
+original-repo/README.md
+original-repo/demos
+original-repo/docs.html
+original-repo/index.html
+original-repo/logo.png

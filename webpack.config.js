@@ -1,22 +1,36 @@
-const path = require('path')
+const path    = require('path');
+const webpack = require('webpack');
 
-module.exports = {
-    module: {
-        rules: [
-            {
-                test: /\.(js|jsx)$/,
-                exclude: /node_modules/,
-                use: 'babel-loader?presets[]=es2015',
-            },
+module.exports = [
+    {
+        mode  : 'production',
+        entry : path.resolve(__dirname, 'src', 'js-interpreter.js'),
+        output: {
+            filename     : 'js-interpreter.js',
+            globalObject : 'this',
+            library      : 'JSInterpreter',
+            libraryExport: 'default',
+            libraryTarget: 'umd',
+            path         : path.resolve(__dirname, 'lib'),
+        },
+        plugins: [
+            new webpack.ProvidePlugin({
+                'acorn': path.resolve(__dirname, 'original-repo', 'acorn.js')
+            })
         ],
     },
-    entry: {
-        index: [path.join(__dirname, 'src', 'interpreter.js')],
+    {
+        mode  : 'production',
+        entry : path.resolve(__dirname, 'src', 'cli.js'),
+        target: 'node',
+        output: {
+            filename     : 'cli.js',
+            path         : path.resolve(__dirname, 'lib'),
+        },
+        plugins: [
+            new webpack.ProvidePlugin({
+                'acorn': path.resolve(__dirname, 'original-repo', 'acorn.js')
+            })
+        ],
     },
-    output: {
-        library: 'js-interpreter',
-        libraryTarget: 'umd',
-        path: path.join(__dirname, 'lib'),
-        filename: '[name].js',
-    },
-};
+];

@@ -1,25 +1,25 @@
-const JSInterpreter = require('./interpreter')
-const fs = require('fs')
-const readline = require('readline')
-const minimist = require('minimist')
+import { Interpreter } from '../original-repo/interpreter.js';
+import fs from 'fs';
+import readline from 'readline';
+import minimist from 'minimist';
 
-const args = minimist(process.argv.slice(2))
+const args = minimist(process.argv.slice(2));
 
 const lineReader = readline.createInterface({
-  input: args._.length ?
+    input: args._.length ?
     fs.createReadStream(args._[0]) :
     process.stdin,
-})
+});
 
-let code = ''
+let code = '';
 
-lineReader.on('line', line => (code += `${line}\n`))
+lineReader.on('line', line => (code += `${line}\n`));
 
 const initFunc = (interpreter, scope) => {
-  interpreter.setProperty(scope, 'console',
-    interpreter.nativeToPseudo({
-      log(...args) { console.log(...args) }, // eslint-disable-line no-console
-    }))
-}
+    interpreter.setProperty(scope, 'console',
+        interpreter.nativeToPseudo({
+            log(...args) { console.log(...args) },
+        }));
+};
 
-lineReader.on('close', () => new JSInterpreter(code, initFunc).run())
+lineReader.on('close', () => new Interpreter(code, initFunc).run());
