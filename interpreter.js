@@ -1113,7 +1113,7 @@ Interpreter.prototype.initString = function(scope) {
   var wrapper;
   // String constructor.
   wrapper = function(value) {
-    value = String(value);
+    value = arguments.length ? String(value) : '';
     if (thisInterpreter.calledWithNew()) {
       // Called as `new String()`.
       this.data = value;
@@ -1378,7 +1378,7 @@ Interpreter.prototype.initNumber = function(scope) {
   var wrapper;
   // Number constructor.
   wrapper = function(value) {
-    value = Number(value);
+    value = arguments.length ? Number(value) : 0;
     if (thisInterpreter.calledWithNew()) {
       // Called as `new Number()`.
       this.data = value;
