@@ -362,10 +362,6 @@ Interpreter.prototype.initGlobalScope = function(scope) {
   this['ARRAY'] = this.ARRAY;       this['ARRAY_PROTO'] = this.ARRAY_PROTO;
   this['REGEXP'] = this.REGEXP;     this['REGEXP_PROTO'] = this.REGEXP_PROTO;
   this['DATE'] = this.DATE;         this['DATE_PROTO'] = this.DATE_PROTO;
-  // The following properties are obsolete.  Do not use.
-  this['NULL'] = null; this['NAN'] = NaN; this['STRING_EMPTY'] = '';
-  this['TRUE'] = true; this['FALSE'] = false;
-  this['NUMBER_ZERO'] = 0; this['NUMBER_ONE'] = 1;
 
   // Run any user-provided initialization.
   if (this.initFunc_) {
