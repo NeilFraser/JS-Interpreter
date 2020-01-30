@@ -1,10 +1,9 @@
 {
   "name": "js-interpreter",
-  "version": "2.0.0-beta.2",
+  "version": "2.0.0-beta.3",
   "description": "NPM package for https://github.com/NeilFraser/JS-Interpreter",
   "main": "lib/js-interpreter.js",
   "bin": "lib/cli.js",
-  "module": "src/js-interpreter.js",
   "scripts": {
     "build": "webpack --config webpack.config.js",
     "syntax": "eslint src",
