@@ -4,6 +4,7 @@ webpack*
 .gitmodules
 LICENSE
 README.md
+src
 original-repo/CONTRIBUTING.md
 original-repo/README.md
 original-repo/demos
