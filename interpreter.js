@@ -3226,8 +3226,13 @@ Interpreter.prototype['stepCallExpression'] = function(stack, state, node) {
       state.value = func.nativeFunc.apply(state.funcThis_, state.arguments_);
     } else if (func.asyncFunc) {
       var thisInterpreter = this;
-      var callback = function(value) {
-        state.value = value;
+      var callback = function(value, exception) {
+        if (arguments.length === 1) {
+          state.value = value;
+        } else {
+          thisInterpreter.unwind(Interpreter.Completion.THROW,
+                                 exception, undefined);
+        }
         thisInterpreter.paused_ = false;
       };
       // Force the argument lengths to match, then append the callback.

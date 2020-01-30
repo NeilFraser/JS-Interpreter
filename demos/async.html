@@ -19,8 +19,16 @@
         var req = new XMLHttpRequest();
         req.open('GET', href, true);
         req.onreadystatechange = function() {
-          if (req.readyState == 4 && req.status == 200) {
-            callback(req.responseText);
+          if (req.readyState == 4) {
+            if(req.status == 200) {
+              callback(req.responseText);
+            } else {
+              var error = interpreter.createObject(interpreter.ERROR);
+              interpreter.setProperty(error, 'message',
+                  req.status + req.statusText,
+                  Interpreter.NONENUMERABLE_DESCRIPTOR);
+              callback(undefined, error);
+            }
           }
         };
         req.send(null);
@@ -102,11 +110,20 @@
   will both do nothing, returning <code>true</code> to indicate that the program
   still has code to execute.</p>
 
+  <p>The callback takes one or two arguments.  If called with one, the
+  supplied value is used as the return value of the asynchronous
+  call.  If called with two, the first is ignored and the second is
+  used as the value of an exception thrown by the call.</p>
+
   <p>Click <em>Parse</em>, then either click <em>Step</em> repeatedly,
   or click <em>Run</em> once.  Open your browser's console for errors.</p>
 
   <p><textarea id="code">
-alert(getXhr('async.txt'));
+try {
+  alert(getXhr('async.txt'));
+} catch(e) {
+  alert('Failed: ' + e);
+}
 </textarea><br>
   <button onclick="parseButton()">Parse</button>
   <button onclick="stepButton()" id="stepButton" disabled="disabled">Step</button>
