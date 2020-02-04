@@ -1,6 +1,6 @@
 {
   "name": "js-interpreter",
-  "version": "2.0.0-beta.4",
+  "version": "2.0.0",
   "description": "NPM package for https://github.com/NeilFraser/JS-Interpreter",
   "main": "lib/js-interpreter.js",
   "bin": "lib/cli.js",
@@ -20,8 +20,6 @@
   },
   "homepage": "https://github.com/aminmarashi/JS-Interpreter#readme",
   "devDependencies": {
-    "@babel/core": "^7.8.3",
-    "babel-loader": "^8.0.6",
     "eslint": "^6.8.0",
     "eslint-config-airbnb-base": "^14.0.0",
     "eslint-plugin-import": "^2.20.0",
