@@ -10,7 +10,7 @@ The version is chosen based on the type of changes according to the
 
 ## [2.1.0] - 2020-02-10
 
-Commit: [28ba7f2](https://github.com/NeilFraser/JS-Interpreter/commit/28ba7f2c7118f891463f3d81bd7e75f6f872709f)
+Commit: [28ba7f2](https://github.com/NeilFraser/JS-Interpreter/tree/28ba7f2)
 
 ### Added
 
@@ -36,6 +36,6 @@ Commit: [28ba7f2](https://github.com/NeilFraser/JS-Interpreter/commit/28ba7f2c71
 
 ## [2.0.0] - 2020-02-10
 
-Commit: [d6809ac](https://github.com/NeilFraser/JS-Interpreter/commit/d6809ac96159b4ab0afa2f6f20cb47f6801e1278)
+Commit: [d6809ac](https://github.com/NeilFraser/JS-Interpreter/tree/d6809ac)
 
 - Initial version created from the original repo
