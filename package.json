@@ -1,6 +1,6 @@
 {
   "name": "js-interpreter",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "description": "NPM package for https://github.com/NeilFraser/JS-Interpreter",
   "main": "lib/js-interpreter.js",
   "bin": "lib/cli.js",
