@@ -9,6 +9,8 @@ clones it as a `gitmodule` and packs it using `webpack` to an npm package.
 Additional to the original library, this package contains a cli version which
 can be used for testing the interpreter from terminal.
 
+Changes are recorded on a best effort basis in [CHANGELOG.md](CHANGELOG.md).
+
 # Installation
 
 `npm install js-interpreter`
