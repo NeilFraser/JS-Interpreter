@@ -3,6 +3,7 @@
   "version": "2.1.1",
   "description": "NPM package for https://github.com/NeilFraser/JS-Interpreter",
   "main": "lib/js-interpreter.min.js",
+  "module": "lib/js-interpreter.js",
   "bin": "lib/cli.min.js",
   "scripts": {
     "build": "webpack --config webpack.config.js",
