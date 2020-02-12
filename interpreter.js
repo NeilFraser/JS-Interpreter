@@ -687,8 +687,6 @@ Interpreter.prototype.initObject = function(scope) {
     var pseudoDescriptor =
         thisInterpreter.createObjectProto(thisInterpreter.OBJECT_PROTO);
     if (getter || setter) {
-      pseudoDescriptor.get = getter;
-      pseudoDescriptor.set = setter;
       thisInterpreter.setProperty(pseudoDescriptor, 'get', getter);
       thisInterpreter.setProperty(pseudoDescriptor, 'set', setter);
     } else {
