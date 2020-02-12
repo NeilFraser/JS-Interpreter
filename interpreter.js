@@ -2180,6 +2180,9 @@ Interpreter.prototype.pseudoToNative = function(pseudoObj, opt_cycles) {
       pseudoObj === null) {
     return pseudoObj;
   }
+  if (!(pseudoObj instanceof Interpreter.Object)) {
+    throw Error('Object is not pseudo');
+  }
 
   if (this.isa(pseudoObj, this.REGEXP)) {  // Regular expression.
     var nativeRegExp = new RegExp(pseudoObj.data.source, pseudoObj.data.flags);
