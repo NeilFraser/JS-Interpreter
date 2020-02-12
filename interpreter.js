@@ -684,20 +684,21 @@ Interpreter.prototype.initObject = function(scope) {
     var getter = obj.getter[prop];
     var setter = obj.setter[prop];
 
+    var pseudoDescriptor =
+        thisInterpreter.createObjectProto(thisInterpreter.OBJECT_PROTO);
     if (getter || setter) {
-      descriptor.get = getter;
-      descriptor.set = setter;
-      delete descriptor.value;
-      delete descriptor.writable;
+      thisInterpreter.setProperty(pseudoDescriptor, 'get', getter);
+      thisInterpreter.setProperty(pseudoDescriptor, 'set', setter);
+    } else {
+      thisInterpreter.setProperty(pseudoDescriptor, 'value',
+          descriptor.value);
+      thisInterpreter.setProperty(pseudoDescriptor, 'writable',
+          descriptor.writable);
     }
-    // Preserve value, but remove it for the nativeToPseudo call.
-    var value = descriptor.value;
-    var hasValue = 'value' in descriptor;
-    delete descriptor.value;
-    var pseudoDescriptor = thisInterpreter.nativeToPseudo(descriptor);
-    if (hasValue) {
-      thisInterpreter.setProperty(pseudoDescriptor, 'value', value);
-    }
+    thisInterpreter.setProperty(pseudoDescriptor, 'configurable',
+        descriptor.configurable);
+    thisInterpreter.setProperty(pseudoDescriptor, 'enumerable',
+        descriptor.enumerable);
     return pseudoDescriptor;
   };
   this.setProperty(this.OBJECT, 'getOwnPropertyDescriptor',
@@ -2114,6 +2115,9 @@ Interpreter.prototype.createAsyncFunction = function(asyncFunc) {
  * @return {Interpreter.Value} The equivalent JS-Interpreter object.
  */
 Interpreter.prototype.nativeToPseudo = function(nativeObj) {
+  if (nativeObj instanceof Interpreter.Object) {
+    throw Error('Object is already pseudo');
+  }
   if ((typeof nativeObj !== 'object' && typeof nativeObj !== 'function') ||
       nativeObj === null) {
     return nativeObj;
@@ -2175,6 +2179,9 @@ Interpreter.prototype.pseudoToNative = function(pseudoObj, opt_cycles) {
   if ((typeof pseudoObj !== 'object' && typeof pseudoObj !== 'function') ||
       pseudoObj === null) {
     return pseudoObj;
+  }
+  if (!(pseudoObj instanceof Interpreter.Object)) {
+    throw Error('Object is not pseudo');
   }
 
   if (this.isa(pseudoObj, this.REGEXP)) {  // Regular expression.
