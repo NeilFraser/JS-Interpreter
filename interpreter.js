@@ -2347,7 +2347,7 @@ Interpreter.prototype.getProperty = function(obj, name) {
 
 /**
  * Does the named property exist on a data object.
- * @param {Interpreter.Value} obj Data object.
+ * @param {!Interpreter.Object} obj Data object.
  * @param {Interpreter.Value} name Name of property.
  * @return {boolean} True if property exists.
  */
@@ -2375,7 +2375,7 @@ Interpreter.prototype.hasProperty = function(obj, name) {
 
 /**
  * Set a property value on a data object.
- * @param {!Interpreter.Object} obj Data object.
+ * @param {!Interpreter.Value} obj Data object.
  * @param {Interpreter.Value} name Name of property.
  * @param {Interpreter.Value} value New property value.
  *     Use Interpreter.VALUE_IN_DESCRIPTOR if value is handled by
@@ -2801,8 +2801,8 @@ Interpreter.prototype.setValue = function(ref, value) {
  * interpreter try/catch statement.  If unhandled, a real exception will
  * be thrown.  Can be called with either an error class and a message, or
  * with an actual object to be thrown.
- * @param {!Interpreter.Object} errorClass Type of error (if message is
- *   provided) or the value to throw (if no message).
+ * @param {!Interpreter.Object|Interpreter.Value} errorClass Type of error
+ *   (if message is provided) or the value to throw (if no message).
  * @param {string=} opt_message Message being thrown.
  */
 Interpreter.prototype.throwException = function(errorClass, opt_message) {
