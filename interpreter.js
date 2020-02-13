@@ -1702,10 +1702,27 @@ Interpreter.prototype.initJSON = function(scope) {
   };
   this.setProperty(myJSON, 'parse', this.createNativeFunction(wrapper, false));
 
-  wrapper = function(value) {
+  wrapper = function(value, replacer, space) {
+    if (replacer && replacer.class === 'Function') {
+      thisInterpreter.throwException(thisInterpreter.TYPE_ERROR,
+          'Function replacer on JSON.stringify not supported');
+    } else if (replacer && replacer.class === 'Array') {
+      replacer = thisInterpreter.arrayPseudoToNative(replacer);
+      replacer = replacer.filter(function(word) {
+        // Spec says we should also support boxed primitives here.
+        return typeof word === 'string' || typeof word === 'number';
+      });
+    } else {
+      replacer = null;
+    }
+    // Spec says we should also support boxed primitives here.
+    if (typeof space !== 'string' && typeof space !== 'number') {
+      space = undefined;
+    }
+
     var nativeObj = thisInterpreter.pseudoToNative(value);
     try {
-      var str = JSON.stringify(nativeObj);
+      var str = JSON.stringify(nativeObj, replacer, space);
     } catch (e) {
       thisInterpreter.throwException(thisInterpreter.TYPE_ERROR, e.message);
     }
