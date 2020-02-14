@@ -51,7 +51,7 @@ var Interpreter = function(code, opt_initFunc) {
   // Run the polyfills.
   this.ast = acorn.parse(this.polyfills_.join('\n'), Interpreter.PARSE_OPTIONS);
   this.polyfills_ = undefined;  // Allow polyfill strings to garbage collect.
-  this.stripLocations_(this.ast, undefined, undefined);
+  Interpreter.stripLocations_(this.ast, undefined, undefined);
   var state = new Interpreter.State(this.ast, this.global);
   state.done = false;
   this.stateStack = [state];
@@ -67,6 +67,18 @@ var Interpreter = function(code, opt_initFunc) {
   // Add others as needed.
   this['stateStack'] = this.stateStack;
 };
+
+/**
+  * Completion Value Types.
+  * @enum {number}
+  */
+ Interpreter.Completion = {
+   NORMAL: 0,
+   BREAK: 1,
+   CONTINUE: 2,
+   RETURN: 3,
+   THROW: 4
+ };
 
 /**
  * @const {!Object} Configuration used for all Acorn parsing.
@@ -184,6 +196,61 @@ Interpreter.WORKER_CODE = [
     "}",
     "postMessage(result);",
   "};"];
+
+/**
+ * Is a value a legal integer for an array length?
+ * @param {Interpreter.Value} x Value to check.
+ * @return {number} Zero, or a positive integer if the value can be
+ *     converted to such.  NaN otherwise.
+ */
+Interpreter.legalArrayLength = function(x) {
+  var n = x >>> 0;
+  // Array length must be between 0 and 2^32-1 (inclusive).
+  return (n === Number(x)) ? n : NaN;
+};
+
+/**
+ * Is a value a legal integer for an array index?
+ * @param {Interpreter.Value} x Value to check.
+ * @return {number} Zero, or a positive integer if the value can be
+ *     converted to such.  NaN otherwise.
+ */
+Interpreter.legalArrayIndex = function(x) {
+  var n = x >>> 0;
+  // Array index cannot be 2^32-1, otherwise length would be 2^32.
+  // 0xffffffff is 2^32-1.
+  return (String(n) === String(x) && n !== 0xffffffff) ? n : NaN;
+};
+
+/**
+ * Remove start and end values from AST, or set start and end values to a
+ * constant value.  Used to remove highlighting from polyfills and to set
+ * highlighting in an eval to cover the entire eval expression.
+ * @param {!Object} node AST node.
+ * @param {number=} start Starting character of all nodes, or undefined.
+ * @param {number=} end Ending character of all nodes, or undefined.
+ * @private
+ */
+Interpreter.stripLocations_ = function(node, start, end) {
+  if (start) {
+    node['start'] = start;
+  } else {
+    delete node['start'];
+  }
+  if (end) {
+    node['end'] = end;
+  } else {
+    delete node['end'];
+  }
+  for (var name in node) {
+    if (node.hasOwnProperty(name)) {
+      var prop = node[name];
+      if (prop && typeof prop === 'object') {
+        Interpreter.stripLocations_(prop, start, end);
+      }
+    }
+  }
+};
 
 /**
  * Some pathological regular expressions can take geometric time.
@@ -1882,142 +1949,6 @@ Interpreter.prototype.regExpTimeout = function(nativeRegExp, worker, callback) {
 };
 
 /**
- * Is a value a legal integer for an array length?
- * @param {Interpreter.Value} x Value to check.
- * @return {number} Zero, or a positive integer if the value can be
- *     converted to such.  NaN otherwise.
- */
-Interpreter.legalArrayLength = function(x) {
-  var n = x >>> 0;
-  // Array length must be between 0 and 2^32-1 (inclusive).
-  return (n === Number(x)) ? n : NaN;
-};
-
-/**
- * Is a value a legal integer for an array index?
- * @param {Interpreter.Value} x Value to check.
- * @return {number} Zero, or a positive integer if the value can be
- *     converted to such.  NaN otherwise.
- */
-Interpreter.legalArrayIndex = function(x) {
-  var n = x >>> 0;
-  // Array index cannot be 2^32-1, otherwise length would be 2^32.
-  // 0xffffffff is 2^32-1.
-  return (String(n) === String(x) && n !== 0xffffffff) ? n : NaN;
-};
-
-/**
- * Typedef for JS values.
- * @typedef {!Interpreter.Object|boolean|number|string|undefined|null}
- */
-Interpreter.Value;
-
-/**
- * Class for an object.
- * @param {Interpreter.Object} proto Prototype object or null.
- * @constructor
- */
-Interpreter.Object = function(proto) {
-  this.getter = Object.create(null);
-  this.setter = Object.create(null);
-  this.properties = Object.create(null);
-  this.proto = proto;
-};
-
-/** @type {Interpreter.Object} */
-Interpreter.Object.prototype.proto = null;
-
-/** @type {string} */
-Interpreter.Object.prototype.class = 'Object';
-
-/** @type {Date|RegExp|boolean|number|string|null} */
-Interpreter.Object.prototype.data = null;
-
-/**
- * Convert this object into a string.
- * @return {string} String value.
- * @override
- */
-Interpreter.Object.prototype.toString = function() {
-  if (!(this instanceof Interpreter.Object)) {
-    // Primitive value.
-    return String(this);
-  }
-
-  if (this.class === 'Array') {
-    // Array contents must not have cycles.
-    var cycles = Interpreter.toStringCycles_;
-    cycles.push(this);
-    try {
-      var strs = [];
-      for (var i = 0; i < this.properties.length; i++) {
-        var value = this.properties[i];
-        strs[i] = ((value instanceof Interpreter.Object) &&
-            cycles.indexOf(value) !== -1) ? '...' : value;
-      }
-    } finally {
-      cycles.pop();
-    }
-    return strs.join(',');
-  }
-
-  if (this.class === 'Error') {
-    // Error name and message properties must not have cycles.
-    var cycles = Interpreter.toStringCycles_;
-    if (cycles.indexOf(this) !== -1) {
-      return '[object Error]';
-    }
-    var name, message;
-    // Bug: Does not support getters and setters for name or message.
-    var obj = this;
-    do {
-      if ('name' in obj.properties) {
-        name = obj.properties['name'];
-        break;
-      }
-    } while ((obj = obj.proto));
-    var obj = this;
-    do {
-      if ('message' in obj.properties) {
-        message = obj.properties['message'];
-        break;
-      }
-    } while ((obj = obj.proto));
-    cycles.push(this);
-    try {
-      name = name && String(name);
-      message = message && String(message);
-    } finally {
-      cycles.pop();
-    }
-    return message ? name + ': ' + message : String(name);
-  }
-
-  if (this.data !== null) {
-    // RegExp, Date, and boxed primitives.
-    return String(this.data);
-  }
-
-  return '[object ' + this.class + ']';
-};
-
-/**
- * Return the object's value.
- * @return {Interpreter.Value} Value.
- * @override
- */
-Interpreter.Object.prototype.valueOf = function() {
-  if (this.data === undefined || this.data === null ||
-      this.data instanceof RegExp) {
-    return this;  // An Object, RegExp, or primitive.
-  }
-  if (this.data instanceof Date) {
-    return this.data.valueOf();  // Milliseconds.
-  }
-  return /** @type {(boolean|number|string)} */ (this.data);  // Boxed primitive.
-};
-
-/**
  * Create a new data object based on a constructor's prototype.
  * @param {Interpreter.Object} constructor Parent constructor function,
  *     or null if scope object.
@@ -2713,36 +2644,6 @@ Interpreter.prototype.populateScope_ = function(node, scope) {
 };
 
 /**
- * Remove start and end values from AST, or set start and end values to a
- * constant value.  Used to remove highlighting from polyfills and to set
- * highlighting in an eval to cover the entire eval expression.
- * @param {!Object} node AST node.
- * @param {number=} start Starting character of all nodes, or undefined.
- * @param {number=} end Ending character of all nodes, or undefined.
- * @private
- */
-Interpreter.prototype.stripLocations_ = function(node, start, end) {
-  if (start) {
-    node['start'] = start;
-  } else {
-    delete node['start'];
-  }
-  if (end) {
-    node['end'] = end;
-  } else {
-    delete node['end'];
-  }
-  for (var name in node) {
-    if (node.hasOwnProperty(name)) {
-      var prop = node[name];
-      if (prop && typeof prop === 'object') {
-        this.stripLocations_(prop, start, end);
-      }
-    }
-  }
-};
-
-/**
  * Is the current state directly being called with as a construction with 'new'.
  * @return {boolean} True if 'new foo()', false if 'foo()'.
  */
@@ -2783,18 +2684,6 @@ Interpreter.prototype.setValue = function(ref, value) {
     return this.setProperty(ref[0], ref[1], value);
   }
 };
-
-/**
-  * Completion Value Types.
-  * @enum {number}
-  */
- Interpreter.Completion = {
-   NORMAL: 0,
-   BREAK: 1,
-   CONTINUE: 2,
-   RETURN: 3,
-   THROW: 4
- };
 
 /**
  * Throw an exception in the interpreter that can be handled by an
@@ -2936,6 +2825,12 @@ Interpreter.prototype.createSetter_ = function(func, left, value) {
 };
 
 /**
+ * Typedef for JS values.
+ * @typedef {!Interpreter.Object|boolean|number|string|undefined|null}
+ */
+Interpreter.Value;
+
+/**
  * Class for a state.
  * @param {!Object} node AST node for the state.
  * @param {!Interpreter.Object} scope Scope object for the state.
@@ -2946,6 +2841,110 @@ Interpreter.State = function(node, scope) {
   this.scope = scope;
 };
 
+/**
+ * Class for an object.
+ * @param {Interpreter.Object} proto Prototype object or null.
+ * @constructor
+ */
+Interpreter.Object = function(proto) {
+  this.getter = Object.create(null);
+  this.setter = Object.create(null);
+  this.properties = Object.create(null);
+  this.proto = proto;
+};
+
+/** @type {Interpreter.Object} */
+Interpreter.Object.prototype.proto = null;
+
+/** @type {string} */
+Interpreter.Object.prototype.class = 'Object';
+
+/** @type {Date|RegExp|boolean|number|string|null} */
+Interpreter.Object.prototype.data = null;
+
+/**
+ * Convert this object into a string.
+ * @return {string} String value.
+ * @override
+ */
+Interpreter.Object.prototype.toString = function() {
+  if (!(this instanceof Interpreter.Object)) {
+    // Primitive value.
+    return String(this);
+  }
+
+  if (this.class === 'Array') {
+    // Array contents must not have cycles.
+    var cycles = Interpreter.toStringCycles_;
+    cycles.push(this);
+    try {
+      var strs = [];
+      for (var i = 0; i < this.properties.length; i++) {
+        var value = this.properties[i];
+        strs[i] = ((value instanceof Interpreter.Object) &&
+            cycles.indexOf(value) !== -1) ? '...' : value;
+      }
+    } finally {
+      cycles.pop();
+    }
+    return strs.join(',');
+  }
+
+  if (this.class === 'Error') {
+    // Error name and message properties must not have cycles.
+    var cycles = Interpreter.toStringCycles_;
+    if (cycles.indexOf(this) !== -1) {
+      return '[object Error]';
+    }
+    var name, message;
+    // Bug: Does not support getters and setters for name or message.
+    var obj = this;
+    do {
+      if ('name' in obj.properties) {
+        name = obj.properties['name'];
+        break;
+      }
+    } while ((obj = obj.proto));
+    var obj = this;
+    do {
+      if ('message' in obj.properties) {
+        message = obj.properties['message'];
+        break;
+      }
+    } while ((obj = obj.proto));
+    cycles.push(this);
+    try {
+      name = name && String(name);
+      message = message && String(message);
+    } finally {
+      cycles.pop();
+    }
+    return message ? name + ': ' + message : String(name);
+  }
+
+  if (this.data !== null) {
+    // RegExp, Date, and boxed primitives.
+    return String(this.data);
+  }
+
+  return '[object ' + this.class + ']';
+};
+
+/**
+ * Return the object's value.
+ * @return {Interpreter.Value} Value.
+ * @override
+ */
+Interpreter.Object.prototype.valueOf = function() {
+  if (this.data === undefined || this.data === null ||
+      this.data instanceof RegExp) {
+    return this;  // An Object, RegExp, or primitive.
+  }
+  if (this.data instanceof Date) {
+    return this.data.valueOf();  // Milliseconds.
+  }
+  return /** @type {(boolean|number|string)} */ (this.data);  // Boxed primitive.
+};
 
 ///////////////////////////////////////////////////////////////////////////////
 // Functions to handle each node type.
@@ -3223,7 +3222,7 @@ Interpreter.prototype['stepCallExpression'] = function(stack, state, node) {
         var evalNode = new this.nodeConstructor({options:{}});
         evalNode['type'] = 'EvalProgram_';
         evalNode['body'] = ast['body'];
-        this.stripLocations_(evalNode, node['start'], node['end']);
+        Interpreter.stripLocations_(evalNode, node['start'], node['end']);
         // Create new scope and update it with definitions in eval().
         var scope = state.directEval_ ? state.scope : this.global;
         if (scope.strict) {
