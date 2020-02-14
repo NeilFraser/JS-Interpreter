@@ -89,6 +89,9 @@ function deserialize(json, interpreter) {
       case 'PseudoObject':
         obj = new Interpreter.Object(null);
         break;
+      case 'Scope':
+        obj = new Interpreter.Scope(undefined, undefined, undefined);
+        break;
       case 'State':
         obj = new Interpreter.State(undefined, undefined);
         break;
@@ -179,7 +182,8 @@ function serialize(interpreter) {
     'SYNTAX_ERROR',
     'TYPE_ERROR',
     'URI_ERROR',
-    'global',
+    'globalScope',
+    'globalObject',
     'stateStack'
   ];
   var root = Object.create(null);
@@ -235,6 +239,9 @@ function serialize(interpreter) {
         continue;  // No need to index properties.
       case Interpreter.Object.prototype:
         jsonObj['type'] = 'PseudoObject';
+        break;
+      case Interpreter.Scope.prototype:
+        jsonObj['type'] = 'Scope';
         break;
       case Interpreter.State.prototype:
         jsonObj['type'] = 'State';

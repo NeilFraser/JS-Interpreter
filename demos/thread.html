@@ -7,11 +7,11 @@
   <script src="../acorn.js"></script>
   <script src="../interpreter.js"></script>
   <script>
-    function initAlert(interpreter, scope) {
+    function initAlert(interpreter, globalObject) {
       var wrapper = function(text) {
         return alert(arguments.length ? text : '');
       };
-      interpreter.setProperty(scope, 'alert',
+      interpreter.setProperty(globalObject, 'alert',
           interpreter.createNativeFunction(wrapper));
     }
     // Create an interpreter whose global scope will be the cross-thread global.
@@ -22,7 +22,7 @@
       var code = document.getElementById('code' + n).value;
       var intrp = new Interpreter('');
       // Replace this thread's global scope with the cross-thread global.
-      intrp.stateStack[0].scope = myInterpreter.global;
+      intrp.stateStack[0].scope = myInterpreter.globalScope;
       intrp.appendCode(code);
       threads[n] = intrp.stateStack;
       disable(n, '');

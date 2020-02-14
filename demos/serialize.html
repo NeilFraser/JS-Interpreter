@@ -9,11 +9,11 @@
   <script src="serialize.js"></script>
   <script>
     var myInterpreter;
-    function initAlert(interpreter, scope) {
+    function initAlert(interpreter, globalObject) {
       var wrapper = function(text) {
         return alert(arguments.length ? text : '');
       };
-      interpreter.setProperty(scope, 'alert',
+      interpreter.setProperty(globalObject, 'alert',
           interpreter.createNativeFunction(wrapper));
     }
 
