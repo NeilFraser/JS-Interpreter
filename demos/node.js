@@ -18,11 +18,11 @@ alert(result.join(', '));
 `;
 
 // Set up 'alert' as an interface to Node's console.log.
-var initFunc = function(interpreter, scope) {
+var initFunc = function(interpreter, globalObject) {
   var wrapper = function(text) {
     console.log(text);
   };
-  interpreter.setProperty(scope, 'alert',
+  interpreter.setProperty(globalObject, 'alert',
       interpreter.createNativeFunction(wrapper));
 };
 
