@@ -269,6 +269,18 @@ Interpreter.prototype['REGEXP_MODE'] = 2;
 Interpreter.prototype['REGEXP_THREAD_TIMEOUT'] = 1000;
 
 /**
+ * Flag indicating that a getter function needs to be called immediately.
+ * @private
+ */
+Interpreter.prototype.getterStep_ = false;
+
+/**
+ * Flag indicating that a setter function needs to be called immediately.
+ * @private
+ */
+Interpreter.prototype.setterStep_ = false;
+
+/**
  * Add more code to the interpreter.
  * @param {string|!Object} code Raw JavaScript text or AST.
  */
@@ -296,6 +308,14 @@ Interpreter.prototype.appendCode = function(code) {
 Interpreter.prototype.step = function() {
   var stack = this.stateStack;
   do {
+    if (this.getterStep_) {
+      // Getter from previous step was not handled.
+      throw Error('Getter not supported in this context');
+    }
+    if (this.setterStep_) {
+      // Setter from previous step was not handled.
+      throw Error('Setter not supported in this context');
+    }
     var state = stack[stack.length - 1];
     if (!state) {
       return false;
@@ -1609,12 +1629,10 @@ Interpreter.prototype.initRegExp = function(globalObject) {
 "});");
 
   wrapper = function(string, callback) {
-    var thisPseudoRegExp = this;
-    var regexp = thisPseudoRegExp.data;
+    var regexp = this.data;
     string = String(string);
-    // Get lastIndex from wrapped regex, since this is settable.
-    regexp.lastIndex =
-        Number(thisInterpreter.getProperty(this, 'lastIndex'));
+    // Get lastIndex from wrapped regexp, since this is settable.
+    regexp.lastIndex = Number(thisInterpreter.getProperty(this, 'lastIndex'));
     // Example of catastrophic exec RegExp:
     // /^(a+)+b/.exec('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaac')
     thisInterpreter.maybeThrowRegExp(regexp, callback);
@@ -1628,8 +1646,7 @@ Interpreter.prototype.initRegExp = function(globalObject) {
         var code = 'regexp.exec(string)';
         var match = thisInterpreter.vmCall(code, sandbox, regexp, callback);
         if (match !== Interpreter.REGEXP_TIMEOUT) {
-          thisInterpreter.setProperty(thisPseudoRegExp, 'lastIndex',
-              regexp.lastIndex);
+          thisInterpreter.setProperty(this, 'lastIndex', regexp.lastIndex);
           callback(matchToPseudo(match));
         }
       } else {
@@ -1638,11 +1655,11 @@ Interpreter.prototype.initRegExp = function(globalObject) {
         // Web Worker.  Thus it needs to be passed back and forth separately.
         var execWorker = thisInterpreter.createWorker();
         var pid = thisInterpreter.regExpTimeout(regexp, execWorker, callback);
+        var thisPseudoRegExp = this;
         execWorker.onmessage = function(e) {
           clearTimeout(pid);
           // Return tuple: [result, lastIndex]
-          thisInterpreter.setProperty(thisPseudoRegExp, 'lastIndex',
-              e.data[1]);
+          thisInterpreter.setProperty(thisPseudoRegExp, 'lastIndex', e.data[1]);
           callback(matchToPseudo(e.data[0]));
         };
         execWorker.postMessage(['exec', regexp, regexp.lastIndex, string]);
@@ -1651,8 +1668,7 @@ Interpreter.prototype.initRegExp = function(globalObject) {
     }
     // Run exec natively.
     var match = regexp.exec(string);
-    thisInterpreter.setProperty(thisPseudoRegExp, 'lastIndex',
-        regexp.lastIndex);
+    thisInterpreter.setProperty(this, 'lastIndex', regexp.lastIndex);
     callback(matchToPseudo(match));
 
     function matchToPseudo(match) {
@@ -2242,6 +2258,9 @@ Interpreter.prototype.getPrototype = function(value) {
  * @return {Interpreter.Value} Property value (may be undefined).
  */
 Interpreter.prototype.getProperty = function(obj, name) {
+  if (this.getterStep_) {
+    throw Error('Getter not supported in that context');
+  }
   name = String(name);
   if (obj === undefined || obj === null) {
     this.throwException(this.TYPE_ERROR,
@@ -2271,7 +2290,7 @@ Interpreter.prototype.getProperty = function(obj, name) {
       if (getter) {
         // Flag this function as being a getter and thus needing immediate
         // execution (rather than being the value of the property).
-        getter.isGetter = true;
+        this.getterStep_ = true;
         return getter;
       }
       return obj.properties[name];
@@ -2320,6 +2339,10 @@ Interpreter.prototype.hasProperty = function(obj, name) {
  *     needs to be called, otherwise undefined.
  */
 Interpreter.prototype.setProperty = function(obj, name, value, opt_descriptor) {
+  if (this.setterStep_) {
+    // Getter from previous call to setProperty was not handled.
+    throw Error('Setter not supported in that context');
+  }
   name = String(name);
   if (obj === undefined || obj === null) {
     this.throwException(this.TYPE_ERROR,
@@ -2446,6 +2469,7 @@ Interpreter.prototype.setProperty = function(obj, name, value, opt_descriptor) {
       }
     }
     if (defObj.setter && defObj.setter[name]) {
+      this.setterStep_ = true;
       return defObj.setter[name];
     }
     if (defObj.getter && defObj.getter[name]) {
@@ -2790,6 +2814,11 @@ Interpreter.prototype.unwind = function(type, value, label) {
  * @private
  */
 Interpreter.prototype.createGetter_ = function(func, left) {
+  if (!this.getterStep_) {
+    throw Error('Unexpected call to createGetter');
+  }
+  // Clear the getter flag.
+  this.getterStep_ = false;
   // Normally `this` will be specified as the object component (o.x).
   // Sometimes `this` is explicitly provided (o).
   var funcThis = Array.isArray(left) ? left[0] : left;
@@ -2814,6 +2843,11 @@ Interpreter.prototype.createGetter_ = function(func, left) {
  * @private
  */
 Interpreter.prototype.createSetter_ = function(func, left, value) {
+  if (!this.setterStep_) {
+    throw Error('Unexpected call to createSetter');
+  }
+  // Clear the setter flag.
+  this.setterStep_ = false;
   // Normally `this` will be specified as the object component (o.x).
   // Sometimes `this` is implicitly the global object (x).
   var funcThis = Array.isArray(left) ? left[0] : this.globalObject;
@@ -3008,9 +3042,8 @@ Interpreter.prototype['stepAssignmentExpression'] =
     if (!state.doneGetter_ && node['operator'] !== '=') {
       var leftValue = this.getValue(state.leftReference_);
       state.leftValue_ = leftValue;
-      if (leftValue && typeof leftValue === 'object' && leftValue.isGetter) {
-        // Clear the getter flag and call the getter function.
-        leftValue.isGetter = false;
+      if (this.getterStep_) {
+        // Call the getter function.
         state.doneGetter_ = true;
         var func = /** @type {!Interpreter.Object} */ (leftValue);
         return this.createGetter_(func, state.leftReference_);
@@ -3148,12 +3181,11 @@ Interpreter.prototype['stepCallExpression'] = function(stack, state, node) {
         state.funcThis_ = func[0];
       }
       func = state.func_;
-      if (func && typeof func === 'object' && func.isGetter) {
-        // Clear the getter flag and call the getter function.
-        func.isGetter = false;
+      if (this.getterStep_) {
+        // Call the getter function.
         state.doneCallee_ = 1;
         return this.createGetter_(/** @type {!Interpreter.Object} */ (func),
-                         state.value);
+            state.value);
       }
     } else {
       // Already evaluated function: (function(){...})();
@@ -3557,9 +3589,8 @@ Interpreter.prototype['stepIdentifier'] = function(stack, state, node) {
   }
   var value = this.getValueFromScope(node['name']);
   // An identifier could be a getter if it's a property on the global object.
-  if (value && typeof value === 'object' && value.isGetter) {
-    // Clear the getter flag and call the getter function.
-    value.isGetter = false;
+  if (this.getterStep_) {
+    // Call the getter function.
     var scope = state.scope;
     while (!this.hasProperty(scope, node['name'])) {
       scope = scope.parentScope;
@@ -3642,9 +3673,8 @@ Interpreter.prototype['stepMemberExpression'] = function(stack, state, node) {
     stack[stack.length - 1].value = [state.object_, propName];
   } else {
     var value = this.getProperty(state.object_, propName);
-    if (value && typeof value === 'object' && value.isGetter) {
-      // Clear the getter flag and call the getter function.
-      value.isGetter = false;
+    if (this.getterStep_) {
+      // Call the getter function.
       var func = /** @type {!Interpreter.Object} */ (value);
       return this.createGetter_(func, state.object_);
     }
@@ -3894,9 +3924,8 @@ Interpreter.prototype['stepUpdateExpression'] = function(stack, state, node) {
   if (!state.doneGetter_) {
     var leftValue = this.getValue(state.leftSide_);
     state.leftValue_ = leftValue;
-    if (leftValue && typeof leftValue === 'object' && leftValue.isGetter) {
-      // Clear the getter flag and call the getter function.
-      leftValue.isGetter = false;
+    if (this.getterStep_) {
+      // Call the getter function.
       state.doneGetter_ = true;
       var func = /** @type {!Interpreter.Object} */ (leftValue);
       return this.createGetter_(func, state.leftSide_);
