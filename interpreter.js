@@ -2535,7 +2535,7 @@ Interpreter.prototype.getScope = function() {
  * Create a new scope dictionary.
  * @param {!Object} node AST node defining the scope container
  *     (e.g. a function).
- * @param {Interpreter.Object} parentScope Scope to link to.
+ * @param {Interpreter.Scope} parentScope Scope to link to.
  * @return {!Interpreter.Scope} New scope.
  */
 Interpreter.prototype.createScope = function(node, parentScope) {
@@ -2564,7 +2564,7 @@ Interpreter.prototype.createScope = function(node, parentScope) {
  * Create a new special scope dictionary. Similar to createScope(), but
  * doesn't assume that the scope is for a function body.
  * This is used for 'catch' clauses and 'with' statements.
- * @param {!Interpreter.Object} parentScope Scope to link to.
+ * @param {!Interpreter.Scope} parentScope Scope to link to.
  * @param {Interpreter.Object=} opt_object Optional object to transform into
  *     scope.
  * @return {!Interpreter.Scope} New scope.
@@ -2885,6 +2885,7 @@ Interpreter.State = function(node, scope) {
  * @param {Interpreter.Scope} parentScope Parent scope.
  * @param {boolean} strict True if "use strict".
  * @param {!Interpreter.Object} object Object containing scope's variables.
+ * @struct
  * @constructor
  */
 Interpreter.Scope = function(parentScope, strict, object) {
