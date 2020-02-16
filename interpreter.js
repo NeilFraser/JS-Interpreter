@@ -308,14 +308,6 @@ Interpreter.prototype.appendCode = function(code) {
 Interpreter.prototype.step = function() {
   var stack = this.stateStack;
   do {
-    if (this.getterStep_) {
-      // Getter from previous step was not handled.
-      throw Error('Getter not supported in this context');
-    }
-    if (this.setterStep_) {
-      // Setter from previous step was not handled.
-      throw Error('Setter not supported in this context');
-    }
     var state = stack[stack.length - 1];
     if (!state) {
       return false;
@@ -337,6 +329,14 @@ Interpreter.prototype.step = function() {
     }
     if (nextState) {
       stack.push(nextState);
+    }
+    if (this.getterStep_) {
+      // Getter from this step was not handled.
+      throw Error('Getter not supported in this context');
+    }
+    if (this.setterStep_) {
+      // Setter from this step was not handled.
+      throw Error('Setter not supported in this context');
     }
     // This may be polyfill code.  Keep executing until we arrive at user code.
   } while (!node['end']);
