@@ -8,6 +8,47 @@ breaking changes.
 The version is chosen based on the type of changes according to the
 [semver](https://semver.org/) guidelines.
 
+## [2.2.0] - 2020-02-18
+
+Commit: [d20cb5a](https://github.com/NeilFraser/JS-Interpreter/tree/d20cb5a)
+
+### Added
+
+- Partial support of JSON.stringify args.
+  - Support pretty printing. Support array filtering. Do not support function
+    replacers (this would need to be a polyfill).
+
+### Fixed
+
+- Fix security hole in getOwnPropertyDescriptor
+- Fix some JS Doc types
+- Throw error where getter/setter not supported
+  - There are several places where getters and setters are not handled
+    correctly.  Such as array’s `.length`.  If a getter or setter is
+    encountered in one of these places, throw an error, rather than performing
+    invalid behaviour.
+
+### Removed
+
+- Don’t set __proto__ prop when exporting an object
+  - __proto__ is a magic property in most runtimes, but not in JS-Interpreter.
+- Remove .isObject property
+  - This property dates back to when primitives were also wrapped as objects
+    and a way to distinguish objects and primitives was needed.  Hopefully this
+    change will also annoy @XmiliaH  :)
+
+### Changes
+
+- Split scopes into scope object and data object
+  - Previously a scope object was a regular object with two extra properties
+    tacked on: strict and parentScope.  Issue #183 proved that sometimes one
+    needs multiple scopes with different parentScope values.  This PR creates a
+    scope object with the above two properties, as well as a third property
+    (‘.object’) that points to the regular object.  This allows two scopes to
+    have different parentScopes, while sharing the same object for variables.
+  - Minor API change for advanced threading and serialization.
+
+
 ## [2.1.0] - 2020-02-10
 
 Commit: [28ba7f2](https://github.com/NeilFraser/JS-Interpreter/tree/28ba7f2)
