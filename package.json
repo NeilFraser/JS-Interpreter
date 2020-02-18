@@ -5,6 +5,9 @@
   "main": "lib/js-interpreter.min.js",
   "module": "lib/js-interpreter.js",
   "bin": "lib/cli.min.js",
+  "files": [
+      "lib"
+  ],
   "scripts": {
     "build": "webpack --config webpack.config.js",
     "syntax": "eslint src",
