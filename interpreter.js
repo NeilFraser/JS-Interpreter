@@ -2184,9 +2184,10 @@ Interpreter.prototype.pseudoToNative = function(pseudoObj, opt_cycles) {
     cycles.native.push(nativeObj);
     var val;
     for (var key in pseudoObj.properties) {
-      if (key === '__proto__') continue;
-      val = pseudoObj.properties[key];
-      nativeObj[key] = this.pseudoToNative(val, cycles);
+      val = this.pseudoToNative(pseudoObj.properties[key], cycles);
+      // Use defineProperty to avoid side effects if setting '__proto__'.
+      Object.defineProperty(nativeObj, key,
+          {value: val, writable: true, enumerable: true, configurable: true});
     }
   }
   cycles.pseudo.pop();
