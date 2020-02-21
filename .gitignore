@@ -1,5 +1,3 @@
-
-*.komodoproject
 test262-es5-tests/
 
 test262.js

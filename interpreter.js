@@ -193,7 +193,7 @@ Interpreter.WORKER_CODE = [
         "result = [regexp.exec(data[3]), data[1].lastIndex];",
         "break;",
       "default:",
-        "throw 'Unknown RegExp operation: ' + data[0];",
+        "throw Error('Unknown RegExp operation: ' + data[0]);",
     "}",
     "postMessage(result);",
   "};"];
@@ -1751,7 +1751,6 @@ Interpreter.prototype.initError = function(globalObject) {
  * @param {!Interpreter.Object} globalObject Global object.
  */
 Interpreter.prototype.initMath = function(globalObject) {
-  var thisInterpreter = this;
   var myMath = this.createObjectProto(this.OBJECT_PROTO);
   this.setProperty(globalObject, 'Math', myMath);
   var mathConsts = ['E', 'LN2', 'LN10', 'LOG2E', 'LOG10E', 'PI',
@@ -1929,7 +1928,7 @@ Interpreter.prototype.maybeThrowRegExp = function(nativeRegExp, callback) {
       // Try to load Node's vm module.
       try {
         Interpreter.vm = require('vm');
-      } catch (e) {};
+      } catch (e) {}
       ok = !!Interpreter.vm;
     } else {
       // Fail: Neither Web Workers nor vm available.
@@ -4021,5 +4020,3 @@ Interpreter.prototype['getProperty'] = Interpreter.prototype.getProperty;
 Interpreter.prototype['setProperty'] = Interpreter.prototype.setProperty;
 Interpreter.prototype['nativeToPseudo'] = Interpreter.prototype.nativeToPseudo;
 Interpreter.prototype['pseudoToNative'] = Interpreter.prototype.pseudoToNative;
-// Obsolete.  Do not use.
-Interpreter.prototype['createPrimitive'] = function(x) {return x;};
