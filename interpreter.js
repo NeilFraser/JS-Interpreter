@@ -3227,7 +3227,7 @@ Interpreter.prototype['stepCallExpression'] = function(stack, state, node) {
     } else if (func.asyncFunc) {
       var thisInterpreter = this;
       var callback = function(value, exception) {
-        if (arguments.length === 1) {
+        if (arguments.length <= 1) {
           state.value = value;
         } else {
           thisInterpreter.unwind(Interpreter.Completion.THROW,
