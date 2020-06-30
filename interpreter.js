@@ -3593,7 +3593,7 @@ Interpreter.prototype['stepIdentifier'] = function(stack, state, node) {
   if (this.getterStep_) {
     // Call the getter function.
     var scope = state.scope;
-    while (!this.hasProperty(scope, node['name'])) {
+    while (scope !== this.globalScope && !this.hasProperty(scope, node['name'])) {
       scope = scope.parentScope;
     }
     var func = /** @type {!Interpreter.Object} */ (value);
