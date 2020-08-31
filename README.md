@@ -1,6 +1,8 @@
 JS-Interpreter
 ==============
 
+<img src="./fullWidth.jpg" alt="Full width"/>
+
 A sandboxed JavaScript interpreter in JavaScript.  Execute arbitrary JavaScript
 code line by line in isolation and safety.
 
