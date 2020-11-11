@@ -553,7 +553,7 @@ Interpreter.prototype.initCallbackManager = function (globalObject) {
     } else {
       // Queue for later, first in, last out
       this.CALLBACK_QUEUE.unshift(callback);
-      this.appendScopedCode(callbackAst, this.getScope(), true);
+      this.appendCode(callbackAst);
     }
   }
   var callbackManager = this.createObjectProto(this.OBJECT_PROTO);
