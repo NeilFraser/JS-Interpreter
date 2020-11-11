@@ -429,7 +429,6 @@ Interpreter.prototype.appendScopedCode = function (code, scope, immediate) {
   if (type === "Program") ast.type = "BlockStatement"; // Convert program to block statement
   var scopedState = new Interpreter.State(ast, scope);
   scopedState.scope = scope;
-  console.log("scopedState", scopedState, this.stateStack);
   if (immediate) {
     // Queue as next item to execute
     this.stateStack.push(scopedState);
