@@ -360,20 +360,15 @@ Interpreter.prototype.run = function() {
  * @param {Boolean} [immediate=false] Execute immediately, returning result, or queue for later
  * @param {Interpreter.Object} var_args Interpreted Objects to pass as arguments
  */
-Interpreter.prototype.callFunction = function (
-  fn,
-  thisFn,
-  immediate,
-  var_args
-) {
-  if (this.paused_) {
-    throw new Error('Unable to call function while in paused state')
+Interpreter.prototype.callFunction = function (fn, thisFn, immediate, var_args) {
+  if (this.paused_ && immediate) {
+    throw new Error("Unable to call pseudo function immediately when paused.");
   }
   var args = Array.prototype.slice.call(arguments, 3, arguments.length);
   var callbackObject = this.getProperty(this.globalObject, this.CALLBACK_KEY);
   // const argsArray = this.getProperty(callbackObject, 'args');
   var argsArray = this.createArray();
-  for (let i = 0, l = args.length; i < l; i++) {
+  for (var i = 0, l = args.length; i < l; i++) {
     argsArray.properties[i] = args[i];
   }
   argsArray.properties.length = args.length;
@@ -4137,5 +4132,4 @@ Interpreter.prototype['createNativeFunction'] =
 Interpreter.prototype['getProperty'] = Interpreter.prototype.getProperty;
 Interpreter.prototype['setProperty'] = Interpreter.prototype.setProperty;
 Interpreter.prototype['nativeToPseudo'] = Interpreter.prototype.nativeToPseudo;
-Interpreter.prototype['pseudoToNative'] = Interpreter.prototype.pseudoToNative;dCode;
-Interpreter.prototype['callFunction'] = Interpreter.prototype.callFunction;
+Interpreter.prototype['pseudoToNative'] = Interpreter.prototype.pseudoToNative;
