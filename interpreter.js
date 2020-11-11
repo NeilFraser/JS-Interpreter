@@ -396,55 +396,6 @@ Interpreter.prototype.callFunction = function (func, funcThis, immediate, var_ar
 };
 
 /**
- * Convenience method to pre-parse raw JavaScript to AST
- * @param {string|!Object} code Raw JavaScript text or AST.
- */
-Interpreter.prototype.parseCode = function (code) {
-  if (typeof code === "string") {
-    code = acorn.parse(code, Interpreter.PARSE_OPTIONS);
-  }
-  if (!code || code["type"] !== "Program") {
-    throw Error("Expecting new AST to start with a Program node.");
-  }
-  return code;
-};
-
-/**
- * Add pre-scoped code to the interpreter.
- * Allows a previously stored scope to be applied to new code.
- * @param {string|!Object} code Raw JavaScript text or AST.
- * @param {Interpreter.Scope} scope Scope to run the code in.
- * @param {Boolean} [immediate=false] Queue as next or last
- */
-Interpreter.prototype.appendScopedCode = function (code, scope, immediate) {
-  if (typeof code === "string") {
-    code = acorn.parse(code, Interpreter.PARSE_OPTIONS);
-  }
-  var type = code && code.type;
-  if (!type) {
-    throw Error("Expecting AST");
-  }
-  this.nodeConstructor = code.constructor;
-  // Clone the root 'Program' node so that the AST may be modified.
-  var ast = new this.nodeConstructor({ options: {} });
-  for (var prop in code) {
-    ast[prop] = Array.isArray(prop) ? code[prop].slice() : code[prop];
-  }
-  this.populateScope_(ast, scope);
-  if (type === "Program") ast.type = "BlockStatement"; // Convert program to block statement
-  var scopedState = new Interpreter.State(ast, scope);
-  scopedState.scope = scope;
-  if (immediate) {
-    // Queue as next item to execute
-    this.stateStack.push(scopedState);
-  } else {
-    // Queue as last item to execute
-    this.stateStack.splice(1, 0, scopedState);
-  }
-};
-
-
-/**
  * Initialize the global object with buitin properties and functions.
  * @param {!Interpreter.Object} globalObject Global object.
  */
@@ -4112,5 +4063,3 @@ Interpreter.prototype['setProperty'] = Interpreter.prototype.setProperty;
 Interpreter.prototype['nativeToPseudo'] = Interpreter.prototype.nativeToPseudo;
 Interpreter.prototype['pseudoToNative'] = Interpreter.prototype.pseudoToNative;
 Interpreter.prototype['callFunction'] = Interpreter.prototype.callFunction;
-Interpreter.prototype['parseCode'] = Interpreter.prototype.parseCode;
-Interpreter.prototype['appendScopedCode'] = Interpreter.prototype.appendScopedCode;
