@@ -4133,3 +4133,6 @@ Interpreter.prototype['getProperty'] = Interpreter.prototype.getProperty;
 Interpreter.prototype['setProperty'] = Interpreter.prototype.setProperty;
 Interpreter.prototype['nativeToPseudo'] = Interpreter.prototype.nativeToPseudo;
 Interpreter.prototype['pseudoToNative'] = Interpreter.prototype.pseudoToNative;
+Interpreter.prototype['callFunction'] = Interpreter.prototype.callFunction;
+Interpreter.prototype['parseCode'] = Interpreter.prototype.parseCode;
+Interpreter.prototype['appendScopedCode'] = Interpreter.prototype.appendScopedCode;
