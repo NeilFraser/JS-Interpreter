@@ -366,10 +366,13 @@ Interpreter.prototype.callFunction = function (
   immediate,
   var_args
 ) {
-  const args = Array.prototype.slice.call(arguments, 3, arguments.length);
-  const callbackObject = this.getProperty(this.globalObject, this.CALLBACK_KEY);
+  if (this.paused_) {
+    throw new Error('Unable to call function while in paused state')
+  }
+  var args = Array.prototype.slice.call(arguments, 3, arguments.length);
+  var callbackObject = this.getProperty(this.globalObject, this.CALLBACK_KEY);
   // const argsArray = this.getProperty(callbackObject, 'args');
-  const argsArray = this.createArray();
+  var argsArray = this.createArray();
   for (let i = 0, l = args.length; i < l; i++) {
     argsArray.properties[i] = args[i];
   }
@@ -377,26 +380,19 @@ Interpreter.prototype.callFunction = function (
   this.setProperty(callbackObject, "fn", fn);
   this.setProperty(callbackObject, "thisFn", thisFn);
   this.setProperty(callbackObject, "args", argsArray);
-  const currentIndex = this.stateStack.length;
+  var currentIndex = this.stateStack.length;
   this.appendScopedCode(this.CALLBACK_AST, this.getScope(), immediate);
   if (!immediate) return;
-  const origValue = this.value;
-  const origPaused = this.paused_;
+  var origValue = this.value;
   this.value = undefined;
-  let lastValue = undefined;
-  this.paused_ = false;
   while (
     !this.paused_ &&
     this.stateStack.length > currentIndex &&
     this.step()
-  ) {
-    if (this.value !== undefined) {
-      lastValue = this.value;
-    }
-  }
+  ) {}
+  var result = this.value;
   this.value = origValue;
-  this.paused_ = origPaused;
-  return lastValue;
+  return result;
 };
 
 /**
@@ -424,7 +420,7 @@ Interpreter.prototype.appendScopedCode = function (code, scope, immediate) {
   if (typeof code === "string") {
     code = acorn.parse(code, Interpreter.PARSE_OPTIONS);
   }
-  const type = code && code.type;
+  var type = code && code.type;
   if (!type) {
     throw Error("Expecting AST");
   }
@@ -436,7 +432,7 @@ Interpreter.prototype.appendScopedCode = function (code, scope, immediate) {
   }
   this.populateScope_(ast, scope);
   if (type === "Program") ast.type = "BlockStatement"; // Convert program to block statement
-  const scopedState = new Interpreter.State(ast, scope);
+  var scopedState = new Interpreter.State(ast, scope);
   scopedState.scope = scope;
   console.log("scopedState", scopedState, this.stateStack);
   if (immediate) {
@@ -548,7 +544,7 @@ Interpreter.prototype.initGlobal = function(globalObject) {
  * @param {!Interpreter.Object} globalObject Global object.
  */
 Interpreter.prototype.initCallbackManager = function (globalObject) {
-  const key = "_JSICallback";
+  var key = "_JSICallback";
   this.CALLBACK_KEY = key;
   this.CALLBACK_AST = this.parseCode(key + ".run();");
   // Interpreted object for handling callbacks
@@ -4141,4 +4137,5 @@ Interpreter.prototype['createNativeFunction'] =
 Interpreter.prototype['getProperty'] = Interpreter.prototype.getProperty;
 Interpreter.prototype['setProperty'] = Interpreter.prototype.setProperty;
 Interpreter.prototype['nativeToPseudo'] = Interpreter.prototype.nativeToPseudo;
-Interpreter.prototype['pseudoToNative'] = Interpreter.prototype.pseudoToNative;
+Interpreter.prototype['pseudoToNative'] = Interpreter.prototype.pseudoToNative;dCode;
+Interpreter.prototype['callFunction'] = Interpreter.prototype.callFunction;
