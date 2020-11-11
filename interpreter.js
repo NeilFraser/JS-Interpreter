@@ -364,29 +364,7 @@ Interpreter.prototype.callFunction = function (fn, thisFn, immediate, var_args) 
   if (this.paused_ && immediate) {
     throw new Error("Unable to call pseudo function immediately when paused.");
   }
-  var args = Array.prototype.slice.call(arguments, 3, arguments.length);
-  var callbackObject = this.getProperty(this.globalObject, this.CALLBACK_KEY);
-  var argsArray = this.createArray();
-  for (var i = 0, l = args.length; i < l; i++) {
-    argsArray.properties[i] = args[i];
-  }
-  argsArray.properties.length = args.length;
-  this.setProperty(callbackObject, "fn", fn);
-  this.setProperty(callbackObject, "thisFn", thisFn);
-  this.setProperty(callbackObject, "args", argsArray);
-  var currentIndex = this.stateStack.length;
-  this.appendScopedCode(this.CALLBACK_AST, this.getScope(), immediate);
-  if (!immediate) return;
-  var origValue = this.value;
-  this.value = undefined;
-  while (
-    !this.paused_ &&
-    this.stateStack.length > currentIndex &&
-    this.step()
-  ) {}
-  var result = this.value;
-  this.value = origValue;
-  return result;
+  return this.addCallback.apply(this, arguments);
 };
 
 /**
@@ -537,24 +515,65 @@ Interpreter.prototype.initGlobal = function(globalObject) {
  * @param {!Interpreter.Object} globalObject Global object.
  */
 Interpreter.prototype.initCallbackManager = function (globalObject) {
-  var key = "_JSICallback";
-  this.CALLBACK_KEY = key;
-  this.CALLBACK_AST = this.parseCode(key + ".run();");
+  var thisInterpreter = this;
+  this.CALLBACK_QUEUE = [];
+  var name = "_JSICallback";
+  var callbackAst = this.parseCode(name + ".run();");
+  this.addCallback = function (fn, thisFn, immediate, var_args) {
+    var args = Array.prototype.slice.call(arguments, 3, arguments.length);
+    var callback = this.createObjectProto(this.OBJECT_PROTO);
+    var argsArray = this.createArray();
+    for (var i = 0, l = args.length; i < l; i++) {
+      var arg = args[i];
+      if (arg instanceof Interpreter.Object) {
+        argsArray.properties[i] = arg;
+      } else {
+        argsArray.properties[i] = this.nativeToPseudo(arg);
+      }
+    }
+    argsArray.properties.length = args.length;
+    this.setProperty(callback, "fn", fn);
+    this.setProperty(callback, "thisFn", thisFn);
+    this.setProperty(callback, "args", argsArray);
+    if (immediate) {
+      this.CALLBACK_QUEUE.push(callback);
+      // We want to run function immediately and get its result
+      var currentIndex = this.stateStack.length;
+      this.appendScopedCode(callbackAst, this.getScope(), true);
+      var origValue = this.value;
+      this.value = undefined;
+      while (
+        !this.paused_ &&
+        this.stateStack.length > currentIndex &&
+        this.step()
+      ) {}
+      var result = this.value;
+      this.value = origValue;
+      return result;
+    } else {
+      // Queue for later, first in, last out
+      this.CALLBACK_QUEUE.unshift(callback);
+      this.appendScopedCode(callbackAst, this.getScope(), true);
+    }
+  }
+  var callbackManager = this.createObjectProto(this.OBJECT_PROTO);
+  this.setProperty(globalObject, name, callbackManager);
+
+  this.setProperty(callbackManager, "next",
+    this.createNativeFunction(function() {
+      return thisInterpreter.CALLBACK_QUEUE.pop();
+    }, false),
+    Interpreter.NONENUMERABLE_DESCRIPTOR);
+
   // Interpreted object for handling callbacks
   this.polyfills_.push(
-    key + " = {",
-    "  fn: null,",
-    "  args: null,",
-    "  thisFn: null,",
-    "  run: function() {",
-    "    var obj = " + key +";",
-    "    var result = obj.fn.apply(obj.thisFn, obj.args);",
-    "    obj.fn = null;",
-    "    obj.args = null;",
-    "    obj.thisFn = null;",
-    "    return result;",
+    name + ".run = function() {",
+    "  var callback = " + name +".next();",
+    "  if (callback) {", 
+    "    return callback.fn.apply(callback.thisFn, callback.args);",
     "  }",
-    "}"
+    "  console.warn('No callbacks found.');",
+    "};"
   );
 };
 
