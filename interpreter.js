@@ -366,7 +366,6 @@ Interpreter.prototype.callFunction = function (fn, thisFn, immediate, var_args) 
   }
   var args = Array.prototype.slice.call(arguments, 3, arguments.length);
   var callbackObject = this.getProperty(this.globalObject, this.CALLBACK_KEY);
-  // const argsArray = this.getProperty(callbackObject, 'args');
   var argsArray = this.createArray();
   for (var i = 0, l = args.length; i < l; i++) {
     argsArray.properties[i] = args[i];
