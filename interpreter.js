@@ -355,16 +355,44 @@ Interpreter.prototype.run = function() {
 
 /**
  * Call an interpreted function, returning result value if run immediately
- * @param {Interpreter.Object} fn Interpreted function
- * @param {Interpreter.Object} thisFn Interpreted Object to use a "this"
+ * @param {Interpreter.Object} func Interpreted function
+ * @param {Interpreter.Object} funcThis Interpreted Object to use a "this"
  * @param {Boolean} [immediate=false] Execute immediately, returning result, or queue for later
  * @param {Interpreter.Object} var_args Interpreted Objects to pass as arguments
  */
-Interpreter.prototype.callFunction = function (fn, thisFn, immediate, var_args) {
+Interpreter.prototype.callFunction = function (func, funcThis, immediate, var_args) {
   if (this.paused_ && immediate) {
     throw new Error("Unable to call pseudo function immediately when paused.");
   }
-  return this.addCallback.apply(this, arguments);
+  var args = [];
+  for (var i = 3, l = arguments.length; i < l; i++) {
+    var arg = arguments[i];
+    if (arg instanceof Interpreter.Object) {
+      args.push(arg);
+    } else {
+      args.push(this.nativeToPseudo(arg));
+    }
+  }
+  var node = new this.nodeConstructor({options:{}});
+  node['type'] = 'CallExpression';
+  var state = new Interpreter.State(node,
+      this.stateStack[this.stateStack.length - 1].scope);
+  state.doneCallee_ = true;
+  state.funcThis_ = funcThis;
+  state.func_ = func;
+  state.doneArgs_ = true;
+  state.arguments_ = args;
+
+  var currentIndex = this.stateStack.length;
+  this.stateStack.push(state);
+  if (immediate) {
+    while (
+      !this.paused_ &&
+      this.stateStack.length > currentIndex &&
+      this.step() 
+    ) {}
+    return state.value;
+  }
 };
 
 /**
@@ -456,7 +484,6 @@ Interpreter.prototype.initGlobal = function(globalObject) {
   this.initError(globalObject);
   this.initMath(globalObject);
   this.initJSON(globalObject);
-  this.initCallbackManager(globalObject);
 
   // Initialize global functions.
   var thisInterpreter = this;
@@ -508,73 +535,6 @@ Interpreter.prototype.initGlobal = function(globalObject) {
   if (this.initFunc_) {
     this.initFunc_(this, globalObject);
   }
-};
-
-/**
- * Initialize callback manager
- * @param {!Interpreter.Object} globalObject Global object.
- */
-Interpreter.prototype.initCallbackManager = function (globalObject) {
-  var thisInterpreter = this;
-  this.CALLBACK_QUEUE = [];
-  var name = "_JSICallback";
-  var callbackAst = this.parseCode(name + ".run();");
-  this.addCallback = function (fn, thisFn, immediate, var_args) {
-    var args = Array.prototype.slice.call(arguments, 3, arguments.length);
-    var callback = this.createObjectProto(this.OBJECT_PROTO);
-    var argsArray = this.createArray();
-    for (var i = 0, l = args.length; i < l; i++) {
-      var arg = args[i];
-      if (arg instanceof Interpreter.Object) {
-        argsArray.properties[i] = arg;
-      } else {
-        argsArray.properties[i] = this.nativeToPseudo(arg);
-      }
-    }
-    argsArray.properties.length = args.length;
-    this.setProperty(callback, "fn", fn);
-    this.setProperty(callback, "thisFn", thisFn);
-    this.setProperty(callback, "args", argsArray);
-    if (immediate) {
-      this.CALLBACK_QUEUE.push(callback);
-      // We want to run function immediately and get its result
-      var currentIndex = this.stateStack.length;
-      this.appendScopedCode(callbackAst, this.getScope(), true);
-      var origValue = this.value;
-      this.value = undefined;
-      while (
-        !this.paused_ &&
-        this.stateStack.length > currentIndex &&
-        this.step()
-      ) {}
-      var result = this.value;
-      this.value = origValue;
-      return result;
-    } else {
-      // Queue for later, first in, last out
-      this.CALLBACK_QUEUE.unshift(callback);
-      this.appendCode(callbackAst);
-    }
-  }
-  var callbackManager = this.createObjectProto(this.OBJECT_PROTO);
-  this.setProperty(globalObject, name, callbackManager);
-
-  this.setProperty(callbackManager, "next",
-    this.createNativeFunction(function() {
-      return thisInterpreter.CALLBACK_QUEUE.pop();
-    }, false),
-    Interpreter.NONENUMERABLE_DESCRIPTOR);
-
-  // Interpreted object for handling callbacks
-  this.polyfills_.push(
-    name + ".run = function() {",
-    "  var callback = " + name +".next();",
-    "  if (callback) {", 
-    "    return callback.fn.apply(callback.thisFn, callback.args);",
-    "  }",
-    "  console.warn('No callbacks found.');",
-    "};"
-  );
 };
 
 /**
