@@ -364,6 +364,14 @@ Interpreter.prototype.runUntil = function(index) {
 };
 
 /**
+ * Return current pause state
+ * @return {boolean} True if a execution is asynchronously blocked.
+ */
+Interpreter.prototype.isPaused = function(index) {
+  return this.paused_;
+};
+
+/**
  * Returns current state stack size
  * @return {number} current state stack size
  */
@@ -4127,3 +4135,4 @@ Interpreter.prototype['callFunction'] = Interpreter.prototype.callFunction;
 Interpreter.prototype['callAsyncFunction'] = Interpreter.prototype.callAsyncFunction;
 Interpreter.prototype['getStateStackSize'] = Interpreter.prototype.getStateStackSize;
 Interpreter.prototype['runUntil'] = Interpreter.prototype.runUntil;
+Interpreter.prototype['isPaused'] = Interpreter.prototype.isPaused;
