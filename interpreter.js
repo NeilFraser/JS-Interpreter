@@ -354,10 +354,21 @@ Interpreter.prototype.run = function() {
 };
 
 /**
+ * Check if interpreter is paused
+ * @param {Interpreter.Object} func Interpreted function
+ * @param {Interpreter.Object} funcThis Interpreted Object to use a "this"
+ * @param {Boolean} var_args Interpreted Objects to pass as arguments
+ */
+Interpreter.prototype.isPaused = function () {
+  return this.paused_;
+}
+
+/**
  * Call a pseudo function, returning result value
  * @param {Interpreter.Object} func Interpreted function
  * @param {Interpreter.Object} funcThis Interpreted Object to use a "this"
  * @param {Interpreter.Object} var_args Interpreted Objects to pass as arguments
+ * @return {Interpreter.Object} Value pseudo function returned
  */
 Interpreter.prototype.callFunction = function (func, funcThis, var_args) {
   if (this.paused_) {
@@ -379,15 +390,20 @@ Interpreter.prototype.callFunction = function (func, funcThis, var_args) {
  * @param {Interpreter.Object} func Interpreted function
  * @param {Interpreter.Object} funcThis Interpreted Object to use a "this"
  * @param {Interpreter.Object} var_args Interpreted Objects to pass as arguments
+ * @return {Interpreter.State} State object for running pseudo function
  */
 Interpreter.prototype.callAsyncFunction = function (callback, func, funcThis, var_args) {
   var args = Array.prototype.slice.call(arguments, 1)
   var currentIndex = this.stateStack.length;
   // Append callback to be called after func
-  this.appendFunction.call(this, 
-    this.nativeToPseudo(callback), funcThis);
+  if(!(callback instanceof Interpreter.Object)) {
+    callback = this.createNativeFunction(callback)
+  }
+  var cbState = this.appendFunction.call(this, callback, funcThis);
   // Append func
   var state = this.appendFunction.apply(this, args);
+  // Pass value getter to callback
+  cbState.arguments_ = [function(){return state.value}];
   while (
     !this.paused_ &&
     this.stateStack.length > currentIndex &&
@@ -401,17 +417,13 @@ Interpreter.prototype.callAsyncFunction = function (callback, func, funcThis, va
  * @param {Interpreter.Object} func Interpreted function
  * @param {Interpreter.Object} funcThis Interpreted Object to use a "this"
  * @param {Interpreter.Object} var_args Interpreted Objects to pass as arguments
+ * @return {Interpreter.State} State object for running pseudo function
  */
 Interpreter.prototype.appendFunction = function (func, funcThis, var_args) {
-  var args = [];
-  for (var i = 2, l = arguments.length; i < l; i++) {
-    var arg = arguments[i];
-    if (arg instanceof Interpreter.Object) {
-      args.push(arg);
-    } else {
-      args.push(this.nativeToPseudo(arg));
-    }
-  }
+  var thisInterpreter = this
+  var args = Array.prototype.slice.call(arguments, 2).map(function (arg) {
+    return arg instanceof Interpreter.Object ? arg : thisInterpreter.nativeToPseudo(arg)
+  });
   var node = new this.nodeConstructor({options:{}});
   node['type'] = 'CallExpression';
   var state = new Interpreter.State(node,
@@ -4096,3 +4108,4 @@ Interpreter.prototype['pseudoToNative'] = Interpreter.prototype.pseudoToNative;
 Interpreter.prototype['appendFunction'] = Interpreter.prototype.appendFunction;
 Interpreter.prototype['callFunction'] = Interpreter.prototype.callFunction;
 Interpreter.prototype['callAsyncFunction'] = Interpreter.prototype.callAsyncFunction;
+Interpreter.prototype['isPaused'] = Interpreter.prototype.isPaused;
