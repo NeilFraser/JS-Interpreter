@@ -354,13 +354,21 @@ Interpreter.prototype.run = function() {
 };
 
 /**
- * Check if interpreter is paused
- * @param {Interpreter.Object} func Interpreted function
- * @param {Interpreter.Object} funcThis Interpreted Object to use a "this"
- * @param {Boolean} var_args Interpreted Objects to pass as arguments
+ * Execute the interpreter until it is size of index
+ * @return {boolean} True if a execution is asynchronously blocked,
+ *     false if no more instructions.
  */
-Interpreter.prototype.isPaused = function () {
+Interpreter.prototype.runUntil = function(index) {
+  while (!this.paused_ && this.stateStack.length > index && this.step()) {}
   return this.paused_;
+};
+
+/**
+ * Returns current state stack size
+ * @return {number} current state stack size
+ */
+Interpreter.prototype.getStateStackSize = function () {
+  return this.stateStack.length;
 }
 
 /**
@@ -371,16 +379,12 @@ Interpreter.prototype.isPaused = function () {
  * @return {Interpreter.Object} Value pseudo function returned
  */
 Interpreter.prototype.callFunction = function (func, funcThis, var_args) {
-  if (this.paused_) {
-    throw new Error("Unable to call pseudo function when paused.");
-  }
   var currentIndex = this.stateStack.length;
   var state = this.appendFunction.apply(this, arguments);
-  while (
-    !this.paused_ &&
-    this.stateStack.length > currentIndex &&
-    this.step() 
-  ) {}
+  this.strictAsync_ = true; // Don't allow async funcs waiting for callback to step
+  this.paused_ = false; // Allow stepper to run even in async
+  // Only step states that we just added
+  this.runUntil(currentIndex);
   return state.value;
 };
 
@@ -414,11 +418,7 @@ Interpreter.prototype.callAsyncFunction = function (callback, func, funcThis, va
   this.strictAsync_ = true; // Don't allow async funcs waiting for callback to step
   this.paused_ = false; // Allow stepper to run
   // Only step states that we just added
-  while (
-    !this.paused_ &&
-    this.stateStack.length > currentIndex &&
-    this.step() 
-  ) {}
+  this.runUntil(currentIndex);
   return state;
 };
 
@@ -3409,7 +3409,7 @@ Interpreter.prototype['stepCallExpression'] = function(stack, state, node) {
       this.throwException(this.TYPE_ERROR, func.class + ' is not callable');
     }
   } else {
-    if (this.strictAsync_ && state.asyncWait_) {
+    if (state.asyncWait_ && this.strictAsync_) {
       // Waiting for async call to complete.  Someone un-paused us too early.
       this.paused_ = true;
       return;
@@ -4125,4 +4125,5 @@ Interpreter.prototype['pseudoToNative'] = Interpreter.prototype.pseudoToNative;
 Interpreter.prototype['appendFunction'] = Interpreter.prototype.appendFunction;
 Interpreter.prototype['callFunction'] = Interpreter.prototype.callFunction;
 Interpreter.prototype['callAsyncFunction'] = Interpreter.prototype.callAsyncFunction;
-Interpreter.prototype['isPaused'] = Interpreter.prototype.isPaused;
+Interpreter.prototype['getStateStackSize'] = Interpreter.prototype.getStateStackSize;
+Interpreter.prototype['runUntil'] = Interpreter.prototype.runUntil;
