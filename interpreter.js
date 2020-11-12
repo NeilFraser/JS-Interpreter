@@ -431,13 +431,13 @@ Interpreter.prototype.callAsyncFunction = function (callback, func, funcThis, va
 };
 
 /**
- * Queue a pseudo function for execution on next step
+ * Generate state objects for running pseudo function
  * @param {Interpreter.Object} func Interpreted function
  * @param {Interpreter.Object} funcThis Interpreted Object to use a "this"
  * @param {Interpreter.Object} var_args Interpreted Objects to pass as arguments
- * @return {Interpreter.State} State object for running pseudo function
+ * @return {[Interpreter.State]} State objects for running pseudo function
  */
-Interpreter.prototype.appendFunction = function (func, funcThis, var_args) {
+Interpreter.prototype.buildFunctionCaller = function (func, funcThis, var_args) {
   var thisInterpreter = this
   var args = Array.prototype.slice.call(arguments, 2).map(function (arg) {
     return arg instanceof Interpreter.Object ? arg : thisInterpreter.nativeToPseudo(arg)
@@ -458,11 +458,35 @@ Interpreter.prototype.appendFunction = function (func, funcThis, var_args) {
   expNode['type'] = 'EmptyStatement';
   var expState = new Interpreter.State(expNode,
     scope);
-  // Add EmptyStatement to stop overwriting previous state value
-  this.stateStack.push(expState);
-  // Add function call
-  this.stateStack.push(state);
-  return state;
+  return [expState, state];
+};
+
+/**
+ * Queue a pseudo function for execution on next step
+ * @param {Interpreter.Object} func Interpreted function
+ * @param {Interpreter.Object} funcThis Interpreted Object to use a "this"
+ * @param {Interpreter.Object} var_args Interpreted Objects to pass as arguments
+ * @return {Interpreter.State} State object for running pseudo function
+ */
+Interpreter.prototype.appendFunction = function (func, funcThis, var_args) {
+  var states = this.buildFunctionCaller.apply(this, arguments);
+  // Add function call states to end of stack so they are executed next
+  Array.prototype.push.apply(this.stateStack, states);
+  return states[1];
+};
+
+/**
+ * Queue a pseudo function for execution after all current instructions complete
+ * @param {Interpreter.Object} func Interpreted function
+ * @param {Interpreter.Object} funcThis Interpreted Object to use a "this"
+ * @param {Interpreter.Object} var_args Interpreted Objects to pass as arguments
+ * @return {Interpreter.State} State object for running pseudo function
+ */
+Interpreter.prototype.queueFunction = function (func, funcThis, var_args) {
+  var states = this.buildFunctionCaller.apply(this, arguments);
+  // Add function call states right after root "Program" state, so they are executed last
+  this.stateStack.splice(1, 0, states[1], states[0]);
+  return states[1];
 };
 
 /**
@@ -4145,3 +4169,4 @@ Interpreter.prototype['callAsyncFunction'] = Interpreter.prototype.callAsyncFunc
 Interpreter.prototype['getStateStackSize'] = Interpreter.prototype.getStateStackSize;
 Interpreter.prototype['runUntil'] = Interpreter.prototype.runUntil;
 Interpreter.prototype['isPaused'] = Interpreter.prototype.isPaused;
+Interpreter.prototype['queueFunction'] = Interpreter.prototype.queueFunction;
