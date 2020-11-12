@@ -455,11 +455,10 @@ Interpreter.prototype.appendFunction = function (func, funcThis, var_args) {
   state.arguments_ = args;
   // Create node and state for function's return value
   var expNode = new this.nodeConstructor({options:{}});
-  expNode['type'] = 'ExpressionStatement';
+  expNode['type'] = 'EmptyStatement';
   var expState = new Interpreter.State(expNode,
     scope);
-  expState.done_ = true;
-  // Add return value holder to stop overwriting previous state value
+  // Add EmptyStatement to stop overwriting previous state value
   this.stateStack.push(expState);
   // Add function call
   this.stateStack.push(state);
