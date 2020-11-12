@@ -396,14 +396,21 @@ Interpreter.prototype.callAsyncFunction = function (callback, func, funcThis, va
   var args = Array.prototype.slice.call(arguments, 1)
   var currentIndex = this.stateStack.length;
   // Append callback to be called after func
-  if(!(callback instanceof Interpreter.Object)) {
+  var pseudoCallback = callback instanceof Interpreter.Object;
+  if(!pseudoCallback) {
     callback = this.createNativeFunction(callback)
   }
   var cbState = this.appendFunction.call(this, callback, funcThis);
   // Append func
   var state = this.appendFunction.apply(this, args);
   // Pass value getter to callback
-  cbState.arguments_ = [function(){return state.value}];
+  var valueGetter = function(){return state.value};
+  if (pseudoCallback) {
+    // If we were passed a pseudo callback
+    // return a pseudo getter
+    valueGetter = this.createNativeFunction(valueGetter);
+  }
+  cbState.arguments_ = [valueGetter];
   while (
     !this.paused_ &&
     this.stateStack.length > currentIndex &&
