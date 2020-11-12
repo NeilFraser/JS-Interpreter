@@ -442,16 +442,26 @@ Interpreter.prototype.appendFunction = function (func, funcThis, var_args) {
   var args = Array.prototype.slice.call(arguments, 2).map(function (arg) {
     return arg instanceof Interpreter.Object ? arg : thisInterpreter.nativeToPseudo(arg)
   });
+  var scope = this.stateStack[this.stateStack.length - 1].scope; // This may be wrong
+  // Create node and state for function call
   var node = new this.nodeConstructor({options:{}});
   node['type'] = 'CallExpression';
   var state = new Interpreter.State(node,
-      this.stateStack[this.stateStack.length - 1].scope);
+    scope);
   state.doneCallee_ = true;
   state.funcThis_ = funcThis;
   state.func_ = func;
   state.doneArgs_ = true;
   state.arguments_ = args;
-
+  // Create node and state for function's return value
+  var expNode = new this.nodeConstructor({options:{}});
+  expNode['type'] = 'ExpressionStatement';
+  var expState = new Interpreter.State(expNode,
+    scope);
+  expState.done_ = true;
+  // Add return value holder to stop overwriting previous state value
+  this.stateStack.push(expState);
+  // Add function call
   this.stateStack.push(state);
   return state;
 };
