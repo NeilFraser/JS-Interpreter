@@ -354,18 +354,57 @@ Interpreter.prototype.run = function() {
 };
 
 /**
- * Call an interpreted function, returning result value if run immediately
+ * Call a pseudo function, returning result value
  * @param {Interpreter.Object} func Interpreted function
  * @param {Interpreter.Object} funcThis Interpreted Object to use a "this"
- * @param {Boolean} [immediate=false] Execute immediately, returning result, or queue for later
  * @param {Interpreter.Object} var_args Interpreted Objects to pass as arguments
  */
-Interpreter.prototype.callFunction = function (func, funcThis, immediate, var_args) {
-  if (this.paused_ && immediate) {
-    throw new Error("Unable to call pseudo function immediately when paused.");
+Interpreter.prototype.callFunction = function (func, funcThis, var_args) {
+  if (this.paused_) {
+    throw new Error("Unable to call pseudo function when paused.");
   }
+  var currentIndex = this.stateStack.length;
+  var state = this.appendFunction.apply(this, arguments);
+  while (
+    !this.paused_ &&
+    this.stateStack.length > currentIndex &&
+    this.step() 
+  ) {}
+  return state.value;
+};
+
+/**
+ * Call a pseudo function, returning result value
+ * @param {Function} callback Function to call after async call has completed 
+ * @param {Interpreter.Object} func Interpreted function
+ * @param {Interpreter.Object} funcThis Interpreted Object to use a "this"
+ * @param {Interpreter.Object} var_args Interpreted Objects to pass as arguments
+ */
+Interpreter.prototype.callAsyncFunction = function (callback, func, funcThis, var_args) {
+  var args = Array.prototype.slice.call(arguments, 1)
+  var currentIndex = this.stateStack.length;
+  // Append callback to be called after func
+  this.appendFunction.call(this, 
+    this.nativeToPseudo(callback), funcThis);
+  // Append func
+  var state = this.appendFunction.apply(this, args);
+  while (
+    !this.paused_ &&
+    this.stateStack.length > currentIndex &&
+    this.step() 
+  ) {}
+  return state;
+};
+
+/**
+ * Queue a pseudo function for execution on next step
+ * @param {Interpreter.Object} func Interpreted function
+ * @param {Interpreter.Object} funcThis Interpreted Object to use a "this"
+ * @param {Interpreter.Object} var_args Interpreted Objects to pass as arguments
+ */
+Interpreter.prototype.appendFunction = function (func, funcThis, var_args) {
   var args = [];
-  for (var i = 3, l = arguments.length; i < l; i++) {
+  for (var i = 2, l = arguments.length; i < l; i++) {
     var arg = arguments[i];
     if (arg instanceof Interpreter.Object) {
       args.push(arg);
@@ -383,16 +422,8 @@ Interpreter.prototype.callFunction = function (func, funcThis, immediate, var_ar
   state.doneArgs_ = true;
   state.arguments_ = args;
 
-  var currentIndex = this.stateStack.length;
   this.stateStack.push(state);
-  if (immediate) {
-    while (
-      !this.paused_ &&
-      this.stateStack.length > currentIndex &&
-      this.step() 
-    ) {}
-    return state.value;
-  }
+  return state;
 };
 
 /**
@@ -4062,4 +4093,6 @@ Interpreter.prototype['getProperty'] = Interpreter.prototype.getProperty;
 Interpreter.prototype['setProperty'] = Interpreter.prototype.setProperty;
 Interpreter.prototype['nativeToPseudo'] = Interpreter.prototype.nativeToPseudo;
 Interpreter.prototype['pseudoToNative'] = Interpreter.prototype.pseudoToNative;
+Interpreter.prototype['appendFunction'] = Interpreter.prototype.appendFunction;
 Interpreter.prototype['callFunction'] = Interpreter.prototype.callFunction;
+Interpreter.prototype['callAsyncFunction'] = Interpreter.prototype.callAsyncFunction;
