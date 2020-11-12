@@ -411,6 +411,9 @@ Interpreter.prototype.callAsyncFunction = function (callback, func, funcThis, va
     valueGetter = this.createNativeFunction(valueGetter);
   }
   cbState.arguments_ = [valueGetter];
+  this.strictAsync_ = true; // Don't allow async funcs waiting for callback to step
+  this.paused_ = false; // Allow stepper to run
+  // Only step states that we just added
   while (
     !this.paused_ &&
     this.stateStack.length > currentIndex &&
@@ -3383,6 +3386,7 @@ Interpreter.prototype['stepCallExpression'] = function(stack, state, node) {
     } else if (func.asyncFunc) {
       var thisInterpreter = this;
       var callback = function(value) {
+        state.asyncWait_ = false;
         state.value = value;
         thisInterpreter.paused_ = false;
       };
@@ -3392,6 +3396,7 @@ Interpreter.prototype['stepCallExpression'] = function(stack, state, node) {
           new Array(argLength)).slice(0, argLength);
       argsWithCallback.push(callback);
       this.paused_ = true;
+      state.asyncWait_ = true;
       func.asyncFunc.apply(state.funcThis_, argsWithCallback);
       return;
     } else {
@@ -3404,6 +3409,11 @@ Interpreter.prototype['stepCallExpression'] = function(stack, state, node) {
       this.throwException(this.TYPE_ERROR, func.class + ' is not callable');
     }
   } else {
+    if (this.strictAsync_ && state.asyncWait_) {
+      // Waiting for async call to complete.  Someone un-paused us too early.
+      this.paused_ = true;
+      return;
+    }
     // Execution complete.  Put the return value on the stack.
     stack.pop();
     if (state.isConstructor && typeof state.value !== 'object') {
