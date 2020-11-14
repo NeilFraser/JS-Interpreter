@@ -448,11 +448,7 @@ Interpreter.prototype.buildFunctionCaller = function (func, funcThis, var_args) 
   ceNode.funcThis_ = funcThis;
   ceNode.func_ = func;
   ceNode.arguments_ = args;
-  // Create node and state for function's return value
-  var expNode = new this.nodeConstructor({options:{}});
-  expNode['type'] = 'EmptyStatement';
-  expNode.expression = ceNode;
-  return expNode;
+  return ceNode;
 };
 
 /**
@@ -3563,7 +3559,7 @@ Interpreter.prototype['stepCallExpressionFunc_'] = function(stack, state, node) 
   }
   stack.pop();
   // Save this value to the previous state, just like CallExpression would have done
-  stack[stack.length - 1].value = state.value;
+  // stack[stack.length - 1].value = state.value;
 };
 
 Interpreter.prototype['stepExpressionStatement'] = function(stack, state, node) {
