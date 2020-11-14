@@ -481,7 +481,6 @@ Interpreter.prototype.appendFunction = function (func, funcThis, var_args) {
  * @param {Interpreter.Object} func Interpreted function
  * @param {Interpreter.Object} funcThis Interpreted Object to use a "this"
  * @param {Interpreter.Object} var_args Interpreted Objects to pass as arguments
- * @return {Interpreter.State} State object for running pseudo function
  */
 Interpreter.prototype.queueFunction = function (func, funcThis, var_args) {
   var expNode = this.buildFunctionCaller.apply(this, arguments);
