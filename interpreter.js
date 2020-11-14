@@ -435,7 +435,7 @@ Interpreter.prototype.callAsyncFunction = function (callback, func, funcThis, va
  * @param {Interpreter.Object} func Interpreted function
  * @param {Interpreter.Object} funcThis Interpreted Object to use a "this"
  * @param {Interpreter.Object} var_args Interpreted Objects to pass as arguments
- * @return {[Interpreter.State]} State objects for running pseudo function
+ * @return {nodeConstructor} node for running pseudo function
  */
 Interpreter.prototype.buildFunctionCaller = function (func, funcThis, var_args) {
   var thisInterpreter = this
@@ -467,7 +467,12 @@ Interpreter.prototype.appendFunction = function (func, funcThis, var_args) {
   // Add function call state to end of stack so they are executed next
   var scope = this.stateStack[this.stateStack.length - 1].scope; // This may be wrong
   var state = new Interpreter.State(expNode, scope);
-  this.stateStack.push(state);
+  state.immediateAppend_ = true
+  // Insert before chain of immediateAppend_ to execute in correct order
+  for (var i = this.stateStack.length - 1; i > 1; i--) {
+    if (!this.stateStack[i].immediateAppend_) break;
+  }
+  this.stateStack.splice(i, 0, state);
   return state;
 };
 
