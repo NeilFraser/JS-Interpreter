@@ -469,7 +469,7 @@ Interpreter.prototype.appendFunction = function (func, funcThis, var_args) {
   var state = new Interpreter.State(expNode, scope);
   state.immediateAppend_ = true
   // Insert before chain of immediateAppend_ to execute in correct order
-  for (var i = this.stateStack.length - 1; i > 1; i--) {
+  for (var i = this.stateStack.length - 1; i > 0; i--) {
     if (!this.stateStack[i].immediateAppend_) break;
   }
   this.stateStack.splice(i, 0, state);
