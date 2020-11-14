@@ -442,23 +442,17 @@ Interpreter.prototype.buildFunctionCaller = function (func, funcThis, var_args) 
   var args = Array.prototype.slice.call(arguments, 2).map(function (arg) {
     return arg instanceof Interpreter.Object ? arg : thisInterpreter.nativeToPseudo(arg)
   });
-  var scope = this.stateStack[this.stateStack.length - 1].scope; // This may be wrong
-  // Create node and state for function call
-  var node = new this.nodeConstructor({options:{}});
-  node['type'] = 'CallExpression';
-  var state = new Interpreter.State(node,
-    scope);
-  state.doneCallee_ = true;
-  state.funcThis_ = funcThis;
-  state.func_ = func;
-  state.doneArgs_ = true;
-  state.arguments_ = args;
+  // Create node for CallExpression with pre-embedded function and arguments
+  var ceNode = new this.nodeConstructor({options:{}});
+  ceNode['type'] = 'CallExpressionFunc_';
+  ceNode.funcThis_ = funcThis;
+  ceNode.func_ = func;
+  ceNode.arguments_ = args;
   // Create node and state for function's return value
   var expNode = new this.nodeConstructor({options:{}});
-  expNode['type'] = 'EmptyStatement';
-  var expState = new Interpreter.State(expNode,
-    scope);
-  return [expState, state];
+  expNode['type'] = 'ExpressionStatement';
+  expNode.expression = ceNode;
+  return expNode;
 };
 
 /**
@@ -469,10 +463,12 @@ Interpreter.prototype.buildFunctionCaller = function (func, funcThis, var_args) 
  * @return {Interpreter.State} State object for running pseudo function
  */
 Interpreter.prototype.appendFunction = function (func, funcThis, var_args) {
-  var states = this.buildFunctionCaller.apply(this, arguments);
-  // Add function call states to end of stack so they are executed next
-  Array.prototype.push.apply(this.stateStack, states);
-  return states[1];
+  var expNode = this.buildFunctionCaller.apply(this, arguments);
+  // Add function call state to end of stack so they are executed next
+  var scope = this.stateStack[this.stateStack.length - 1].scope; // This may be wrong
+  var state = new Interpreter.State(expNode, scope);
+  this.stateStack.push(state);
+  return state;
 };
 
 /**
@@ -483,10 +479,9 @@ Interpreter.prototype.appendFunction = function (func, funcThis, var_args) {
  * @return {Interpreter.State} State object for running pseudo function
  */
 Interpreter.prototype.queueFunction = function (func, funcThis, var_args) {
-  var states = this.buildFunctionCaller.apply(this, arguments);
-  // Add function call states right after root "Program" state, so they are executed last
-  this.stateStack.splice(1, 0, states[1], states[0]);
-  return states[1];
+  var expNode = this.buildFunctionCaller.apply(this, arguments);
+  // Add function call to root Program state
+  this.stateStack[0].node['body'].push(expNode);
 };
 
 /**
@@ -3550,6 +3545,24 @@ Interpreter.prototype['stepEvalProgram_'] = function(stack, state, node) {
   }
   stack.pop();
   stack[stack.length - 1].value = this.value;
+};
+
+Interpreter.prototype['stepCallExpressionFunc_'] = function(stack, state, node) {
+  if (!state.done_) {
+    state.done_ = true;
+    var ceNode = new this.nodeConstructor({options:{}});
+    ceNode['type'] = 'CallExpression';
+    var ceSate = new Interpreter.State(ceNode, state.scope);
+    ceSate.doneCallee_ = true;
+    ceSate.funcThis_ = node.funcThis_;
+    ceSate.func_ = node.func_;
+    ceSate.doneArgs_ = true;
+    ceSate.arguments_ = node.arguments_;
+    return ceSate;
+  }
+  stack.pop();
+  // Save this value to the previous state, just like CallExpression would have done
+  stack[stack.length - 1].value = state.value;
 };
 
 Interpreter.prototype['stepExpressionStatement'] = function(stack, state, node) {
