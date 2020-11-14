@@ -450,7 +450,7 @@ Interpreter.prototype.buildFunctionCaller = function (func, funcThis, var_args) 
   ceNode.arguments_ = args;
   // Create node and state for function's return value
   var expNode = new this.nodeConstructor({options:{}});
-  expNode['type'] = 'ExpressionStatement';
+  expNode['type'] = 'EmptyStatement';
   expNode.expression = ceNode;
   return expNode;
 };
@@ -478,9 +478,11 @@ Interpreter.prototype.appendFunction = function (func, funcThis, var_args) {
  * @param {Interpreter.Object} var_args Interpreted Objects to pass as arguments
  */
 Interpreter.prototype.queueFunction = function (func, funcThis, var_args) {
+  var state = this.stateStack[0];
   var expNode = this.buildFunctionCaller.apply(this, arguments);
   // Add function call to root Program state
-  this.stateStack[0].node['body'].push(expNode);
+  state.node['body'].push(expNode);
+  state.done = false;
 };
 
 /**
