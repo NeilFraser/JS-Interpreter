@@ -2786,6 +2786,38 @@ Interpreter.prototype.throwException = function(errorClass, opt_message) {
 };
 
 /**
+ * Return a Throwable object for use in native function return values
+ * @param {!Interpreter.Object|Interpreter.Value} errorClass Type of error
+ *   (if message is provided) or the value to throw (if no message).
+ * @param {string=} opt_message Message being thrown.
+ */
+Interpreter.prototype.createThrowable = function(errorClass, opt_message) {
+  return new Interpreter.Throwable(errorClass, opt_message);
+};
+
+/**
+ * Handle result of native function call
+ * @param {Interpreter.State} state CallExpression state
+ * @param {!Interpreter.Scope} scope CallExpression scope.
+ * @param {Interpreter.Object|String|Number} value Values returned from native function
+ */
+Interpreter.prototype.handleNativeReturn_ = function(state, scope, value) {
+  if (value instanceof Interpreter.Callback) {
+    // We have a request for a pseudo function callback
+    state.callbackState_ = value;
+    value.pushState_(this, scope);
+    state.doneExec_ = false;
+  } else if (value instanceof Interpreter.Throwable) {
+    // Result was an error
+    value.throw_(this);
+  } else {
+    // We have a final value
+    state.value = value;
+  }
+};
+
+
+/**
  * Unwind the stack to the innermost relevant enclosing TryStatement,
  * For/ForIn/WhileStatement or Call/NewExpression.  If this results in
  * the stack being completely unwound the thread will be terminated
@@ -2942,6 +2974,28 @@ Interpreter.Scope = function(parentScope, strict, object) {
   this.strict = strict;
   this.object = object;
 };
+
+/**
+ * Class for allowing async function throws
+ * @param {!Interpreter.Object|Interpreter.Value} errorClass Type of error
+ *   (if message is provided) or the value to throw (if no message).
+ * @param {string=} opt_message Message being thrown.
+ * @constructor
+ */
+Interpreter.Throwable = function(errorClass, opt_message) {
+  this.errorClass = errorClass
+  this.opt_message = opt_message
+};
+
+/**
+ * Class for allowing async function throws
+ * @param {Interpreter} interpreter Interpreter instance
+ * @constructor
+ */
+Interpreter.Throwable.prototype.throw_ = function(interpreter) {
+  interpreter.throwException(this.errorClass, this.opt_message);
+};
+
 
 /**
  * Class for tracking native function states.
@@ -3388,31 +3442,14 @@ Interpreter.prototype['stepCallExpression'] = function(stack, state, node) {
         return new Interpreter.State(evalNode, scope);
       }
     } else if (func.nativeFunc) {
-      var value = state.callbackState_
+      this.handleNativeReturn_(state, scope, state.callbackState_
         ? state.callbackState_.doNext_()
-        : func.nativeFunc.apply(state.funcThis_, state.arguments_);
-      if (value instanceof Interpreter.Callback) {
-        // We have a request for a pseudo function callback
-        state.callbackState_ = value;
-        value.pushState_(this, scope);
-        state.doneExec_ = false;
-      } else {
-        // We have a final value
-        state.value = value;
-      }
+        : func.nativeFunc.apply(state.funcThis_, state.arguments_));
     } else if (func.asyncFunc) {
       var thisInterpreter = this;
       var callback = function(value) {
         thisInterpreter.paused_ = false;
-        if (value instanceof Interpreter.Callback) {
-          // We have a request for a pseudo function callback
-          state.callbackState_ = value;
-          value.pushState_(thisInterpreter, scope);
-          state.doneExec_ = false;
-        } else {
-          // Final value
-          state.value = value;
-        }
+        thisInterpreter.handleNativeReturn_(state, scope, value);
       };
       this.paused_ = true;
       if (state.callbackState_) {
@@ -4164,3 +4201,4 @@ Interpreter.prototype['nativeToPseudo'] = Interpreter.prototype.nativeToPseudo;
 Interpreter.prototype['pseudoToNative'] = Interpreter.prototype.pseudoToNative;
 Interpreter.prototype['callFunction'] = Interpreter.prototype.callFunction;
 Interpreter.prototype['queueFunction'] = Interpreter.prototype.queueFunction;
+Interpreter.prototype['createThrowable'] = Interpreter.prototype.createThrowable;
