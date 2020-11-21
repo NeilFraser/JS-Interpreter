@@ -3388,14 +3388,9 @@ Interpreter.prototype['stepCallExpression'] = function(stack, state, node) {
         return new Interpreter.State(evalNode, scope);
       }
     } else if (func.nativeFunc) {
-      var value;
-      if (state.callbackState_) {
-        // Do next step of nativeFunc
-        value = state.callbackState_.doNext_();
-      } else {
-        // Call the initial nativeFunc
-        value = func.nativeFunc.apply(state.funcThis_, state.arguments_);
-      }
+      var value = state.callbackState_
+        ? state.callbackState_.doNext_()
+        : func.nativeFunc.apply(state.funcThis_, state.arguments_);
       if (value instanceof Interpreter.Callback) {
         // We have a request for a pseudo function callback
         state.callbackState_ = value;
