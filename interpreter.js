@@ -358,11 +358,11 @@ Interpreter.prototype.run = function() {
  * @param {Interpreter.Object} func Interpreted function
  * @param {Interpreter.Object} funcThis Interpreted Object to use a "this"
  * @param {Interpreter.Object} var_args Interpreted Objects to pass as arguments
- * @return {Interpreter.NativeState} State object for running pseudo function
+ * @return {Interpreter.Callback} State object for running pseudo function callback
  */
 Interpreter.prototype.callFunction = function (func, funcThis, var_args) {
   var expNode = this.buildFunctionCaller_.apply(this, arguments);
-  return new Interpreter.NativeState(expNode);
+  return new Interpreter.Callback(expNode);
 };
 
 /**
@@ -2948,7 +2948,7 @@ Interpreter.Scope = function(parentScope, strict, object) {
  * @param {nodeConstructor} callFnState State that's being tracked
  * @constructor
  */
-Interpreter.NativeState = function(callFnNode) {
+Interpreter.Callback = function(callFnNode) {
   this.node_ = callFnNode
   this.handler_ = null
 };
@@ -2956,9 +2956,9 @@ Interpreter.NativeState = function(callFnNode) {
 /**
  * Add handler for return of pseudo function's value
  * @param {Function} handler Function to handle value
- * @return {Interpreter.NativeState} State object for running pseudo function
+ * @return {Interpreter.Callback} State object for running pseudo function
  */
-Interpreter.NativeState.prototype['then'] = function(handler) {
+Interpreter.Callback.prototype['then'] = function(handler) {
   if (typeof handler !== 'function') {
     throw new Error('Expected function for then handler');
   }
@@ -2974,7 +2974,7 @@ Interpreter.NativeState.prototype['then'] = function(handler) {
  * @param {Interpreter} interpreter Interpreter instance
  * @param {Interpreter.Scope} scope Function's scope.
  */
-Interpreter.NativeState.prototype.pushState_ = function(interpreter, scope) {
+Interpreter.Callback.prototype.pushState_ = function(interpreter, scope) {
   var state = new Interpreter.State(this.node_, scope);
   interpreter.stateStack.push(state);
   this.state_ = state;
@@ -2985,7 +2985,7 @@ Interpreter.NativeState.prototype.pushState_ = function(interpreter, scope) {
  * @param {Interpreter.Object} value Object containing pseudo function callback's result.
  * @param {Function} asyncCallback Function for asyncFunc callback
  */
-Interpreter.NativeState.prototype.doNext_ = function(asyncCallback) {
+Interpreter.Callback.prototype.doNext_ = function(asyncCallback) {
   if (this.handler_) {
     return this.handler_(this.state_.value, asyncCallback);
   } else if(asyncCallback) {
@@ -3397,7 +3397,7 @@ Interpreter.prototype['stepCallExpression'] = function(stack, state, node) {
         // Call the initial nativeFunc
         value = func.nativeFunc.apply(state.funcThis_, state.arguments_);
       }
-      if (value instanceof Interpreter.NativeState) {
+      if (value instanceof Interpreter.Callback) {
         // We have a request for a pseudo function callback
         state.callbackState_ = value;
         value.pushState_(this, scope);
@@ -3411,7 +3411,7 @@ Interpreter.prototype['stepCallExpression'] = function(stack, state, node) {
       var thisInterpreter = this;
       var callback = function(value) {
         thisInterpreter.paused_ = false;
-        if (value instanceof Interpreter.NativeState) {
+        if (value instanceof Interpreter.Callback) {
           // We have a request for a pseudo function callback
           state.callbackState_ = value;
           value.pushState_(thisInterpreter, scope);
