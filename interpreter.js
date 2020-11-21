@@ -3414,6 +3414,7 @@ Interpreter.prototype['stepCallExpression'] = function(stack, state, node) {
           state.value = value;
         }
       };
+      this.paused_ = true;
       if (state.callbackState_) {
         // Do next step of native async func
         state.callbackState_.doNext_(callback);
@@ -3425,7 +3426,6 @@ Interpreter.prototype['stepCallExpression'] = function(stack, state, node) {
       var argsWithCallback = state.arguments_.concat(
           new Array(argLength)).slice(0, argLength);
       argsWithCallback.push(callback);
-      this.paused_ = true;
       func.asyncFunc.apply(state.funcThis_, argsWithCallback);
       return;
     } else {
