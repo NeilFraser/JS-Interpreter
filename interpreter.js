@@ -354,117 +354,15 @@ Interpreter.prototype.run = function() {
 };
 
 /**
- * Execute the interpreter until it is size of index
- * @return {boolean} True if a execution is asynchronously blocked,
- *     false if no more instructions.
- */
-Interpreter.prototype.runUntil = function(index) {
-  while (!this.paused_ && this.stateStack.length > index && this.step()) {}
-  return this.paused_;
-};
-
-/**
- * Return current pause state
- * @return {boolean} True if a execution is asynchronously blocked.
- */
-Interpreter.prototype.isPaused = function(index) {
-  return this.paused_;
-};
-
-/**
- * Returns current state stack size
- * @return {number} current state stack size
- */
-Interpreter.prototype.getStateStackSize = function () {
-  return this.stateStack.length;
-}
-
-/**
- * Call a pseudo function, returning result value
- * @param {Interpreter.Object} func Interpreted function
- * @param {Interpreter.Object} funcThis Interpreted Object to use a "this"
- * @param {Interpreter.Object} var_args Interpreted Objects to pass as arguments
- * @return {Interpreter.Object} Value pseudo function returned
- */
-Interpreter.prototype.callFunction = function (func, funcThis, var_args) {
-  var currentIndex = this.stateStack.length;
-  var state = this.appendFunction.apply(this, arguments);
-  this.strictAsync_ = true; // Don't allow async funcs waiting for callback to step
-  this.paused_ = false; // Allow stepper to run even in async
-  // Only step states that we just added
-  this.runUntil(currentIndex);
-  return state.value;
-};
-
-/**
- * Call a pseudo function, returning result value
- * @param {Function} callback Function to call after async call has completed 
- * @param {Interpreter.Object} func Interpreted function
- * @param {Interpreter.Object} funcThis Interpreted Object to use a "this"
- * @param {Interpreter.Object} var_args Interpreted Objects to pass as arguments
- * @return {Interpreter.State} State object for running pseudo function
- */
-Interpreter.prototype.callAsyncFunction = function (callback, func, funcThis, var_args) {
-  var args = Array.prototype.slice.call(arguments, 1)
-  var currentIndex = this.stateStack.length;
-  // Append callback to be called after func
-  var pseudoCallback = callback instanceof Interpreter.Object;
-  if(!pseudoCallback) {
-    callback = this.createNativeFunction(callback)
-  }
-  var cbState = this.appendFunction.call(this, callback, funcThis);
-  // Append func
-  var state = this.appendFunction.apply(this, args);
-  // Pass value getter to callback
-  var valueGetter = function(){return state.value};
-  if (pseudoCallback) {
-    // If we were passed a pseudo callback
-    // return a pseudo getter
-    valueGetter = this.createNativeFunction(valueGetter);
-  }
-  cbState.arguments_ = [valueGetter];
-  this.strictAsync_ = true; // Don't allow async funcs waiting for callback to step
-  this.paused_ = false; // Allow stepper to run
-  // Only step states that we just added
-  this.runUntil(currentIndex);
-  return state;
-};
-
-/**
- * Generate state objects for running pseudo function
- * @param {Interpreter.Object} func Interpreted function
- * @param {Interpreter.Object} funcThis Interpreted Object to use a "this"
- * @param {Interpreter.Object} var_args Interpreted Objects to pass as arguments
- * @return {nodeConstructor} node for running pseudo function
- */
-Interpreter.prototype.buildFunctionCaller = function (func, funcThis, var_args) {
-  var thisInterpreter = this
-  var args = Array.prototype.slice.call(arguments, 2).map(function (arg) {
-    return arg instanceof Interpreter.Object ? arg : thisInterpreter.nativeToPseudo(arg)
-  });
-  // Create node for CallExpression with pre-embedded function and arguments
-  var ceNode = new this.nodeConstructor({options:{}});
-  ceNode['type'] = 'CallExpressionFunc_';
-  ceNode.funcThis_ = funcThis;
-  ceNode.func_ = func;
-  ceNode.arguments_ = args;
-  return ceNode;
-};
-
-/**
  * Queue a pseudo function for execution on next step
  * @param {Interpreter.Object} func Interpreted function
  * @param {Interpreter.Object} funcThis Interpreted Object to use a "this"
  * @param {Interpreter.Object} var_args Interpreted Objects to pass as arguments
- * @return {Interpreter.State} State object for running pseudo function
+ * @return {Interpreter.NativeState} State object for running pseudo function
  */
-Interpreter.prototype.appendFunction = function (func, funcThis, var_args) {
-  var expNode = this.buildFunctionCaller.apply(this, arguments);
-  // Add function call state to end of stack so they are executed next
-  var scope = this.stateStack[this.stateStack.length - 1].scope; // This may be wrong
-  var state = new Interpreter.State(expNode, scope);
-  this.stateStack.push(state);
-  return state;
+Interpreter.prototype.callFunction = function (func, funcThis, var_args) {
+  var expNode = this.buildFunctionCaller_.apply(this, arguments);
+  return new Interpreter.NativeState(expNode);
 };
 
 /**
@@ -475,10 +373,33 @@ Interpreter.prototype.appendFunction = function (func, funcThis, var_args) {
  */
 Interpreter.prototype.queueFunction = function (func, funcThis, var_args) {
   var state = this.stateStack[0];
-  var expNode = this.buildFunctionCaller.apply(this, arguments);
+  var expNode = this.buildFunctionCaller_.apply(this, arguments);
   // Add function call to root Program state
   state.node['body'].push(expNode);
   state.done = false;
+};
+
+/**
+ * Generate state objects for running pseudo function
+ * @param {Interpreter.Object} func Interpreted function
+ * @param {Interpreter.Object} funcThis Interpreted Object to use a "this"
+ * @param {Interpreter.Object} var_args Interpreted Objects to pass as arguments
+ * @return {nodeConstructor} node for running pseudo function
+ */
+Interpreter.prototype.buildFunctionCaller_ = function (func, funcThis, var_args) {
+  var thisInterpreter = this
+  var args = Array.prototype.slice.call(arguments, 2).map(function (arg) {
+    return arg instanceof Interpreter.Object ? arg : thisInterpreter.nativeToPseudo(arg)
+  });
+  // Create node for CallExpression with pre-embedded function and arguments
+  var scope = this.stateStack[this.stateStack.length - 1].scope; // This may be wrong
+  var ceNode = new this.nodeConstructor({options:{}});
+  ceNode['type'] = 'CallExpressionFunc_';
+  ceNode.funcThis_ = funcThis;
+  ceNode.func_ = func;
+  ceNode.arguments_ = args;
+  ceNode.scope_ = scope;
+  return ceNode;
 };
 
 /**
@@ -3023,6 +2944,58 @@ Interpreter.Scope = function(parentScope, strict, object) {
 };
 
 /**
+ * Class for tracking native function states.
+ * @param {nodeConstructor} callFnState State that's being tracked
+ * @constructor
+ */
+Interpreter.NativeState = function(callFnNode) {
+  this.node_ = callFnNode
+  this.handler_ = null
+};
+
+/**
+ * Add handler for return of pseudo function's value
+ * @param {Function} handler Function to handle value
+ * @return {Interpreter.NativeState} State object for running pseudo function
+ */
+Interpreter.NativeState.prototype['then'] = function(handler) {
+  if (typeof handler !== 'function') {
+    throw new Error('Expected function for then handler');
+  }
+  if (this.handlers_) {
+    throw new Error('Then handler already defined');
+  }
+  this.handler_ = handler;
+  return this;
+};
+
+/**
+ * Add pseudo function callback to statStack
+ * @param {Interpreter} interpreter Interpreter instance
+ * @param {Interpreter.Scope} scope Function's scope.
+ */
+Interpreter.NativeState.prototype.pushState_ = function(interpreter, scope) {
+  var state = new Interpreter.State(this.node_, scope);
+  interpreter.stateStack.push(state);
+  this.state_ = state;
+};
+
+/**
+ * Handle next step for native function callback
+ * @param {Interpreter.Object} value Object containing pseudo function callback's result.
+ * @param {Function} asyncCallback Function for asyncFunc callback
+ */
+Interpreter.NativeState.prototype.doNext_ = function(asyncCallback) {
+  if (this.handler_) {
+    return this.handler_(this.state_.value, asyncCallback);
+  } else if(asyncCallback) {
+    asyncCallback(this.state_.value)
+  } else {
+    return this.state_.value
+  }
+};
+
+/**
  * Class for an object.
  * @param {Interpreter.Object} proto Prototype object or null.
  * @constructor
@@ -3415,21 +3388,51 @@ Interpreter.prototype['stepCallExpression'] = function(stack, state, node) {
         return new Interpreter.State(evalNode, scope);
       }
     } else if (func.nativeFunc) {
-      state.value = func.nativeFunc.apply(state.funcThis_, state.arguments_);
+      var value;
+      if (state.callbackState_) {
+        // Do next step of nativeFunc
+        value = state.callbackState_.doNext_();
+        state.callbackState_ = null;
+      } else {
+        // Call the initial nativeFunc
+        value = func.nativeFunc.apply(state.funcThis_, state.arguments_);
+      }
+      if (value instanceof Interpreter.NativeState) {
+        // We have a request for a pseudo function callback
+        state.callbackState_ = value;
+        value.pushState_(this, scope);
+        state.doneExec_ = false;
+      } else {
+        // We have a final value
+        state.value = value;
+      }
     } else if (func.asyncFunc) {
+      this.paused_ = true;
       var thisInterpreter = this;
       var callback = function(value) {
-        state.asyncWait_ = false;
-        state.value = value;
         thisInterpreter.paused_ = false;
+        if (value instanceof Interpreter.NativeState) {
+          // We have a request for a pseudo function callback
+          state.callbackState_ = value;
+          value.pushState_(thisInterpreter, scope);
+          state.doneExec_ = false;
+        } else {
+          // Final value
+          state.value = value;
+        }
       };
+      if (state.callbackState_) {
+        // Do next step of native async func
+        state.callbackState_.doNext_(callback);
+        state.callbackState_ = null;
+        state.doneExec_ = false;
+        return;
+      }
       // Force the argument lengths to match, then append the callback.
       var argLength = func.asyncFunc.length - 1;
       var argsWithCallback = state.arguments_.concat(
           new Array(argLength)).slice(0, argLength);
       argsWithCallback.push(callback);
-      this.paused_ = true;
-      state.asyncWait_ = true;
       func.asyncFunc.apply(state.funcThis_, argsWithCallback);
       return;
     } else {
@@ -3442,11 +3445,6 @@ Interpreter.prototype['stepCallExpression'] = function(stack, state, node) {
       this.throwException(this.TYPE_ERROR, func.class + ' is not callable');
     }
   } else {
-    if (state.asyncWait_ && this.strictAsync_) {
-      // Waiting for async call to complete.  Someone un-paused us too early.
-      this.paused_ = true;
-      return;
-    }
     // Execution complete.  Put the return value on the stack.
     stack.pop();
     if (state.isConstructor && typeof state.value !== 'object') {
@@ -3549,7 +3547,7 @@ Interpreter.prototype['stepCallExpressionFunc_'] = function(stack, state, node) 
     state.done_ = true;
     var ceNode = new this.nodeConstructor({options:{}});
     ceNode['type'] = 'CallExpression';
-    var ceSate = new Interpreter.State(ceNode, state.scope);
+    var ceSate = new Interpreter.State(ceNode, node.scope_ || state.scope);
     ceSate.doneCallee_ = true;
     ceSate.funcThis_ = node.funcThis_;
     ceSate.func_ = node.func_;
@@ -3558,8 +3556,6 @@ Interpreter.prototype['stepCallExpressionFunc_'] = function(stack, state, node) 
     return ceSate;
   }
   stack.pop();
-  // Save this value to the previous state, just like CallExpression would have done
-  // stack[stack.length - 1].value = state.value;
 };
 
 Interpreter.prototype['stepExpressionStatement'] = function(stack, state, node) {
