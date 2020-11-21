@@ -3392,7 +3392,6 @@ Interpreter.prototype['stepCallExpression'] = function(stack, state, node) {
       if (state.callbackState_) {
         // Do next step of nativeFunc
         value = state.callbackState_.doNext_();
-        state.callbackState_ = null;
       } else {
         // Call the initial nativeFunc
         value = func.nativeFunc.apply(state.funcThis_, state.arguments_);
@@ -3424,7 +3423,6 @@ Interpreter.prototype['stepCallExpression'] = function(stack, state, node) {
       if (state.callbackState_) {
         // Do next step of native async func
         state.callbackState_.doNext_(callback);
-        state.callbackState_ = null;
         state.doneExec_ = false;
         return;
       }
