@@ -3641,14 +3641,14 @@ Interpreter.prototype['stepCallExpressionFunc_'] = function(stack, state, node) 
     state.done_ = true;
     var ceNode = new this.nodeConstructor({options:{}});
     ceNode['type'] = 'CallExpression';
-    var ceSate = new Interpreter.State(ceNode, node.scope_ || state.scope);
-    ceSate.doneCallee_ = true;
-    ceSate.funcThis_ = node.funcThis_;
-    ceSate.func_ = node.func_;
-    ceSate.doneArgs_ = true;
-    ceSate.arguments_ = node.arguments_;
-    ceSate.catch_ = node.catch_;
-    return ceSate;
+    var ceState = new Interpreter.State(ceNode, node.scope_ || state.scope);
+    ceState.doneCallee_ = true;
+    ceState.funcThis_ = node.funcThis_;
+    ceState.func_ = node.func_;
+    ceState.doneArgs_ = true;
+    ceState.arguments_ = node.arguments_;
+    ceState.catch_ = node.catch_;
+    return ceState;
   }
   stack.pop();
   if (this.stateStack.length === 1) {
