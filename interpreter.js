@@ -2863,12 +2863,12 @@ Interpreter.prototype.unwind = function(type, value, label) {
             this.throwException(result.errorClass, result.opt_message);
             return;
           }
-          state.value = result;
           // Skip to next step
           stack.pop();
           if (stack.length > 1) {
             // Tell next step that we handled an exception
             stack[stack.length - 1].caughtException_ = true
+            stack[stack.length - 1].value = result;
           }
           return;
         } else if (type !== Interpreter.Completion.THROW) {
@@ -3103,7 +3103,7 @@ Interpreter.Callback.prototype.pushState_ = function(interpreter, scope) {
 Interpreter.Callback.prototype.doNext_ = function(asyncCallback) {
   if (this.state_.caughtException_) {
     // Native catch handled error.  We're done.
-    return;
+    return this.state_.value;
   }
   if (this.handler_) {
     return this.handler_(this.state_.value, asyncCallback);
