@@ -379,6 +379,15 @@ Interpreter.prototype.queueFunction = function (func, funcThis, var_args) {
   state.done = false;
   expNode['then'] = function(callback) {
     if (typeof callback === 'function') expNode.callback_ = callback;
+    return expNode;
+  }
+  expNode['catch'] = function(callback) {
+    if (typeof callback === 'function') expNode.catch_ = callback;
+    return expNode;
+  }
+  expNode['finally'] = function(callback) {
+    if (typeof callback === 'function') expNode.finally_ = callback;
+    return expNode;
   }
   return expNode;
 };
@@ -2846,6 +2855,17 @@ Interpreter.prototype.unwind = function(type, value, label) {
         if (type === Interpreter.Completion.RETURN) {
           state.value = value;
           return;
+        } else if (state.catch_ && type === Interpreter.Completion.THROW) {
+          // Native catch handler
+          var result = state.catch_(value);
+          if (result instanceof Interpreter.Throwable) {
+            // Catch re-threw an exception
+            this.throwException(result.errorClass, result.opt_message);
+            return;
+          }
+          // Use catch's return value
+          state.value = result;
+          return;
         } else if (type !== Interpreter.Completion.THROW) {
           throw Error('Unsynatctic break/continue not rejected by Acorn');
         }
@@ -3018,12 +3038,44 @@ Interpreter.Callback = function(callFnNode) {
  */
 Interpreter.Callback.prototype['then'] = function(handler) {
   if (typeof handler !== 'function') {
-    throw new Error('Expected function for then handler');
+    throw new Error('Expected function for "then" handler');
   }
   if (this.handlers_) {
-    throw new Error('Then handler already defined');
+    throw new Error('"then" already defined');
   }
   this.handler_ = handler;
+  return this;
+};
+
+/**
+ * Add exception catch handler for return of pseudo function's call
+ * @param {Function} handler Function to handle value
+ * @return {Interpreter.Callback} State object for running pseudo function
+ */
+Interpreter.Callback.prototype['catch'] = function(handler) {
+  if (typeof handler !== 'function') {
+    throw new Error('Expected function for "catch" handler');
+  }
+  if (this.node_.catch_) {
+    throw new Error('"catch" already defined');
+  }
+  this.node_.catch_ = handler;
+  return this;
+};
+
+/**
+ * Add finally handler for return of pseudo function's call
+ * @param {Function} handler Function to handle value
+ * @return {Interpreter.Callback} State object for running pseudo function
+ */
+Interpreter.Callback.prototype['finally'] = function(handler) {
+  if (typeof handler !== 'function') {
+    throw new Error('Expected function for "finally" handler');
+  }
+  if (this.node_.finally_) {
+    throw new Error('"finally" already defined');
+  }
+  this.node_.finally_ = handler;
   return this;
 };
 
@@ -3587,6 +3639,7 @@ Interpreter.prototype['stepCallExpressionFunc_'] = function(stack, state, node) 
     ceSate.func_ = node.func_;
     ceSate.doneArgs_ = true;
     ceSate.arguments_ = node.arguments_;
+    ceSate.catch_ = node.catch_;
     return ceSate;
   }
   stack.pop();
@@ -3597,6 +3650,10 @@ Interpreter.prototype['stepCallExpressionFunc_'] = function(stack, state, node) 
   if (node.callback_) {
     // Callback a 'then' handler
     node.callback_(state.value);
+  }
+  if (node.finally_) {
+    // Callback a 'finally' handler
+    state.node.finally_();
   }
 };
 
