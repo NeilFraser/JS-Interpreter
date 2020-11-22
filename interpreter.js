@@ -2863,6 +2863,7 @@ Interpreter.prototype.unwind = function(type, value, label) {
             this.throwException(result.errorClass, result.opt_message);
             return;
           }
+          state.value = result;
           // Skip to next step
           stack.pop();
           if (stack.length > 1) {
@@ -3650,18 +3651,18 @@ Interpreter.prototype['stepCallExpressionFunc_'] = function(stack, state, node) 
     ceState.catch_ = node.catch_;
     return ceState;
   }
-  stack.pop();
-  if (this.stateStack.length === 1) {
-    // Save value as return value if we were the last to be executed
-    this.value = state.value;
-  }
   if (node.callback_ && !state.caughtException_) {
     // Callback a 'then' handler
-    node.callback_(state.value);
+    state.value = node.callback_(state.value);
   }
   if (node.finally_) {
     // Callback a 'finally' handler
     state.node.finally_();
+  }
+  stack.pop();
+  if (this.stateStack.length === 1) {
+    // Save value as return value if we were the last to be executed
+    this.value = state.value;
   }
 };
 
