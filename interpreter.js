@@ -2863,8 +2863,12 @@ Interpreter.prototype.unwind = function(type, value, label) {
             this.throwException(result.errorClass, result.opt_message);
             return;
           }
-          // Use catch's return value
-          state.value = result;
+          // Skip to next step
+          stack.pop();
+          if (stack.length > 1) {
+            // Tell next step that handled an exception
+            stack[stack.length - 1].caughtException_ = true
+          }
           return;
         } else if (type !== Interpreter.Completion.THROW) {
           throw Error('Unsynatctic break/continue not rejected by Acorn');
@@ -3096,6 +3100,10 @@ Interpreter.Callback.prototype.pushState_ = function(interpreter, scope) {
  * @param {Function} asyncCallback Function for asyncFunc callback
  */
 Interpreter.Callback.prototype.doNext_ = function(asyncCallback) {
+  if (this.state_.caughtException_) {
+    // Native catch handled error.  We're done.
+    return;
+  }
   if (this.handler_) {
     return this.handler_(this.state_.value, asyncCallback);
   } else if(asyncCallback) {
@@ -3647,7 +3655,7 @@ Interpreter.prototype['stepCallExpressionFunc_'] = function(stack, state, node) 
     // Save value as return value if we were the last to be executed
     this.value = state.value;
   }
-  if (node.callback_) {
+  if (node.callback_ && !state.caughtException_) {
     // Callback a 'then' handler
     node.callback_(state.value);
   }
