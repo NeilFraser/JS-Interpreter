@@ -2858,17 +2858,16 @@ Interpreter.prototype.unwind = function(type, value, label) {
         } else if (state.catch_ && type === Interpreter.Completion.THROW) {
           // Native catch handler
           var result = state.catch_(value);
-          if (result instanceof Interpreter.Throwable) {
-            // Catch re-threw an exception
-            this.throwException(result.errorClass, result.opt_message);
-            return;
-          }
           // Skip to next step
           stack.pop();
           if (stack.length > 1) {
             // Tell next step that we handled an exception
             stack[stack.length - 1].caughtException_ = true
             stack[stack.length - 1].value = result;
+          } else if (result instanceof Interpreter.Throwable) {
+            // Catch re-threw an exception
+            this.throwException(result.errorClass, result.opt_message);
+            return;
           }
           return;
         } else if (type !== Interpreter.Completion.THROW) {
