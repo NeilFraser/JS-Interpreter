@@ -2866,7 +2866,7 @@ Interpreter.prototype.unwind = function(type, value, label) {
           // Skip to next step
           stack.pop();
           if (stack.length > 1) {
-            // Tell next step that handled an exception
+            // Tell next step that we handled an exception
             stack[stack.length - 1].caughtException_ = true
           }
           return;
