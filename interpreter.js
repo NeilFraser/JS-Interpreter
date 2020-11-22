@@ -2857,7 +2857,8 @@ Interpreter.prototype.unwind = function(type, value, label) {
           return;
         } else if (state.catch_ && type === Interpreter.Completion.THROW) {
           // Native catch handler
-          if (state.catch_(value) instanceof Interpreter.Throwable) {
+          var result = state.catch_(value);
+          if (result instanceof Interpreter.Throwable) {
             // Catch re-threw an exception
             this.throwException(result.errorClass, result.opt_message);
             return;
