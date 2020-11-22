@@ -377,6 +377,10 @@ Interpreter.prototype.queueFunction = function (func, funcThis, var_args) {
   // Add function call to root Program state
   state.node['body'].push(expNode);
   state.done = false;
+  expNode['then'] = function(callback) {
+    if (typeof callback === 'function') expNode.callback_ = callback;
+  }
+  return expNode;
 };
 
 /**
@@ -3586,6 +3590,14 @@ Interpreter.prototype['stepCallExpressionFunc_'] = function(stack, state, node) 
     return ceSate;
   }
   stack.pop();
+  if (this.stateStack.length === 1) {
+    // Save value as return value if we were the last to be executed
+    this.value = state.value;
+  }
+  if (node.callback_) {
+    // Callback a 'then' handler
+    node.callback_(state.value);
+  }
 };
 
 Interpreter.prototype['stepExpressionStatement'] = function(stack, state, node) {
@@ -3772,7 +3784,7 @@ Interpreter.prototype['stepIdentifier'] = function(stack, state, node) {
   if (this.getterStep_) {
     // Call the getter function.
     var scope = state.scope;
-    while (!this.hasProperty(scope, node['name'])) {
+    while (scope !== this.globalScope && !this.hasProperty(scope, node['name'])) {
       scope = scope.parentScope;
     }
     var func = /** @type {!Interpreter.Object} */ (value);
