@@ -2819,13 +2819,12 @@ Interpreter.prototype.handleNativeReturn_ = function(state, scope, value) {
     state.catch_ = value.catch_ && function(error) {
       // Wrap catch function as a callback and set as next callback
       // Only use the handler portion of the callback
-      var catchCb = _this.callFunction(null, state.funcThis_, error);
-      catchCb.handler_ = value.catch_; // Set handler to catch handler
-      catchCb
-      state.callbackObj_ = catchCb;
-      catchCb.pushed_ = true; // Only create a state, don't push
-      catchCb.pushState_(_this, scope);
-      catchCb.state_.value = error;
+      var catcher = _this.callFunction(null, state.funcThis_, error);
+      catcher.handler_ = value.catch_; // Set handler to catch handler
+      state.callbackObj_ = catcher;
+      catcher.pushed_ = true; // Only create a state, don't push
+      catcher.pushState_(_this, scope);
+      catcher.state_.value = error;
       state.catch_ = null; // Don't do this again.
       state.doneExec_ = false; // Allow stepCallExpression to run callback.
     }
