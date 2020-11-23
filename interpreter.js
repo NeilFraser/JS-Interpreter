@@ -3066,7 +3066,7 @@ Interpreter.Callback.prototype.pushState_ = function(interpreter, scope) {
   if (!this.state_) {
     this.state_ = new Interpreter.State(this.node_, scope);
   }
-  if (this.indirect_) return; // Only uses handler_
+  if (this.stateless_) return; // Only uses handler_
   interpreter.stateStack.push(this.state_);
 };
 
@@ -3077,9 +3077,9 @@ Interpreter.Callback.prototype.pushState_ = function(interpreter, scope) {
  */
 Interpreter.Callback.prototype.doNext_ = function(asyncCallback) {
   if (this.handler_) {
-    return this.handler_(this.indirect_ ? this.value : this.state_.value, asyncCallback);
+    return this.handler_(this.stateless_ ? this.value : this.state_.value, asyncCallback);
   }
-  if (this.indirect_) return; // Callback will not directly return its value
+  if (this.stateless_) return; // Callback does not have a state value
   if(asyncCallback) {
     asyncCallback(this.state_.value)
   } else {
@@ -3640,9 +3640,9 @@ Interpreter.prototype['stepCallExpressionFunc_'] = function(stack, state, node) 
     if (cb) {
       // Immediate callback from CallExpression
       // Modify existing Callback object to execute catch steps
-      cb.indirect_ = true; // Callback can only use its handler for return value
+      cb.stateless_ = true; // Callback can only use its handler for return value
       cb.handler_ = state.catch_;
-      cb.value = state.throw_; // Set value to pass to handler
+      cb.value = state.throw_; // Set stateless value to pass to handler
       cb.force_ = true; // Force callback to run again
     } else {
       // Called via queued callback
