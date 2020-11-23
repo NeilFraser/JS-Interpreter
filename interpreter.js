@@ -2813,21 +2813,8 @@ Interpreter.prototype.createThrowable = function(errorClass, opt_message) {
 Interpreter.prototype.handleNativeReturn_ = function(state, scope, value) {
   if (value instanceof Interpreter.Callback) {
     // We have a request for a pseudo function callback
-    var _this = this;
     value.pushState_(this, scope);
-    state.callbackObj_ = value;
-    state.catch_ = value.catch_ && function(error) {
-      // Wrap catch function as a callback and set as next callback
-      // Only use the handler portion of the callback
-      var catcher = _this.callFunction(null, state.funcThis_, error);
-      catcher.handler_ = value.catch_; // Set handler to catch handler
-      state.callbackObj_ = catcher;
-      catcher.pushed_ = true; // Only create a state, don't push
-      catcher.pushState_(_this, scope);
-      catcher.state_.value = error;
-      state.catch_ = null; // Don't do this again.
-      state.doneExec_ = false; // Allow stepCallExpression to run callback.
-    }
+    state.cb_ = value;
     state.doneExec_ = false;
   } else if (value instanceof Interpreter.Throwable) {
     // Result was an error
@@ -2864,17 +2851,16 @@ Interpreter.prototype.unwind = function(type, value, label) {
         if (type === Interpreter.Completion.RETURN) {
           state.value = value;
           return;
-        } else if (state.skipThrow_) {
-          // One of our parents will catch this, so allow unwind
-          continue;
-        } else if (state.catch_ && type === Interpreter.Completion.THROW) {
-          // Native function catch handler
-          state.catch_(value);
-          return;
         } else if (type !== Interpreter.Completion.THROW) {
           throw Error('Unsynatctic break/continue not rejected by Acorn');
-        }
+        } 
         break;
+      case 'CallExpressionFunc_':
+        if (type === Interpreter.Completion.THROW && state.catch_) {
+          // Let stepCallExpressionFunc_ catch this throw
+          state.throw_ = value;
+          return;
+        }
       case 'Program':
         // Don't pop the stateStack.
         // Leave the root scope on the tree in case the program is appended to.
@@ -3035,6 +3021,7 @@ Interpreter.Callback = function(callFnNode) {
   this.node_ = callFnNode
   this.handler_ = null
   this.catch_ = null
+  this.node_.cb_ = this // For async catch handling
 };
 
 /**
@@ -3065,8 +3052,8 @@ Interpreter.Callback.prototype['catch'] = function(handler) {
   if (this.catch_) {
     throw new Error('"catch" already defined');
   }
-  this.node_.skipThrow_ = true;
-  this.catch_ = handler;
+  // this.node_.skipThrow_ = true;
+  this.node_.catch_ = handler;
   return this;
 };
 
@@ -3079,9 +3066,8 @@ Interpreter.Callback.prototype.pushState_ = function(interpreter, scope) {
   if (!this.state_) {
     this.state_ = new Interpreter.State(this.node_, scope);
   }
-  if (this.pushed_) return;
+  if (this.indirect_) return; // Only uses handler_
   interpreter.stateStack.push(this.state_);
-  this.pushed_ = true;
 };
 
 /**
@@ -3090,13 +3076,11 @@ Interpreter.Callback.prototype.pushState_ = function(interpreter, scope) {
  * @param {Function} asyncCallback Function for asyncFunc callback
  */
 Interpreter.Callback.prototype.doNext_ = function(asyncCallback) {
-  if (this.state_.caughtException_) {
-    // Native catch handled error.  We're done.
-    return this.state_.value;
-  }
   if (this.handler_) {
-    return this.handler_(this.state_.value, asyncCallback);
-  } else if(asyncCallback) {
+    return this.handler_(this.indirect_ ? this.value : this.state_.value, asyncCallback);
+  }
+  if (this.indirect_) return; // Callback will not directly return its value
+  if(asyncCallback) {
     asyncCallback(this.state_.value)
   } else {
     return this.state_.value
@@ -3436,6 +3420,11 @@ Interpreter.prototype['stepCallExpression'] = function(stack, state, node) {
     }
     state.doneArgs_ = true;
   }
+  if (state.cb_ && state.cb_.force_) {
+    // Callback wants to run again
+    state.doneExec_ = false;
+    state.cb_.force_ = false;
+  }
   if (!state.doneExec_) {
     state.doneExec_ = true;
     if (!(func instanceof Interpreter.Object)) {
@@ -3496,8 +3485,8 @@ Interpreter.prototype['stepCallExpression'] = function(stack, state, node) {
         return new Interpreter.State(evalNode, scope);
       }
     } else if (func.nativeFunc) {
-      this.handleNativeReturn_(state, scope, state.callbackObj_
-        ? state.callbackObj_.doNext_()
+      this.handleNativeReturn_(state, scope, state.cb_
+        ? state.cb_.doNext_()
         : func.nativeFunc.apply(state.funcThis_, state.arguments_));
     } else if (func.asyncFunc) {
       var thisInterpreter = this;
@@ -3506,9 +3495,9 @@ Interpreter.prototype['stepCallExpression'] = function(stack, state, node) {
         thisInterpreter.handleNativeReturn_(state, scope, value);
       };
       this.paused_ = true;
-      if (state.callbackObj_) {
+      if (state.cb_) {
         // Do next step of native async func
-        state.callbackObj_.doNext_(callback);
+        state.cb_.doNext_(callback);
         return;
       }
       // Force the argument lengths to match, then append the callback.
@@ -3636,26 +3625,32 @@ Interpreter.prototype['stepCallExpressionFunc_'] = function(stack, state, node) 
     ceState.func_ = node.func_;
     ceState.doneArgs_ = true;
     ceState.arguments_ = node.arguments_;
-    ceState.catch_ = node.catch_ && function(error) {
-      var result = node.catch_(error);
-      // Skip to next step
-      stack.pop();
-      if (result instanceof Interpreter.Throwable) {
-        // Re-throw exception
-        this.throwException(result.errorClass, result.opt_message);
-        return;
-      }
-      var nextState = stack[stack.length - 1];
-      // Tell next step that we handled an exception
-      nextState.caughtException_ = true
-      nextState.value = result;
-    };
-    ceState.skipThrow_ = node.skipThrow_;
+    state.catch_ = node.catch_;
     return ceState;
   }
-  if (node.callback_ && !state.caughtException_) {
+  if (node.callback_ && !state.throw_) {
     // Callback a 'then' handler
     state.value = node.callback_(state.value);
+    node.callback_ = null;
+    return;
+  }
+  if (state.catch_ && state.throw_) {
+    // Callback a 'catch' handler
+    var cb = node.cb_;
+    if (cb) {
+      // Immediate callback from CallExpression
+      // Modify existing Callback object to execute catch steps
+      cb.indirect_ = true; // Callback can only use its handler for return value
+      cb.handler_ = state.catch_;
+      cb.value = state.throw_; // Set value to pass to handler
+      cb.force_ = true; // Force callback to run again
+    } else {
+      // Called via queued callback
+      // Just call the callback directly
+      state.value = state.catch_(state.throw_);
+      state.catch_ = null;
+      return;
+    }
   }
   stack.pop();
   if (this.stateStack.length === 1) {
