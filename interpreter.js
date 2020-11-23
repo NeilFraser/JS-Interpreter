@@ -358,7 +358,7 @@ Interpreter.prototype.run = function() {
  * @param {Interpreter.Object} func Interpreted function
  * @param {Interpreter.Object} funcThis Interpreted Object to use as "this"
  * @param {Interpreter.Object} var_args Interpreted Objects to pass as arguments
- * @return {Interpreter.Callback} State object for running pseudo function callback
+ * @return {Interpreter.Callback} Object for running pseudo function callback
  */
 Interpreter.prototype.callFunction = function (func, funcThis, var_args) {
   var expNode = this.buildFunctionCaller_.apply(this, arguments);
@@ -370,7 +370,7 @@ Interpreter.prototype.callFunction = function (func, funcThis, var_args) {
  * @param {Interpreter.Object} func Interpreted function
  * @param {Interpreter.Object} funcThis Interpreted Object to use as "this"
  * @param {Interpreter.Object} var_args Interpreted Objects to pass as arguments
- * @return {nodeConstructor} node for running pseudo function
+ * @return {Interpreter.Callback} Object for running pseudo function callback
  */
 Interpreter.prototype.queueFunction = function (func, funcThis, var_args) {
   var state = this.stateStack[0];
@@ -378,15 +378,7 @@ Interpreter.prototype.queueFunction = function (func, funcThis, var_args) {
   // Add function call to root Program state
   state.node['body'].push(expNode);
   state.done = false;
-  expNode['then'] = function(callback) {
-    if (typeof callback === 'function') expNode.callback_ = callback;
-    return expNode;
-  }
-  expNode['catch'] = function(callback) {
-    if (typeof callback === 'function') expNode.catch_ = callback;
-    return expNode;
-  }
-  return expNode;
+  return new Interpreter.Callback(expNode, true); // Allows adding then/catch
 };
 
 /**
@@ -3016,13 +3008,15 @@ Interpreter.Throwable.prototype.throw_ = function(interpreter) {
 /**
  * Class for tracking native function states.
  * @param {nodeConstructor} callFnState State that's being tracked
+ * @param {Boolean=} opt_queued Will this be queued or immediate
  * @constructor
  */
-Interpreter.Callback = function(callFnNode) {
+Interpreter.Callback = function(callFnNode, opt_queued) {
   this.node_ = callFnNode
   this.handler_ = null
   this.catch_ = null
-  this.node_.cb_ = this // For async catch handling
+  this.node_.cb_ = this
+  this.queued_ = opt_queued
 };
 
 /**
@@ -3054,7 +3048,7 @@ Interpreter.Callback.prototype['catch'] = function(handler) {
     throw new Error('"catch" already defined');
   }
   // this.node_.skipThrow_ = true;
-  this.node_.catch_ = handler;
+  this.catch_ = handler;
   return this;
 };
 
@@ -3616,6 +3610,8 @@ Interpreter.prototype['stepEvalProgram_'] = function(stack, state, node) {
 };
 
 Interpreter.prototype['stepCallExpressionFunc_'] = function(stack, state, node) {
+  var cb = node.cb_;
+  var queued = cb.queued_;
   if (!state.done_) {
     state.done_ = true;
     var ceNode = new this.nodeConstructor({options:{}});
@@ -3626,31 +3622,32 @@ Interpreter.prototype['stepCallExpressionFunc_'] = function(stack, state, node) 
     ceState.func_ = node.func_;
     ceState.doneArgs_ = true;
     ceState.arguments_ = node.arguments_;
-    state.catch_ = node.catch_;
+    state.catch_ = cb.catch_;
+    state.handler_ = cb.handler_;
     return ceState;
   }
-  if (node.callback_ && !state.throw_) {
-    // Callback a 'then' handler
+  if (queued && state.handler_ && !state.throw_) {
+    // Called via queued callback
+    // Callback a 'then' handler now (non-queued are called in setCallExpression)
     state.value = node.callback_(state.value);
-    node.callback_ = null;
+    state.handler_ = null;
     return;
   }
   if (state.catch_ && state.throw_) {
     // Callback a 'catch' handler
-    var cb = node.cb_;
-    if (cb) {
+    if (queued) {
+      // Called via queued callback
+      // Just call the callback directly
+      state.value = state.catch_(state.throw_);
+      state.catch_ = null;
+      return;
+    } else {
       // Immediate callback from CallExpression
       // Modify existing Callback object to execute catch steps
       cb.stateless_ = true; // Callback can only use its handler for return value
       cb.handler_ = state.catch_;
       cb.value = state.throw_; // Set stateless value to pass to handler
       cb.force_ = true; // Force callback to run again
-    } else {
-      // Called via queued callback
-      // Just call the callback directly
-      state.value = state.catch_(state.throw_);
-      state.catch_ = null;
-      return;
     }
   }
   stack.pop();
