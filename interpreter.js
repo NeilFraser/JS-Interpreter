@@ -370,6 +370,7 @@ Interpreter.prototype.callFunction = function (func, funcThis, var_args) {
  * @param {Interpreter.Object} func Interpreted function
  * @param {Interpreter.Object} funcThis Interpreted Object to use as "this"
  * @param {Interpreter.Object} var_args Interpreted Objects to pass as arguments
+ * @return {nodeConstructor} node for running pseudo function
  */
 Interpreter.prototype.queueFunction = function (func, funcThis, var_args) {
   var state = this.stateStack[0];
