@@ -356,7 +356,7 @@ Interpreter.prototype.run = function() {
 /**
  * Queue a pseudo function for execution on next step
  * @param {Interpreter.Object} func Interpreted function
- * @param {Interpreter.Object} funcThis Interpreted Object to use a "this"
+ * @param {Interpreter.Object} funcThis Interpreted Object to use as "this"
  * @param {Interpreter.Object} var_args Interpreted Objects to pass as arguments
  * @return {Interpreter.Callback} State object for running pseudo function callback
  */
@@ -368,7 +368,7 @@ Interpreter.prototype.callFunction = function (func, funcThis, var_args) {
 /**
  * Queue a pseudo function for execution after all current instructions complete
  * @param {Interpreter.Object} func Interpreted function
- * @param {Interpreter.Object} funcThis Interpreted Object to use a "this"
+ * @param {Interpreter.Object} funcThis Interpreted Object to use as "this"
  * @param {Interpreter.Object} var_args Interpreted Objects to pass as arguments
  */
 Interpreter.prototype.queueFunction = function (func, funcThis, var_args) {
@@ -391,7 +391,7 @@ Interpreter.prototype.queueFunction = function (func, funcThis, var_args) {
 /**
  * Generate state objects for running pseudo function
  * @param {Interpreter.Object} func Interpreted function
- * @param {Interpreter.Object} funcThis Interpreted Object to use a "this"
+ * @param {Interpreter.Object} funcThis Interpreted Object to use as "this"
  * @param {Interpreter.Object} var_args Interpreted Objects to pass as arguments
  * @return {nodeConstructor} node for running pseudo function
  */
