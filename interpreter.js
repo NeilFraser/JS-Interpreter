@@ -2802,13 +2802,15 @@ Interpreter.prototype.createThrowable = function(errorClass, opt_message) {
  * @param {Interpreter.State} state CallExpression state
  * @param {!Interpreter.Scope} scope CallExpression scope.
  * @param {Interpreter.Object|String|Number} value Values returned from native function
+ * @return {Interpreter.State} New callback state added, if any
  */
-Interpreter.prototype.handleNativeReturn_ = function(state, scope, value) {
+Interpreter.prototype.handleNativeResult_ = function(state, scope, value) {
   if (value instanceof Interpreter.Callback) {
     // We have a request for a pseudo function callback
     value.pushState_(this, scope);
     state.cb_ = value;
     state.doneExec_ = false;
+    return value.state_;
   } else if (value instanceof Interpreter.Throwable) {
     // Result was an error
     value.throw_(value);
@@ -3480,14 +3482,14 @@ Interpreter.prototype['stepCallExpression'] = function(stack, state, node) {
         return new Interpreter.State(evalNode, scope);
       }
     } else if (func.nativeFunc) {
-      this.handleNativeReturn_(state, scope, state.cb_
+      this.handleNativeResult_(state, scope, state.cb_
         ? state.cb_.doNext_()
         : func.nativeFunc.apply(state.funcThis_, state.arguments_));
     } else if (func.asyncFunc) {
       var thisInterpreter = this;
       var callback = function(value) {
         thisInterpreter.paused_ = false;
-        thisInterpreter.handleNativeReturn_(state, scope, value);
+        thisInterpreter.handleNativeResult_(state, scope, value);
       };
       this.paused_ = true;
       if (state.cb_) {
@@ -3629,7 +3631,7 @@ Interpreter.prototype['stepCallExpressionFunc_'] = function(stack, state, node) 
   if (queued && state.handler_ && !state.throw_) {
     // Called via queued callback
     // Callback a 'then' handler now (non-queued are called in setCallExpression)
-    state.value = node.callback_(state.value);
+    this.handleNativeResult_(state, node.funcThis_, state.handler_(state.value));
     state.handler_ = null;
     return;
   }
@@ -3638,7 +3640,7 @@ Interpreter.prototype['stepCallExpressionFunc_'] = function(stack, state, node) 
     if (queued) {
       // Called via queued callback
       // Just call the callback directly
-      state.value = state.catch_(state.throw_);
+      this.handleNativeResult_(state, node.funcThis_, state.catch_(state.throw_));
       state.catch_ = null;
       return;
     } else {
