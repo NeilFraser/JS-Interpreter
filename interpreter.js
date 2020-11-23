@@ -2853,7 +2853,7 @@ Interpreter.prototype.unwind = function(type, value, label) {
           return;
         } else if (type !== Interpreter.Completion.THROW) {
           throw Error('Unsynatctic break/continue not rejected by Acorn');
-        } 
+        }
         break;
       case 'CallExpressionFunc_':
         if (type === Interpreter.Completion.THROW && state.catch_) {
