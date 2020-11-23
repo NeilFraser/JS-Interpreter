@@ -3015,7 +3015,7 @@ Interpreter.Throwable.prototype.throw_ = function(interpreter) {
  */
 Interpreter.Callback = function(callFnNode, opt_queued) {
   this.node_ = callFnNode
-  this.handler_ = null
+  this.handlers_ = []
   this.catch_ = null
   this.node_.cb_ = this
   this.queued_ = opt_queued
@@ -3030,10 +3030,7 @@ Interpreter.Callback.prototype['then'] = function(handler) {
   if (typeof handler !== 'function') {
     throw new Error('Expected function for "then" handler');
   }
-  if (this.handler_) {
-    throw new Error('"then" already defined');
-  }
-  this.handler_ = handler;
+  this.handlers_.push(handler);
   return this;
 };
 
@@ -3073,8 +3070,10 @@ Interpreter.Callback.prototype.pushState_ = function(interpreter, scope) {
  * @param {Function} asyncCallback Function for asyncFunc callback
  */
 Interpreter.Callback.prototype.doNext_ = function(asyncCallback) {
-  if (this.handler_) {
-    return this.handler_(this.stateless_ ? this.value : this.state_.value, asyncCallback);
+  var handler =  this.handlers_.shift();
+  if (handler) {
+    this.force_ = this.handlers_.length; // Continue to run if we have more
+    return handler(this.stateless_ ? this.value : this.state_.value, asyncCallback);
   }
   if (this.stateless_) return; // Callback does not have a state value
   if(asyncCallback) {
@@ -3625,14 +3624,13 @@ Interpreter.prototype['stepCallExpressionFunc_'] = function(stack, state, node) 
     ceState.doneArgs_ = true;
     ceState.arguments_ = node.arguments_;
     state.catch_ = cb.catch_;
-    state.handler_ = cb.handler_;
     return ceState;
   }
-  if (queued && state.handler_ && !state.throw_) {
+  if (queued && cb.handlers_.length && !state.throw_) {
     // Called via queued callback
     // Callback a 'then' handler now (non-queued are called in setCallExpression)
-    this.handleNativeResult_(state, node.funcThis_, state.handler_(state.value));
-    state.handler_ = null;
+    var handler = cb.handlers_.shift();
+    this.handleNativeResult_(state, node.funcThis_, handler(state.value));
     return;
   }
   if (state.catch_ && state.throw_) {
@@ -3647,7 +3645,7 @@ Interpreter.prototype['stepCallExpressionFunc_'] = function(stack, state, node) 
       // Immediate callback from CallExpression
       // Modify existing Callback object to execute catch steps
       cb.stateless_ = true; // Callback can only use its handler for return value
-      cb.handler_ = state.catch_;
+      cb.handlers_ = [state.catch_];
       cb.value = state.throw_; // Set stateless value to pass to handler
       cb.force_ = true; // Force callback to run again
     }
