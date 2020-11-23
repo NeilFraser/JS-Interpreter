@@ -2856,18 +2856,21 @@ Interpreter.prototype.unwind = function(type, value, label) {
           state.value = value;
           return;
         } else if (state.catch_ && type === Interpreter.Completion.THROW) {
-          // Native catch handler
+          // Native function catch handler
           var result = state.catch_(value);
           // Skip to next step
           stack.pop();
-          if (stack.length > 1) {
+          var nextStep = stack[stack.length - 1];
+          if (nextStep && nextStep.node['type'] === 'CallExpressionFunc_') {
             // Tell next step that we handled an exception
-            stack[stack.length - 1].caughtException_ = true
-            stack[stack.length - 1].value = result;
+            nextStep.caughtException_ = true
+            nextStep.value = result;
           } else if (result instanceof Interpreter.Throwable) {
-            // Catch re-threw an exception
+            // Re-throw exception
             this.throwException(result.errorClass, result.opt_message);
             return;
+          } else {
+            throw new Error('Invalid native function catch');
           }
           return;
         } else if (type !== Interpreter.Completion.THROW) {
@@ -3519,7 +3522,6 @@ Interpreter.prototype['stepCallExpression'] = function(stack, state, node) {
       if (state.callbackState_) {
         // Do next step of native async func
         state.callbackState_.doNext_(callback);
-        state.doneExec_ = false;
         return;
       }
       // Force the argument lengths to match, then append the callback.
