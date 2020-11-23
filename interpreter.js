@@ -3063,10 +3063,10 @@ Interpreter.Callback.prototype['catch'] = function(handler) {
  * @param {Interpreter.Scope} scope Function's scope.
  */
 Interpreter.Callback.prototype.pushState_ = function(interpreter, scope) {
+  if (this.stateless_) return; // Only uses handler_
   if (!this.state_) {
     this.state_ = new Interpreter.State(this.node_, scope);
   }
-  if (this.stateless_) return; // Only uses handler_
   interpreter.stateStack.push(this.state_);
 };
 
