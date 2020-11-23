@@ -2816,6 +2816,14 @@ Interpreter.prototype.handleNativeResult_ = function(state, scope, value) {
     value.throw_(value);
   } else {
     // We have a final value
+    var cb = state.cb_;
+    if (cb) {
+      if (cb.stateless_) {
+        cb.value = value;
+      } else {
+        cb.state_.value = value;
+      }
+    }
     state.value = value;
   }
 };
@@ -3484,6 +3492,7 @@ Interpreter.prototype['stepCallExpression'] = function(stack, state, node) {
       this.handleNativeResult_(state, scope, state.cb_
         ? state.cb_.doNext_()
         : func.nativeFunc.apply(state.funcThis_, state.arguments_));
+        return;
     } else if (func.asyncFunc) {
       var thisInterpreter = this;
       var callback = function(value) {
