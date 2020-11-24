@@ -2866,6 +2866,7 @@ Interpreter.prototype.unwind = function(type, value, label) {
           state.throw_ = value;
           return;
         }
+        continue;
       case 'Program':
         // Don't pop the stateStack.
         // Leave the root scope on the tree in case the program is appended to.
