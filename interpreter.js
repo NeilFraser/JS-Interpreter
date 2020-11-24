@@ -397,6 +397,8 @@ Interpreter.prototype.buildFunctionCaller_ = function (func, funcThis, var_args)
   var scope = this.stateStack[this.stateStack.length - 1].scope; // This may be wrong
   var ceNode = new this.nodeConstructor({options:{}});
   ceNode['type'] = 'CallExpressionFunc_';
+  // Attach state settings to node, so we can retrieve them later.
+  // (Can only add a node to root program body.)
   ceNode.funcThis_ = funcThis;
   ceNode.func_ = func;
   ceNode.arguments_ = args;
@@ -3001,8 +3003,8 @@ Interpreter.Scope = function(parentScope, strict, object) {
  * @constructor
  */
 Interpreter.Throwable = function(errorClass, opt_message) {
-  this.errorClass = errorClass
-  this.opt_message = opt_message
+  this.errorClass = errorClass;
+  this.opt_message = opt_message;
 };
 
 /**
@@ -3022,11 +3024,11 @@ Interpreter.Throwable.prototype.throw_ = function(interpreter) {
  * @constructor
  */
 Interpreter.Callback = function(callFnNode, opt_queued) {
-  this.node_ = callFnNode
-  this.handlers_ = []
-  this.catch_ = null
-  this.node_.cb_ = this
-  this.queued_ = opt_queued
+  this.node_ = callFnNode;
+  this.handlers_ = [];
+  this.catch_ = null;
+  this.node_.cb_ = this; // Attach callback to node so we can retrieve it later
+  this.queued_ = opt_queued;
 };
 
 /**
