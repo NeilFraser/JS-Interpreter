@@ -2815,7 +2815,7 @@ Interpreter.prototype.handleNativeResult_ = function(state, scope, value) {
     return value.state_;
   } else if (value instanceof Interpreter.Throwable) {
     // Result was an error
-    value.throw_(value);
+    value.throw_(this);
   } else {
     // We have a final value
     var cb = state.cb_;
