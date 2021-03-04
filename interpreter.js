@@ -3209,7 +3209,7 @@ Interpreter.prototype['stepCallExpression'] = function(stack, state, node) {
     }
     // Determine value of `this` in function.
     if (node['type'] === 'NewExpression') {
-      if (func.illegalConstructor) {
+      if (!(func instanceof Interpreter.Object) || func.illegalConstructor) {
         // Illegal: new escape();
         this.throwException(this.TYPE_ERROR, func + ' is not a constructor');
       }
