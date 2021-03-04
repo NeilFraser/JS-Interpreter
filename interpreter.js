@@ -507,8 +507,10 @@ Interpreter.prototype.initFunction = function(globalObject) {
                    Interpreter.NONENUMERABLE_DESCRIPTOR);
   this.FUNCTION_PROTO.nativeFunc = function() {};
   this.FUNCTION_PROTO.nativeFunc.id = this.functionCounter_++;
+  this.FUNCTION_PROTO.illegalConstructor = true;
   this.setProperty(this.FUNCTION_PROTO, 'length', 0,
       Interpreter.READONLY_NONENUMERABLE_DESCRIPTOR);
+  this.FUNCTION_PROTO.class = 'Function';
 
   var boxThis = function(value) {
     // In non-strict mode `this` must be an object.
@@ -2029,6 +2031,8 @@ Interpreter.prototype.createFunctionBase_ = function(argumentLength,
   this.setProperty(func, 'length', argumentLength,
       Interpreter.READONLY_NONENUMERABLE_DESCRIPTOR);
   func.class = 'Function';
+  // When making changes to this function, check to see if those changes also
+  // need to be made to the creation of FUNCTION_PROTO in initFunction.
   return func;
 };
 
