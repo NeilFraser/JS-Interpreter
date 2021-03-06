@@ -998,8 +998,8 @@ Interpreter.prototype.initArray = function(globalObject) {
     // Loop through all arguments and copy them in.
     for (var i = 0; i < arguments.length; i++) {
       var value = arguments[i];
-      thisInterpreter.legalArrayOrDie(value);
       if (thisInterpreter.isa(value, thisInterpreter.ARRAY)) {
+        thisInterpreter.legalArrayOrDie(value);
         var jLength = thisInterpreter.getProperty(value, 'length');
         for (var j = 0; j < jLength; j++) {
           if (thisInterpreter.hasProperty(value, j)) {
