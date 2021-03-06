@@ -116,6 +116,16 @@ Interpreter.READONLY_NONENUMERABLE_DESCRIPTOR = {
 };
 
 /**
+ * Property descriptor of non-configurable, readonly, non-enumerable properties.
+ * E.g. NaN, Infinity.
+ */
+Interpreter.NONCONFIGURABLE_READONLY_NONENUMERABLE_DESCRIPTOR = {
+  configurable: false,
+  enumerable: false,
+  writable: false
+};
+
+/**
  * Property descriptor of variables.
  */
 Interpreter.VARIABLE_DESCRIPTOR = {
@@ -360,15 +370,15 @@ Interpreter.prototype.run = function() {
 Interpreter.prototype.initGlobal = function(globalObject) {
   // Initialize uneditable global properties.
   this.setProperty(globalObject, 'NaN', NaN,
-                   Interpreter.READONLY_DESCRIPTOR);
+      Interpreter.NONCONFIGURABLE_READONLY_NONENUMERABLE_DESCRIPTOR);
   this.setProperty(globalObject, 'Infinity', Infinity,
-                   Interpreter.READONLY_DESCRIPTOR);
+      Interpreter.NONCONFIGURABLE_READONLY_NONENUMERABLE_DESCRIPTOR);
   this.setProperty(globalObject, 'undefined', undefined,
-                   Interpreter.READONLY_DESCRIPTOR);
+      Interpreter.NONCONFIGURABLE_READONLY_NONENUMERABLE_DESCRIPTOR);
   this.setProperty(globalObject, 'window', globalObject,
-                   Interpreter.READONLY_DESCRIPTOR);
+      Interpreter.READONLY_DESCRIPTOR);
   this.setProperty(globalObject, 'this', globalObject,
-                   Interpreter.READONLY_DESCRIPTOR);
+      Interpreter.NONCONFIGURABLE_READONLY_NONENUMERABLE_DESCRIPTOR);
   this.setProperty(globalObject, 'self', globalObject);  // Editable.
 
   // Create the objects which will become Object.prototype and
@@ -383,7 +393,7 @@ Interpreter.prototype.initGlobal = function(globalObject) {
   // be `Object`.  This interpreter is closer to Node in that it has no DOM.
   globalObject.proto = this.OBJECT_PROTO;
   this.setProperty(globalObject, 'constructor', this.OBJECT,
-                   Interpreter.NONENUMERABLE_DESCRIPTOR);
+      Interpreter.NONENUMERABLE_DESCRIPTOR);
   this.initArray(globalObject);
   this.initString(globalObject);
   this.initBoolean(globalObject);
@@ -399,18 +409,23 @@ Interpreter.prototype.initGlobal = function(globalObject) {
   var func = this.createNativeFunction(
       function(x) {throw EvalError("Can't happen");}, false);
   func.eval = true;
-  this.setProperty(globalObject, 'eval', func);
+  this.setProperty(globalObject, 'eval', func,
+      Interpreter.NONENUMERABLE_DESCRIPTOR);
 
   this.setProperty(globalObject, 'parseInt',
-      this.createNativeFunction(parseInt, false));
+      this.createNativeFunction(parseInt, false),
+      Interpreter.NONENUMERABLE_DESCRIPTOR);
   this.setProperty(globalObject, 'parseFloat',
-      this.createNativeFunction(parseFloat, false));
+      this.createNativeFunction(parseFloat, false),
+      Interpreter.NONENUMERABLE_DESCRIPTOR);
 
   this.setProperty(globalObject, 'isNaN',
-      this.createNativeFunction(isNaN, false));
+      this.createNativeFunction(isNaN, false),
+      Interpreter.NONENUMERABLE_DESCRIPTOR);
 
   this.setProperty(globalObject, 'isFinite',
-      this.createNativeFunction(isFinite, false));
+      this.createNativeFunction(isFinite, false),
+      Interpreter.NONENUMERABLE_DESCRIPTOR);
 
   var strFunctions = [
     [escape, 'escape'], [unescape, 'unescape'],
@@ -497,14 +512,15 @@ Interpreter.prototype.initFunction = function(globalObject) {
   };
   this.FUNCTION = this.createNativeFunction(wrapper, true);
 
-  this.setProperty(globalObject, 'Function', this.FUNCTION);
+  this.setProperty(globalObject, 'Function', this.FUNCTION,
+      Interpreter.NONENUMERABLE_DESCRIPTOR);
   // Throw away the created prototype and use the root prototype.
   this.setProperty(this.FUNCTION, 'prototype', this.FUNCTION_PROTO,
-                   Interpreter.NONENUMERABLE_DESCRIPTOR);
+      Interpreter.NONENUMERABLE_DESCRIPTOR);
 
   // Configure Function.prototype.
   this.setProperty(this.FUNCTION_PROTO, 'constructor', this.FUNCTION,
-                   Interpreter.NONENUMERABLE_DESCRIPTOR);
+      Interpreter.NONENUMERABLE_DESCRIPTOR);
   this.FUNCTION_PROTO.nativeFunc = function() {};
   this.FUNCTION_PROTO.nativeFunc.id = this.functionCounter_++;
   this.FUNCTION_PROTO.illegalConstructor = true;
@@ -647,7 +663,8 @@ Interpreter.prototype.initObject = function(globalObject) {
                    Interpreter.NONENUMERABLE_DESCRIPTOR);
   this.setProperty(this.OBJECT_PROTO, 'constructor', this.OBJECT,
                    Interpreter.NONENUMERABLE_DESCRIPTOR);
-  this.setProperty(globalObject, 'Object', this.OBJECT);
+  this.setProperty(globalObject, 'Object', this.OBJECT,
+      Interpreter.NONENUMERABLE_DESCRIPTOR);
 
   /**
    * Checks if the provided value is null or undefined.
@@ -898,7 +915,8 @@ Interpreter.prototype.initArray = function(globalObject) {
   };
   this.ARRAY = this.createNativeFunction(wrapper, true);
   this.ARRAY_PROTO = this.ARRAY.properties['prototype'];
-  this.setProperty(globalObject, 'Array', this.ARRAY);
+  this.setProperty(globalObject, 'Array', this.ARRAY,
+      Interpreter.NONENUMERABLE_DESCRIPTOR);
 
   // Static methods on Array.
   wrapper = function(obj) {
@@ -1203,7 +1221,8 @@ Interpreter.prototype.initString = function(globalObject) {
     }
   };
   this.STRING = this.createNativeFunction(wrapper, true);
-  this.setProperty(globalObject, 'String', this.STRING);
+  this.setProperty(globalObject, 'String', this.STRING,
+      Interpreter.NONENUMERABLE_DESCRIPTOR);
 
   // Static methods on String.
   this.setProperty(this.STRING, 'fromCharCode',
@@ -1445,7 +1464,8 @@ Interpreter.prototype.initBoolean = function(globalObject) {
     }
   };
   this.BOOLEAN = this.createNativeFunction(wrapper, true);
-  this.setProperty(globalObject, 'Boolean', this.BOOLEAN);
+  this.setProperty(globalObject, 'Boolean', this.BOOLEAN,
+      Interpreter.NONENUMERABLE_DESCRIPTOR);
 };
 
 /**
@@ -1468,13 +1488,14 @@ Interpreter.prototype.initNumber = function(globalObject) {
     }
   };
   this.NUMBER = this.createNativeFunction(wrapper, true);
-  this.setProperty(globalObject, 'Number', this.NUMBER);
+  this.setProperty(globalObject, 'Number', this.NUMBER,
+      Interpreter.NONENUMERABLE_DESCRIPTOR);
 
   var numConsts = ['MAX_VALUE', 'MIN_VALUE', 'NaN', 'NEGATIVE_INFINITY',
                    'POSITIVE_INFINITY'];
   for (var i = 0; i < numConsts.length; i++) {
     this.setProperty(this.NUMBER, numConsts[i], Number[numConsts[i]],
-        Interpreter.READONLY_NONENUMERABLE_DESCRIPTOR);
+        Interpreter.NONCONFIGURABLE_READONLY_NONENUMERABLE_DESCRIPTOR);
   }
 
   // Instance methods on Number.
@@ -1547,7 +1568,8 @@ Interpreter.prototype.initDate = function(globalObject) {
   };
   this.DATE = this.createNativeFunction(wrapper, true);
   this.DATE_PROTO = this.DATE.properties['prototype'];
-  this.setProperty(globalObject, 'Date', this.DATE);
+  this.setProperty(globalObject, 'Date', this.DATE,
+      Interpreter.NONENUMERABLE_DESCRIPTOR);
 
   // Static methods on Date.
   this.setProperty(this.DATE, 'now', this.createNativeFunction(Date.now, false),
@@ -1610,7 +1632,8 @@ Interpreter.prototype.initRegExp = function(globalObject) {
   };
   this.REGEXP = this.createNativeFunction(wrapper, true);
   this.REGEXP_PROTO = this.REGEXP.properties['prototype'];
-  this.setProperty(globalObject, 'RegExp', this.REGEXP);
+  this.setProperty(globalObject, 'RegExp', this.REGEXP,
+      Interpreter.NONENUMERABLE_DESCRIPTOR);
 
   this.setProperty(this.REGEXP.properties['prototype'], 'global', undefined,
       Interpreter.READONLY_NONENUMERABLE_DESCRIPTOR);
@@ -1708,7 +1731,8 @@ Interpreter.prototype.initError = function(globalObject) {
     }
     return newError;
   }, true);
-  this.setProperty(globalObject, 'Error', this.ERROR);
+  this.setProperty(globalObject, 'Error', this.ERROR,
+      Interpreter.NONENUMERABLE_DESCRIPTOR);
   this.setProperty(this.ERROR.properties['prototype'], 'message', '',
       Interpreter.NONENUMERABLE_DESCRIPTOR);
   this.setProperty(this.ERROR.properties['prototype'], 'name', 'Error',
@@ -1735,7 +1759,8 @@ Interpreter.prototype.initError = function(globalObject) {
         Interpreter.NONENUMERABLE_DESCRIPTOR);
     thisInterpreter.setProperty(constructor.properties['prototype'], 'name',
         name, Interpreter.NONENUMERABLE_DESCRIPTOR);
-    thisInterpreter.setProperty(globalObject, name, constructor);
+    thisInterpreter.setProperty(globalObject, name, constructor,
+        Interpreter.NONENUMERABLE_DESCRIPTOR);
 
     return constructor;
   };
@@ -1754,7 +1779,8 @@ Interpreter.prototype.initError = function(globalObject) {
  */
 Interpreter.prototype.initMath = function(globalObject) {
   var myMath = this.createObjectProto(this.OBJECT_PROTO);
-  this.setProperty(globalObject, 'Math', myMath);
+  this.setProperty(globalObject, 'Math', myMath,
+      Interpreter.NONENUMERABLE_DESCRIPTOR);
   var mathConsts = ['E', 'LN2', 'LN10', 'LOG2E', 'LOG10E', 'PI',
                     'SQRT1_2', 'SQRT2'];
   for (var i = 0; i < mathConsts.length; i++) {
@@ -1778,7 +1804,8 @@ Interpreter.prototype.initMath = function(globalObject) {
 Interpreter.prototype.initJSON = function(globalObject) {
   var thisInterpreter = this;
   var myJSON = thisInterpreter.createObjectProto(this.OBJECT_PROTO);
-  this.setProperty(globalObject, 'JSON', myJSON);
+  this.setProperty(globalObject, 'JSON', myJSON,
+      Interpreter.NONENUMERABLE_DESCRIPTOR);
 
   var wrapper = function(text) {
     try {
