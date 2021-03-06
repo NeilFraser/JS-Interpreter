@@ -3623,10 +3623,6 @@ Interpreter.prototype['stepIdentifier'] = function(stack, state, node) {
   // An identifier could be a getter if it's a property on the global object.
   if (this.getterStep_) {
     // Call the getter function.
-    var scope = state.scope;
-    while (!this.hasProperty(scope, node['name'])) {
-      scope = scope.parentScope;
-    }
     var func = /** @type {!Interpreter.Object} */ (value);
     return this.createGetter_(func, this.globalObject);
   }
