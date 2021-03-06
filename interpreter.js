@@ -932,49 +932,58 @@ Interpreter.prototype.initArray = function(globalObject) {
   this.ARRAY_PROTO.class = 'Array';
 
   wrapper = function() {
+    thisInterpreter.legalArrayOrDie(this);
     return Array.prototype.pop.call(this.properties);
   };
   this.setNativeFunctionPrototype(this.ARRAY, 'pop', wrapper);
 
   wrapper = function(var_args) {
+    thisInterpreter.legalArrayOrDie(this);
     return Array.prototype.push.apply(this.properties, arguments);
   };
   this.setNativeFunctionPrototype(this.ARRAY, 'push', wrapper);
 
   wrapper = function() {
+    thisInterpreter.legalArrayOrDie(this);
     return Array.prototype.shift.call(this.properties);
   };
   this.setNativeFunctionPrototype(this.ARRAY, 'shift', wrapper);
 
   wrapper = function(var_args) {
+    thisInterpreter.legalArrayOrDie(this);
     return Array.prototype.unshift.apply(this.properties, arguments);
   };
   this.setNativeFunctionPrototype(this.ARRAY, 'unshift', wrapper);
 
   wrapper = function() {
+    thisInterpreter.legalArrayOrDie(this);
     Array.prototype.reverse.call(this.properties);
     return this;
   };
   this.setNativeFunctionPrototype(this.ARRAY, 'reverse', wrapper);
 
   wrapper = function(index, howmany /*, var_args*/) {
+    thisInterpreter.legalArrayOrDie(this);
     var list = Array.prototype.splice.apply(this.properties, arguments);
     return thisInterpreter.arrayNativeToPseudo(list);
   };
   this.setNativeFunctionPrototype(this.ARRAY, 'splice', wrapper);
 
   wrapper = function(opt_begin, opt_end) {
+    thisInterpreter.legalArrayOrDie(this);
     var list = Array.prototype.slice.call(this.properties, opt_begin, opt_end);
     return thisInterpreter.arrayNativeToPseudo(list);
   };
   this.setNativeFunctionPrototype(this.ARRAY, 'slice', wrapper);
 
   wrapper = function(opt_separator) {
+    thisInterpreter.legalArrayOrDie(this);
     return Array.prototype.join.call(this.properties, opt_separator);
   };
   this.setNativeFunctionPrototype(this.ARRAY, 'join', wrapper);
 
   wrapper = function(var_args) {
+    thisInterpreter.legalArrayOrDie(this);
     var list = [];
     var length = 0;
     // Start by copying the current array.
@@ -989,6 +998,7 @@ Interpreter.prototype.initArray = function(globalObject) {
     // Loop through all arguments and copy them in.
     for (var i = 0; i < arguments.length; i++) {
       var value = arguments[i];
+      thisInterpreter.legalArrayOrDie(value);
       if (thisInterpreter.isa(value, thisInterpreter.ARRAY)) {
         var jLength = thisInterpreter.getProperty(value, 'length');
         for (var j = 0; j < jLength; j++) {
@@ -1006,16 +1016,19 @@ Interpreter.prototype.initArray = function(globalObject) {
   this.setNativeFunctionPrototype(this.ARRAY, 'concat', wrapper);
 
   wrapper = function(searchElement, opt_fromIndex) {
+    thisInterpreter.legalArrayOrDie(this);
     return Array.prototype.indexOf.apply(this.properties, arguments);
   };
   this.setNativeFunctionPrototype(this.ARRAY, 'indexOf', wrapper);
 
   wrapper = function(searchElement, opt_fromIndex) {
+    thisInterpreter.legalArrayOrDie(this);
     return Array.prototype.lastIndexOf.apply(this.properties, arguments);
   };
   this.setNativeFunctionPrototype(this.ARRAY, 'lastIndexOf', wrapper);
 
   wrapper = function() {
+    thisInterpreter.legalArrayOrDie(this);
     Array.prototype.sort.call(this.properties);
     return this;
   };
@@ -2034,6 +2047,17 @@ Interpreter.prototype.createArray = function() {
       {configurable: false, enumerable: false, writable: true});
   array.class = 'Array';
   return array;
+};
+
+/**
+ * Does the array (or array-like object) have a legal length?
+ * If not, throw a RangeError.
+ * @param {Interpreter.Value} array Object to check.
+ */
+Interpreter.prototype.legalArrayOrDie = function(array) {
+  if (!Interpreter.legalArrayLength(this.getProperty(array, 'length') || 0)) {
+    this.throwException(this.RANGE_ERROR, 'Invalid array length');
+  }
 };
 
 /**
