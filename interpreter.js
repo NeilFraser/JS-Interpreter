@@ -1598,11 +1598,16 @@ Interpreter.prototype.initDate = function(globalObject) {
   for (var i = 0; i < functions.length; i++) {
     wrapper = (function(nativeFunc) {
       return function(var_args) {
+        var date = this.data;
+        if (!(date instanceof Date)) {
+          thisInterpreter.throwException(thisInterpreter.TYPE_ERROR,
+              nativeFunc + ' not called on a Date');
+        }
         var args = [];
         for (var i = 0; i < arguments.length; i++) {
           args[i] = thisInterpreter.pseudoToNative(arguments[i]);
         }
-        return this.data[nativeFunc].apply(this.data, args);
+        return date[nativeFunc].apply(date, args);
       };
     })(functions[i]);
     this.setNativeFunctionPrototype(this.DATE, functions[i], wrapper);
