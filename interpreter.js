@@ -2055,8 +2055,9 @@ Interpreter.prototype.createArray = function() {
  * @param {Interpreter.Value} array Object to check.
  */
 Interpreter.prototype.legalArrayOrDie = function(array) {
-  if (!Interpreter.legalArrayLength(this.getProperty(array, 'length') || 0)) {
-    this.throwException(this.RANGE_ERROR, 'Invalid array length');
+  var len = this.getProperty(array, 'length') || 0;
+  if (isNaN(Interpreter.legalArrayLength(len))) {
+    this.throwException(this.RANGE_ERROR, 'Invalid array length: ' + len);
   }
 };
 
