@@ -3262,9 +3262,10 @@ Interpreter.prototype['stepCallExpression'] = function(stack, state, node) {
         state.funcThis_ = this.createObjectProto(proto);
       }
       state.isConstructor = true;
-    } else if (state.funcThis_ === undefined) {
-      // Global function, `this` is global object (or `undefined` if strict).
-      state.funcThis_ = state.scope.strict ? undefined : this.globalObject;
+    } else if (!state.scope.strict &&
+        (state.funcThis_ === undefined || state.funcThis_ === null)) {
+      // Strict mode allows undefined or null, loose mode uses global object.
+      state.funcThis_ = this.globalObject;
     }
     state.doneArgs_ = true;
   }
