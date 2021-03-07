@@ -1240,9 +1240,14 @@ Interpreter.prototype.initString = function(globalObject) {
   }
 
   wrapper = function(compareString, locales, options) {
-    locales = locales ? thisInterpreter.pseudoToNative(locales) : undefined;
-    options = options ? thisInterpreter.pseudoToNative(options) : undefined;
-    return String(this).localeCompare(compareString, locales, options);
+    locales = thisInterpreter.pseudoToNative(locales);
+    options = thisInterpreter.pseudoToNative(options);
+    try {
+      return String(this).localeCompare(compareString, locales, options);
+    } catch (e) {
+      thisInterpreter.throwException(thisInterpreter.ERROR,
+          'localeCompare: ' + e.message);
+    }
   };
   this.setNativeFunctionPrototype(this.STRING, 'localeCompare', wrapper);
 
