@@ -279,6 +279,15 @@ Interpreter.prototype['REGEXP_MODE'] = 2;
 Interpreter.prototype['REGEXP_THREAD_TIMEOUT'] = 1000;
 
 /**
+ * Length of time (in ms) to allow a polyfill to run before ending step.
+ * If set to 0, polyfills will execute step by step.
+ * If set to 1000, polyfills will run for up to a second per step
+ * (execution will resume in the polyfill in the next step).
+ * If set to Infinity, polyfills will run to completion in a single step.
+ */
+Interpreter.prototype['POLYFILL_TIMEOUT'] = 1000;
+
+/**
  * Flag indicating that a getter function needs to be called immediately.
  * @private
  */
@@ -317,6 +326,7 @@ Interpreter.prototype.appendCode = function(code) {
  */
 Interpreter.prototype.step = function() {
   var stack = this.stateStack;
+  var startTime = Date.now();
   do {
     var state = stack[stack.length - 1];
     if (!state) {
@@ -349,7 +359,7 @@ Interpreter.prototype.step = function() {
       throw Error('Setter not supported in this context');
     }
     // This may be polyfill code.  Keep executing until we arrive at user code.
-  } while (!node['end']);
+  } while (!node['end'] && startTime + this['POLYFILL_TIMEOUT'] > Date.now());
   return true;
 };
 
@@ -1010,13 +1020,13 @@ Interpreter.prototype.initArray = function(globalObject) {
     "{configurable: true, writable: true, value:",
   "function(callbackfn, thisArg) {",
     "if (!this || typeof callbackfn !== 'function') throw TypeError();",
-    "var T, k;",
-    "var O = Object(this);",
-    "var len = O.length >>> 0;",
-    "if (arguments.length > 1) T = thisArg;",
+    "var t, k;",
+    "var o = Object(this);",
+    "var len = o.length >>> 0;",
+    "if (arguments.length > 1) t = thisArg;",
     "k = 0;",
     "while (k < len) {",
-      "if (k in O && !callbackfn.call(T, O[k], k, O)) return false;",
+      "if (k in o && !callbackfn.call(t, o[k], k, o)) return false;",
       "k++;",
     "}",
     "return true;",
@@ -1049,13 +1059,13 @@ Interpreter.prototype.initArray = function(globalObject) {
     "{configurable: true, writable: true, value:",
   "function(callback, thisArg) {",
     "if (!this || typeof callback !== 'function') throw TypeError();",
-    "var T, k;",
-    "var O = Object(this);",
-    "var len = O.length >>> 0;",
-    "if (arguments.length > 1) T = thisArg;",
+    "var t, k;",
+    "var o = Object(this);",
+    "var len = o.length >>> 0;",
+    "if (arguments.length > 1) t = thisArg;",
     "k = 0;",
     "while (k < len) {",
-      "if (k in O) callback.call(T, O[k], k, O);",
+      "if (k in o) callback.call(t, o[k], k, o);",
       "k++;",
     "}",
   "}",
@@ -1067,17 +1077,17 @@ Interpreter.prototype.initArray = function(globalObject) {
     "{configurable: true, writable: true, value:",
   "function(callback, thisArg) {",
     "if (!this || typeof callback !== 'function') new TypeError;",
-    "var T, A, k;",
-    "var O = Object(this);",
-    "var len = O.length >>> 0;",
-    "if (arguments.length > 1) T = thisArg;",
-    "A = new Array(len);",
+    "var t, a, k;",
+    "var o = Object(this);",
+    "var len = o.length >>> 0;",
+    "if (arguments.length > 1) t = thisArg;",
+    "a = new Array(len);",
     "k = 0;",
     "while (k < len) {",
-      "if (k in O) A[k] = callback.call(T, O[k], k, O);",
+      "if (k in o) a[k] = callback.call(t, o[k], k, o);",
       "k++;",
     "}",
-    "return A;",
+    "return a;",
   "}",
 "});",
 
