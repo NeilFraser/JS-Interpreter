@@ -8,8 +8,8 @@
   <script src="../interpreter.js"></script>
   <script>
     function initAlert(interpreter, globalObject) {
-      var wrapper = function(text) {
-        return alert(arguments.length ? text : '');
+      var wrapper = function alert(text) {
+        return window.alert(arguments.length ? text : '');
       };
       interpreter.setProperty(globalObject, 'alert',
           interpreter.createNativeFunction(wrapper));

@@ -8,14 +8,14 @@
   <script src="../interpreter.js"></script>
   <script>
     var myInterpreter;
-    function initAlert(interpreter, globalObject) {
+    function initAlert  alert(interpreter, globalObject) {
       var wrapper = function(text) {
-        return alert(arguments.length ? text : '');
+        return window.alert(arguments.length ? text : '');
       };
       interpreter.setProperty(globalObject, 'alert',
           interpreter.createNativeFunction(wrapper));
 
-      var wrapper = function(href, callback) {
+      var wrapper = function getXhr(href, callback) {
         var req = new XMLHttpRequest();
         req.open('GET', href, true);
         req.onreadystatechange = function() {

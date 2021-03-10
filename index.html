@@ -17,8 +17,8 @@
 
     var myInterpreter;
     function initAlert(interpreter, scope) {
-      var wrapper = function(text) {
-        return alert(arguments.length ? text : '');
+      var wrapper = function alert(text) {
+        return window.alert(arguments.length ? text : '');
       };
       interpreter.setProperty(scope, 'alert',
           interpreter.createNativeFunction(wrapper));

@@ -9,19 +9,19 @@
   <script>
     var myInterpreter;
     function initAlert(interpreter, globalObject) {
-      var wrapper = function(text) {
-        return alert(arguments.length ? text : '');
+      var wrapper = function alert(text) {
+        return window.alert(arguments.length ? text : '');
       };
       interpreter.setProperty(globalObject, 'alert',
           interpreter.createNativeFunction(wrapper));
 
-      var wrapper = function() {
+      var wrapper = function getInput() {
         return document.getElementById('JSON_input').value;
       };
       interpreter.setProperty(globalObject, 'getInput',
           interpreter.createNativeFunction(wrapper));
 
-      var wrapper = function(text) {
+      var wrapper = function setOutput(text) {
         document.getElementById('JSON_output').value = text;
       };
       interpreter.setProperty(globalObject, 'setOutput',

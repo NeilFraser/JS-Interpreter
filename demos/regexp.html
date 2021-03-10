@@ -9,24 +9,11 @@
   <script>
     var myInterpreter = [];
     function initAlert(interpreter, globalObject) {
-      var wrapper = function(text) {
-        return alert(arguments.length ? text : '');
+      var wrapper = function alert(text) {
+        return window.alert(arguments.length ? text : '');
       };
       interpreter.setProperty(globalObject, 'alert',
           interpreter.createNativeFunction(wrapper));
-
-      var wrapper = function(href, callback) {
-        var req = new XMLHttpRequest();
-        req.open('GET', href, true);
-        req.onreadystatechange = function() {
-          if (req.readyState == 4 && req.status == 200) {
-            callback(req.responseText);
-          }
-        };
-        req.send(null);
-      };
-      interpreter.setProperty(globalObject, 'getXhr',
-          interpreter.createAsyncFunction(wrapper));
     }
 
     function parseButton(n) {
