@@ -2626,21 +2626,15 @@ Interpreter.prototype.setProperty = function(obj, name, value, opt_descriptor) {
   }
   if (opt_descriptor) {
     // Define the property.
-    if ('get' in opt_descriptor) {
-      if (opt_descriptor.get) {
-        obj.getter[name] = opt_descriptor.get;
-      } else {
-        delete obj.getter[name];
-      }
-    }
-    if ('set' in opt_descriptor) {
-      if (opt_descriptor.set) {
-        obj.setter[name] = opt_descriptor.set;
-      } else {
-        delete obj.setter[name];
-      }
-    }
     var descriptor = {};
+    if ('get' in opt_descriptor && opt_descriptor.get) {
+      obj.getter[name] = opt_descriptor.get;
+      descriptor.get = function(){throw Error('Placeholder getter')};
+    }
+    if ('set' in opt_descriptor && opt_descriptor.set) {
+      obj.setter[name] = opt_descriptor.set;
+      descriptor.get = function(){throw Error('Placeholder setter')};
+    }
     if ('configurable' in opt_descriptor) {
       descriptor.configurable = opt_descriptor.configurable;
     }
@@ -2665,6 +2659,13 @@ Interpreter.prototype.setProperty = function(obj, name, value, opt_descriptor) {
       Object.defineProperty(obj.properties, name, descriptor);
     } catch (e) {
       this.throwException(this.TYPE_ERROR, 'Cannot redefine property: ' + name);
+    }
+    // Now that the definition has suceeded, clean up any obsolete get/set funcs.
+    if ('get' in opt_descriptor && !opt_descriptor.get) {
+      delete obj.getter[name];
+    }
+    if ('set' in opt_descriptor && !opt_descriptor.set) {
+      delete obj.setter[name];
     }
   } else {
     // Set the property.
