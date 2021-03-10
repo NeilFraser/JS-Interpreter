@@ -928,97 +928,256 @@ Interpreter.prototype.initArray = function(globalObject) {
       {configurable: false, enumerable: false, writable: true});
   this.ARRAY_PROTO.class = 'Array';
 
-  wrapper = function() {
-    return Array.prototype.pop.call(this.properties);
-  };
-  this.setNativeFunctionPrototype(this.ARRAY, 'pop', wrapper);
-
-  wrapper = function(var_args) {
-    return Array.prototype.push.apply(this.properties, arguments);
-  };
-  this.setNativeFunctionPrototype(this.ARRAY, 'push', wrapper);
-
-  wrapper = function() {
-    return Array.prototype.shift.call(this.properties);
-  };
-  this.setNativeFunctionPrototype(this.ARRAY, 'shift', wrapper);
-
-  wrapper = function(var_args) {
-    return Array.prototype.unshift.apply(this.properties, arguments);
-  };
-  this.setNativeFunctionPrototype(this.ARRAY, 'unshift', wrapper);
-
-  wrapper = function() {
-    Array.prototype.reverse.call(this.properties);
-    return this;
-  };
-  this.setNativeFunctionPrototype(this.ARRAY, 'reverse', wrapper);
-
-  wrapper = function(index, howmany /*, var_args*/) {
-    var list = Array.prototype.splice.apply(this.properties, arguments);
-    return thisInterpreter.arrayNativeToPseudo(list);
-  };
-  this.setNativeFunctionPrototype(this.ARRAY, 'splice', wrapper);
-
-  wrapper = function(opt_begin, opt_end) {
-    var list = Array.prototype.slice.call(this.properties, opt_begin, opt_end);
-    return thisInterpreter.arrayNativeToPseudo(list);
-  };
-  this.setNativeFunctionPrototype(this.ARRAY, 'slice', wrapper);
-
-  wrapper = function(opt_separator) {
-    return Array.prototype.join.call(this.properties, opt_separator);
-  };
-  this.setNativeFunctionPrototype(this.ARRAY, 'join', wrapper);
-
-  wrapper = function concat(var_args) {
-    var list = [];
-    var len = 0;
-    // Start by copying the current array.
-    var iLength = thisInterpreter.getProperty(this, 'length');
-    for (var i = 0; i < iLength; i++) {
-      if (thisInterpreter.hasProperty(this, i)) {
-        var element = thisInterpreter.getProperty(this, i);
-        list[len] = element;
-      }
-      len++;
-    }
-    // Loop through all arguments and copy them in.
-    for (var i = 0; i < arguments.length; i++) {
-      var value = arguments[i];
-      if (thisInterpreter.isa(value, thisInterpreter.ARRAY)) {
-        var jLength = thisInterpreter.getProperty(value, 'length');
-        for (var j = 0; j < jLength; j++) {
-          if (thisInterpreter.hasProperty(value, j)) {
-            list[len] = thisInterpreter.getProperty(value, j);
-          }
-          len++;
-        }
-      } else {
-        list[len] = value;
-      }
-    }
-    return thisInterpreter.arrayNativeToPseudo(list);
-  };
-  this.setNativeFunctionPrototype(this.ARRAY, 'concat', wrapper);
-
-  wrapper = function(searchElement, opt_fromIndex) {
-    return Array.prototype.indexOf.apply(this.properties, arguments);
-  };
-  this.setNativeFunctionPrototype(this.ARRAY, 'indexOf', wrapper);
-
-  wrapper = function(searchElement, opt_fromIndex) {
-    return Array.prototype.lastIndexOf.apply(this.properties, arguments);
-  };
-  this.setNativeFunctionPrototype(this.ARRAY, 'lastIndexOf', wrapper);
-
-  wrapper = function sort_() {
-    Array.prototype.sort.call(this.properties);
-    return this;
-  };
-  this.setNativeFunctionPrototype(this.ARRAY, 'sort', wrapper);
-
   this.polyfills_.push(
+"Object.defineProperty(Array.prototype, 'pop',",
+    "{configurable: true, writable: true, value:",
+  "function pop() {",
+    "if (!this) throw TypeError('\"this\" is null or undefined');",
+    "var o = Object(this);",
+    "var len = o.length >>> 0;",
+    "if (!len || len < 0) {",
+      "o.length = 0;",
+      "return undefined;",
+    "}",
+    "len--;",
+    "var x = o[len];",
+    "delete o[len];",  // Needed for non-arrays.
+    "o.length = len;",
+    "return x;",
+  "}",
+"});",
+
+"Object.defineProperty(Array.prototype, 'push',",
+    "{configurable: true, writable: true, value:",
+  "function push(var_args) {",
+    "if (!this) throw TypeError();",
+    "var o = Object(this);",
+    "var len = o.length >>> 0;",
+    "for (var i = 0; i < arguments.length; i++) {",
+      "o[len] = arguments[i];",
+      "len++;",
+    "}",
+    "o.length = len;",
+    "return len;",
+  "}",
+"});",
+
+"Object.defineProperty(Array.prototype, 'shift',",
+    "{configurable: true, writable: true, value:",
+  "function shift() {",
+    "if (!this) throw TypeError();",
+    "var o = Object(this);",
+    "var len = o.length >>> 0;",
+    "if (!len || len < 0) {",
+      "o.length = 0;",
+      "return undefined;",
+    "}",
+    "var value = o[0];",
+    "for (var i = 0; i < len - 1; i++) {",
+      "o[i] = o[i + 1];",
+    "}",
+    "delete o[i];",  // Needed for non-arrays.
+    "o.length = len - 1;",
+    "return value;",
+  "}",
+"});",
+
+"Object.defineProperty(Array.prototype, 'unshift',",
+    "{configurable: true, writable: true, value:",
+  "function unshift(var_args) {",
+    "if (!this) throw TypeError();",
+    "var o = Object(this);",
+    "var len = o.length >>> 0;",
+    "if (!len || len < 0) {",
+      "len = 0;",
+    "}",
+    "for (var i = len - 1; i >= 0; i--) {",
+      "o[i + arguments.length] = o[i];",
+    "}",
+    "for (var i = 0; i < arguments.length; i++) {",
+      "o[i] = arguments[i];",
+    "}",
+    "return o.length = length + arguments.length;",
+  "}",
+"});",
+
+"Object.defineProperty(Array.prototype, 'reverse',",
+    "{configurable: true, writable: true, value:",
+  "function reverse() {",
+    "if (!this) throw TypeError();",
+    "var o = Object(this);",
+    "var len = o.length >>> 0;",
+    "if (!len || len < 2) {",
+      "return o;",  // Not an array, or too short to reverse.
+    "}",
+    "for (var i = 0; i < len / 2 - 0.5; i++) {",
+      "var x = o[i];",
+      "o[i] = o[len - i - 1];",
+      "o[len - i - 1] = x;",
+    "}",
+    "return o;",
+  "}",
+"});",
+
+"Object.defineProperty(Array.prototype, 'indexOf',",
+    "{configurable: true, writable: true, value:",
+  "function indexOf(searchElement, fromIndex) {",
+    "if (!this) throw TypeError();",
+    "var o = Object(this);",
+    "var len = o.length >>> 0;",
+    "var n = fromIndex | 0;",
+    "if (!len || n >= len) {",
+      "return -1;",
+    "}",
+    "var i = Math.max(n >= 0 ? n : len - Math.abs(n), 0);",
+    "while (i < len) {",
+      "if (i in o && o[i] === searchElement) {",
+        "return i;",
+      "}",
+      "i++;",
+    "}",
+    "return -1;",
+  "}",
+"});",
+
+"Object.defineProperty(Array.prototype, 'lastIndexOf',",
+    "{configurable: true, writable: true, value:",
+  "function lastIndexOf(searchElement, fromIndex) {",
+    "if (!this) throw TypeError();",
+    "var o = Object(this);",
+    "var len = o.length >>> 0;",
+    "if (!len) {",
+      "return -1;",
+    "}",
+    "var n = len - 1;",
+    "if (arguments.length > 1) {",
+      "n = fromIndex | 0;",
+      "if (n) {",
+        "n = (n > 0 || -1) * Math.floor(Math.abs(n));",
+      "}",
+    "}",
+    "var i = n >= 0 ? Math.min(n, len - 1) : len - Math.abs(n);",
+    "while (i >= 0) {",
+      "if (i in o && o[i] === searchElement) {",
+        "return i;",
+      "}",
+      "i--;",
+    "}",
+    "return -1;",
+  "}",
+"});",
+
+"Object.defineProperty(Array.prototype, 'slice',",
+    "{configurable: true, writable: true, value:",
+  "function slice(start, end) {",
+    "if (!this) throw TypeError();",
+    "var o = Object(this);",
+    "var len = o.length >>> 0;",
+    // Handle negative value for "start"
+    "start |= 0;",
+    "start = (start >= 0) ? start : Math.max(0, len + start);",
+    // Handle negative value for "end"
+    "if (typeof end != 'undefined') {",
+      "if (end != Infinity) {",
+        "end |= 0;",
+      "}",
+      "if (end < 0) {",
+        "end = len + end;",
+      "} else {",
+        "end = Math.min(end, len);",
+      "}",
+    "} else {",
+      "end = len;",
+    "}",
+    "var size = end - start;",
+    "var cloned = [];",
+    "for (var i = 0; i < size; i++) {",
+      "cloned[i] = o[start + i];",
+    "}",
+    "return cloned;",
+  "}",
+"});",
+
+"Object.defineProperty(Array.prototype, 'splice',",
+    "{configurable: true, writable: true, value:",
+  "function splice(start, deleteCount, var_args) {",
+    "if (!this) throw TypeError();",
+    "var o = Object(this);",
+    "var len = o.length >>> 0;",
+    "start |= 0;",
+    "if (start < 0) {",
+      "start = Math.max(len + start, 0);",
+    "} else {",
+      "start = Math.min(start, len);",
+    "}",
+    "if (arguments.length < 1) {",
+      "deleteCount = len - start;",
+    "} else {",
+      "deleteCount |= 0;",
+      "deleteCount = Math.max(0, Math.min(deleteCount, len - start));",
+    "}",
+    "var removed = [];",
+    // Remove specified elements.
+    "for (var i = start; i < start + deleteCount; i++) {",
+      "removed[removed.length++] = o[i];",
+      "o[i] = o[i + deleteCount];",
+    "}",
+    // Move other element to fill the gap.
+    "for (var i = start + deleteCount; i < len - deleteCount; i++) {",
+      "o[i] = o[i + deleteCount];",
+    "}",
+    // Delete superfluous properties.
+    "for (var i = len - deleteCount; i < len; i++) {",
+      "delete o[i];",
+    "}",
+    "len -= deleteCount;",
+    // Insert specified items.
+    "for (var i = len - 1; i >= start; i--) {",
+      "o[i + arguments.length - 2] = o[i];",
+    "}",
+    "len += arguments.length - 2;",
+    "for (var i = 2; i < arguments.length; i++) {",
+      "o[start + i - 2] = arguments[i];",
+    "}",
+    "o.length = len;",
+    "return removed;",
+  "}",
+"});",
+
+"Object.defineProperty(Array.prototype, 'concat',",
+    "{configurable: true, writable: true, value:",
+  "function concat(var_args) {",
+    "if (!this) throw TypeError();",
+    "var cloned = [];",
+    "for (var i = -1; i < arguments.length; i++) {",
+      "var value = (i === -1) ? this : arguments[i];",
+      "if (Array.isArray(value)) {",
+        "cloned.push.apply(cloned, value);",
+      "} else {",
+        "cloned.push(value);",
+      "}",
+    "}",
+    "return cloned;",
+  "}",
+"});",
+
+"Object.defineProperty(Array.prototype, 'join',",
+    "{configurable: true, writable: true, value:",
+  "function join(opt_separator) {",
+    "if (!this) throw TypeError();",
+    "var sep = typeof opt_separator == 'undefined' ?",
+        "',' : ('' + opt_separator);",
+    "var str = '';",
+    "for (var i = 0; i < this.length; i++) {",
+      "if (i && sep) {",
+        "str += sep;",
+      "}",
+      "str += this[i];",
+    "}",
+    "return str;",
+  "}",
+"});",
+
 // Polyfill copied from:
 // developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Array/every
 "Object.defineProperty(Array.prototype, 'every',",
@@ -1161,18 +1320,18 @@ Interpreter.prototype.initArray = function(globalObject) {
 "});",
 
 
-"(function() {",
-  "var sort_ = Array.prototype.sort;",
-  "Array.prototype.sort = function sort(opt_comp) {",
-    // Fast native sort.
+"Object.defineProperty(Array.prototype, 'sort',",
+    "{configurable: true, writable: true, value:",
+  "function sort() {",  // Bubble sort!
+    "if (!this) throw TypeError();",
     "if (typeof opt_comp !== 'function') {",
-      "return sort_.call(this);",
+      "opt_comp = undefined;",
     "}",
-    // Slow bubble sort.
     "for (var i = 0; i < this.length; i++) {",
       "var changes = 0;",
       "for (var j = 0; j < this.length - i - 1; j++) {",
-        "if (opt_comp(this[j], this[j + 1]) > 0) {",
+        "if (opt_comp ? (opt_comp(this[j], this[j + 1]) > 0) :",
+            "(String(this[j]) > String(this[j + 1]))) {",
           "var swap = this[j];",
           "this[j] = this[j + 1];",
           "this[j + 1] = swap;",
@@ -1182,8 +1341,8 @@ Interpreter.prototype.initArray = function(globalObject) {
       "if (!changes) break;",
     "}",
     "return this;",
-  "};",
-"})();",
+  "}",
+"});",
 
 "Object.defineProperty(Array.prototype, 'toLocaleString',",
     "{configurable: true, writable: true, value:",
