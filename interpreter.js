@@ -2242,7 +2242,7 @@ Interpreter.prototype.createFunction = function(node, scope, opt_name) {
   var func = this.createFunctionBase_(node['params'].length, true);
   func.parentScope = scope;
   func.node = node;
-  // Choose an immutable name for this function.
+  // Choose a name for this function.
   // function foo() {}             -> 'foo'
   // var bar = function() {};      -> 'bar'
   // var bar = function foo() {};  -> 'foo'
@@ -2629,11 +2629,11 @@ Interpreter.prototype.setProperty = function(obj, name, value, opt_descriptor) {
     var descriptor = {};
     if ('get' in opt_descriptor && opt_descriptor.get) {
       obj.getter[name] = opt_descriptor.get;
-      descriptor.get = function(){throw Error('Placeholder getter')};
+      descriptor.get = this.setProperty.placeholderGet_;
     }
     if ('set' in opt_descriptor && opt_descriptor.set) {
       obj.setter[name] = opt_descriptor.set;
-      descriptor.get = function(){throw Error('Placeholder setter')};
+      descriptor.set = this.setProperty.placeholderSet_;
     }
     if ('configurable' in opt_descriptor) {
       descriptor.configurable = opt_descriptor.configurable;
@@ -2704,6 +2704,9 @@ Interpreter.prototype.setProperty = function(obj, name, value, opt_descriptor) {
     }
   }
 };
+
+Interpreter.prototype.setProperty.placeholderGet_ = function() {throw Error('Placeholder getter')};
+Interpreter.prototype.setProperty.placeholderSet_ = function() {throw Error('Placeholder setter')};
 
 /**
  * Convenience method for adding a native function as a non-enumerable property
@@ -3167,10 +3170,21 @@ Interpreter.Object.prototype.toString = function() {
     cycles.push(this);
     try {
       var strs = [];
-      for (var i = 0; i < this.properties.length; i++) {
+      // Truncate very long strings.  This is not part of the spec,
+      // but it prevents hanging the interpreter for gigantic arrays.
+      var maxLength = this.properties.length;
+      var truncated = false;
+      if (maxLength > 1024) {
+        maxLength = 1000;
+        truncated = true;
+      }
+      for (var i = 0; i < maxLength; i++) {
         var value = this.properties[i];
         strs[i] = ((value instanceof Interpreter.Object) &&
             cycles.indexOf(value) !== -1) ? '...' : value;
+      }
+      if (truncated) {
+        strs.push('...');
       }
     } finally {
       cycles.pop();
@@ -3287,8 +3301,8 @@ Interpreter.prototype['stepAssignmentExpression'] =
     }
     state.doneRight_ = true;
     // When assigning an unnamed function to a variable, the function's name
-    // is permanently set to the variable name.  Record the variable name in
-    // case the right side is a functionExpression.
+    // is set to the variable name.  Record the variable name in case the
+    // right side is a functionExpression.
     // E.g. foo = function() {};
     if (node['operator'] === '=' && node['left']['type'] === 'Identifier') {
       state.destinationName = node['left']['name'];
@@ -3939,16 +3953,8 @@ Interpreter.prototype['stepObjectExpression'] = function(stack, state, node) {
     state.object_ = this.createObjectProto(this.OBJECT_PROTO);
     state.properties_ = Object.create(null);
   } else {
-    // Determine property name.
-    var key = property['key'];
-    if (key['type'] === 'Identifier') {
-      var propName = key['name'];
-    } else if (key['type'] === 'Literal') {
-      var propName = key['value'];
-    } else {
-      throw SyntaxError('Unknown object structure: ' + key['type']);
-    }
     // Set the property computed in the previous execution.
+    var propName = state.destinationName;
     if (!state.properties_[propName]) {
       // Create temp object to collect value, getter, and/or setter.
       state.properties_[propName] = {};
@@ -3958,6 +3964,20 @@ Interpreter.prototype['stepObjectExpression'] = function(stack, state, node) {
     property = node['properties'][n];
   }
   if (property) {
+    // Determine property name.
+    var key = property['key'];
+    if (key['type'] === 'Identifier') {
+      var propName = key['name'];
+    } else if (key['type'] === 'Literal') {
+      var propName = key['value'];
+    } else {
+      throw SyntaxError('Unknown object structure: ' + key['type']);
+    }
+    // When assigning an unnamed function to a property, the function's name
+    // is set to the property name.  Record the property name in case the
+    // value is a functionExpression.
+    // E.g. {foo: function() {}}
+    state.destinationName = propName;
     return new Interpreter.State(property['value'], state.scope);
   }
   for (var key in state.properties_) {
@@ -4225,8 +4245,8 @@ Interpreter.prototype['stepVariableDeclaration'] = function(stack, state, node) 
       state.n_ = n;
       state.init_ = true;
       // When assigning an unnamed function to a variable, the function's name
-      // is permanently set to the variable name.  Record the variable name in
-      // case the right side is a functionExpression.
+      // is set to the variable name.  Record the variable name in case the
+      // right side is a functionExpression.
       // E.g. var foo = function() {};
       state.destinationName = declarationNode['id']['name'];
       return new Interpreter.State(declarationNode['init'], state.scope);
