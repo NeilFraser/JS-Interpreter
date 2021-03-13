@@ -88,7 +88,7 @@
   <p>In mode 0, all regular expressions are disabled and throw an error.  This
   is safe and works in every environment.</p>
 
-  <p><textarea id="code0">
+  <p><textarea id="code0" spellcheck="false">
 // All regular expressions will fail here.
 try {
   alert('hello'.search(/(.)\1+/));
@@ -106,7 +106,7 @@ try {
   <p>In mode 1, all regular expressions are executed natively.  This
   is potentially <i>unsafe</i> and works in every environment.</p>
 
-  <p><textarea id="code1">
+  <p><textarea id="code1" spellcheck="false">
 // This regular expression is fine and returns 'll'.
 alert('hello'.match(/(.)\1+/)[0]);
 </textarea><br>
@@ -125,7 +125,7 @@ alert('hello'.match(/(.)\1+/)[0]);
   is not supported (meaning IE 9 or IE 10), then all regular expressions throw
   an error.</p>
 
-  <p><textarea id="code2">
+  <p><textarea id="code2" spellcheck="false">
 // This regular expression is fine and returns 'aaac'.
 alert('aaac'.split(/^(a+)+b/));
 try {
