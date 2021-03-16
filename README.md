@@ -9,3 +9,7 @@ https://neil.fraser.name/software/JS-Interpreter/
 
 Documentation:
 https://neil.fraser.name/software/JS-Interpreter/docs.html
+
+Developers using JS-Interpreter should subscribe to the announcement newsgroup.
+Security issues and major changes will be posted here:
+https://groups.google.com/g/js-interpreter-announce
