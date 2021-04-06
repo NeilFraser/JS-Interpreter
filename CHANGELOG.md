@@ -8,6 +8,39 @@ breaking changes.
 The version is chosen based on the type of changes according to the
 [semver](https://semver.org/) guidelines.
 
+## [2.3.0] - 2021-04-06
+
+Commit: [cb740ed](https://github.com/NeilFraser/JS-Interpreter/tree/cb740ed)
+
+### Added
+
+- Add timeout for executing polyfills.
+- Add .name property to functions
+- Add placeholder getter/setter functions on props
+- Add announcement newsgroup address
+- Use polyfills for Array functions.
+- Support ‘null’ for ‘this’ value in strict mode.
+
+### Fixed
+
+- Use Object.defineProperty instead of assignment.
+- Fix attributes on Function.prototype
+  - ‘typeof Function.prototype’ was reporting ‘object’, should be a ‘function’
+- Handle ‘new’ calls on primitives.
+- Catch calling date function on non-dates
+- Catch invalid arguments on string’s localeCompare
+- Called function should determine strict mode
+
+### Removed
+
+- Remove enumerability from most global properties.
+
+### Changes
+
+- New version of acorn
+- In non-strict mode `this` needs to be boxed when calling a function.
+- ‘window’ and ‘self’ are the only two enumerable properties on the global object.
+
 ## [2.2.0] - 2020-02-18
 
 Commit: [d20cb5a](https://github.com/NeilFraser/JS-Interpreter/tree/d20cb5a)
