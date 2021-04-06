@@ -42,3 +42,16 @@ or
 ```
 echo 'console.log(1 + 2)' | js-interpreter 
 ```
+
+# Update
+
+- Create a new branch
+- Update the submodules
+
+```
+git submodule foreach git pull origin master
+```
+
+- Check all the commits on the origin to identify the changes and update `CHANGELOG.md`
+- Bump the version according to semver rules
+- After PR is merged, run `npm publish` to publish the package
