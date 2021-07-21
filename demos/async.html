@@ -9,7 +9,7 @@
   <script>
     var myInterpreter;
     function initAlert(interpreter, globalObject) {
-      var wrapper = function(text) {
+      var wrapper = function alert(text) {
         return window.alert(arguments.length ? text : '');
       };
       interpreter.setProperty(globalObject, 'alert',
