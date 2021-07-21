@@ -8,7 +8,7 @@
   <script src="../interpreter.js"></script>
   <script>
     var myInterpreter;
-    function initAlert  alert(interpreter, globalObject) {
+    function initAlert(interpreter, globalObject) {
       var wrapper = function(text) {
         return window.alert(arguments.length ? text : '');
       };
