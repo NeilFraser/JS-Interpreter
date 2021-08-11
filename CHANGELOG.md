@@ -8,6 +8,15 @@ breaking changes.
 The version is chosen based on the type of changes according to the
 [semver](https://semver.org/) guidelines.
 
+## [2.3.1] - 2021-08-11
+
+Commit: [054c7d4](https://github.com/NeilFraser/JS-Interpreter/tree/054c7d4)
+
+### Added
+
+No change is added in this commit, just a few demos are updated, this version
+is published to stay up to speed with the commit hash of the original repo.
+
 ## [2.3.0] - 2021-04-06
 
 Commit: [cb740ed](https://github.com/NeilFraser/JS-Interpreter/tree/cb740ed)
