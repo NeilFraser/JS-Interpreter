@@ -1794,9 +1794,14 @@ Interpreter.prototype.initRegExp = function(globalObject) {
       var rgx = this;
     } else {
       // Called as `RegExp()`.
+      if (flags === undefined &&
+          thisInterpreter.isa(pattern, thisInterpreter.REGEXP)) {
+        // Regexp(/foo/) returns the same obj.
+        return pattern;
+      }
       var rgx = thisInterpreter.createObjectProto(thisInterpreter.REGEXP_PROTO);
     }
-    pattern = pattern ? String(pattern) : '';
+    pattern = pattern === undefined ? '' : String(pattern);
     flags = flags ? String(flags) : '';
     thisInterpreter.populateRegExp(rgx,
         new Interpreter.nativeGlobal.RegExp(pattern, flags));
