@@ -1826,7 +1826,7 @@ Interpreter.prototype.initRegExp = function(globalObject) {
 "Object.defineProperty(RegExp.prototype, 'test',",
     "{configurable: true, writable: true, value:",
   "function test(str) {",
-    "return String(str).search(this) !== -1",
+    "return !!this.exec(str);",
   "}",
 "});");
 
