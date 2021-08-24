@@ -20,7 +20,7 @@
  */
 var Interpreter = function(code, opt_initFunc) {
   if (typeof code === 'string') {
-    code = acorn.parse(code, Interpreter.PARSE_OPTIONS);
+    code = this.parse_(code);
   }
   // Get a handle on Acorn's node_t object.
   this.nodeConstructor = code.constructor;
@@ -50,7 +50,7 @@ var Interpreter = function(code, opt_initFunc) {
   this.globalScope = this.createScope(this.ast, null);
   this.globalObject = this.globalScope.object;
   // Run the polyfills.
-  this.ast = acorn.parse(this.polyfills_.join('\n'), Interpreter.PARSE_OPTIONS);
+  this.ast = this.parse_(this.polyfills_.join('\n'));
   this.polyfills_ = undefined;  // Allow polyfill strings to garbage collect.
   Interpreter.stripLocations_(this.ast, undefined, undefined);
   var state = new Interpreter.State(this.ast, this.globalScope);
@@ -305,6 +305,21 @@ Interpreter.prototype.getterStep_ = false;
 Interpreter.prototype.setterStep_ = false;
 
 /**
+ * Parse JavaScript code into an AST using Acorn.
+ * @param {string} code Raw JavaScript text.
+ * @return {!Object} AST.
+ * @private
+ */
+Interpreter.prototype.parse_ = function(code) {
+   // Create a new options object, since Acorn will modify this object.
+   var options = {};
+   for (var name in Interpreter.PARSE_OPTIONS) {
+     options[name] = Interpreter.PARSE_OPTIONS[name];
+   }
+   return acorn.parse(code, options);
+};
+
+/**
  * Add more code to the interpreter.
  * @param {string|!Object} code Raw JavaScript text or AST.
  */
@@ -314,7 +329,7 @@ Interpreter.prototype.appendCode = function(code) {
     throw Error('Expecting original AST to start with a Program node.');
   }
   if (typeof code === 'string') {
-    code = acorn.parse(code, Interpreter.PARSE_OPTIONS);
+    code = this.parse_(code);
   }
   if (!code || code['type'] !== 'Program') {
     throw Error('Expecting new AST to start with a Program node.');
@@ -506,8 +521,7 @@ Interpreter.prototype.initFunction = function(globalObject) {
     // Acorn needs to parse code in the context of a function or else `return`
     // statements will be syntax errors.
     try {
-      var ast = acorn.parse('(function(' + argsStr + ') {' + code + '})',
-          Interpreter.PARSE_OPTIONS);
+      var ast = this.parse_('(function(' + argsStr + ') {' + code + '})');
     } catch (e) {
       // Acorn threw a SyntaxError.  Rethrow as a trappable error.
       thisInterpreter.throwException(thisInterpreter.SYNTAX_ERROR,
@@ -3530,7 +3544,7 @@ Interpreter.prototype['stepCallExpression'] = function(stack, state, node) {
         state.value = code;
       } else {
         try {
-          var ast = acorn.parse(String(code), Interpreter.PARSE_OPTIONS);
+          var ast = this.parse_(String(code));
         } catch (e) {
           // Acorn threw a SyntaxError.  Rethrow as a trappable error.
           this.throwException(this.SYNTAX_ERROR, 'Invalid code: ' + e.message);
