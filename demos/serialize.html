@@ -65,7 +65,7 @@
       disable('disabled');
       if (myInterpreter.run()) {
         // Async function hit.  There's more code to run.
-        disable('');
+        setTimeout(runButton, 100);
       }
     }
 
