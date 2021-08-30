@@ -20,7 +20,7 @@
  */
 var Interpreter = function(code, opt_initFunc) {
   if (typeof code === 'string') {
-    code = this.parse_(code);
+    code = this.parse_(code, 'code');
   }
   // Get a handle on Acorn's node_t object.
   this.nodeConstructor = code.constructor;
@@ -50,7 +50,7 @@ var Interpreter = function(code, opt_initFunc) {
   this.globalScope = this.createScope(this.ast, null);
   this.globalObject = this.globalScope.object;
   // Run the polyfills.
-  this.ast = this.parse_(this.polyfills_.join('\n'));
+  this.ast = this.parse_(this.polyfills_.join('\n'), 'polyfills');
   this.polyfills_ = undefined;  // Allow polyfill strings to garbage collect.
   Interpreter.stripLocations_(this.ast, undefined, undefined);
   var state = new Interpreter.State(this.ast, this.globalScope);
@@ -85,6 +85,7 @@ var Interpreter = function(code, opt_initFunc) {
  * @const {!Object} Configuration used for all Acorn parsing.
  */
 Interpreter.PARSE_OPTIONS = {
+  locations: true,
   ecmaVersion: 5
 };
 
@@ -259,7 +260,7 @@ Interpreter.stripLocations_ = function(node, start, end) {
     delete node['end'];
   }
   for (var name in node) {
-    if (node.hasOwnProperty(name)) {
+    if (name !== 'loc' && node.hasOwnProperty(name)) {
       var prop = node[name];
       if (prop && typeof prop === 'object') {
         Interpreter.stripLocations_(prop, start, end);
@@ -305,17 +306,25 @@ Interpreter.prototype.getterStep_ = false;
 Interpreter.prototype.setterStep_ = false;
 
 /**
+ * Number of code chunks appended to the interpreter.
+ * @private
+ */
+Interpreter.prototype.appendCodeNumber_ = 0;
+
+/**
  * Parse JavaScript code into an AST using Acorn.
  * @param {string} code Raw JavaScript text.
+ * @param {string} sourceFile Name of filename (for stack trace).
  * @return {!Object} AST.
  * @private
  */
-Interpreter.prototype.parse_ = function(code) {
+Interpreter.prototype.parse_ = function(code, sourceFile) {
    // Create a new options object, since Acorn will modify this object.
    var options = {};
    for (var name in Interpreter.PARSE_OPTIONS) {
      options[name] = Interpreter.PARSE_OPTIONS[name];
    }
+   options['sourceFile'] = sourceFile;
    return acorn.parse(code, options);
 };
 
@@ -329,7 +338,7 @@ Interpreter.prototype.appendCode = function(code) {
     throw Error('Expecting original AST to start with a Program node.');
   }
   if (typeof code === 'string') {
-    code = this.parse_(code);
+    code = this.parse_(code, 'appendCode' + (this.appendCodeNumber_++));
   }
   if (!code || code['type'] !== 'Program') {
     throw Error('Expecting new AST to start with a Program node.');
@@ -492,6 +501,12 @@ Interpreter.prototype.initGlobal = function(globalObject) {
 };
 
 /**
+ * Number of functions created by the interpreter.
+ * @private
+ */
+Interpreter.prototype.functionCodeNumber_ = 0;
+
+/**
  * Initialize the Function class.
  * @param {!Interpreter.Object} globalObject Global object.
  */
@@ -521,7 +536,8 @@ Interpreter.prototype.initFunction = function(globalObject) {
     // Acorn needs to parse code in the context of a function or else `return`
     // statements will be syntax errors.
     try {
-      var ast = this.parse_('(function(' + argsStr + ') {' + code + '})');
+      var ast = this.parse_('(function(' + argsStr + ') {' + code + '})',
+          'function' + (this.functionCodeNumber_++));
     } catch (e) {
       // Acorn threw a SyntaxError.  Rethrow as a trappable error.
       thisInterpreter.throwException(thisInterpreter.SYNTAX_ERROR,
@@ -2090,6 +2106,20 @@ Interpreter.prototype.populateError = function(pseudoError, opt_message) {
     this.setProperty(pseudoError, 'message', String(opt_message),
         Interpreter.NONENUMERABLE_DESCRIPTOR);
   }
+  var stackString = '';
+  for (var i = this.stateStack.length - 1; i >= 0; i--) {
+    var node = this.stateStack[i].node;
+    var loc = node['loc'];
+    if (loc && (!stackString || node['type'] === 'CallExpression')) {
+      stackString += '    at ' + loc.source + ':' +
+          loc.start.line + ':' + loc.start.column + '\n';
+    }
+  }
+  var name = String(this.getProperty(pseudoError, 'name'));
+  var message = String(this.getProperty(pseudoError, 'message'));
+  stackString = name + ': ' + message + '\n' + stackString;
+  this.setProperty(pseudoError, 'stack', stackString.trim(),
+      Interpreter.NONENUMERABLE_DESCRIPTOR);
 };
 
 /**
@@ -3045,6 +3075,7 @@ Interpreter.prototype.unwind = function(type, value, label) {
     var message = this.getProperty(value, 'message').valueOf();
     var errorConstructor = errorTable[name] || Error;
     realError = errorConstructor(message);
+    realError.stack = String(this.getProperty(value, 'stack'));
   } else {
     realError = String(value);
   }
@@ -3444,6 +3475,12 @@ Interpreter.prototype['stepBreakStatement'] = function(stack, state, node) {
   this.unwind(Interpreter.Completion.BREAK, undefined, label);
 };
 
+/**
+ * Number of evals called by the interpreter.
+ * @private
+ */
+Interpreter.prototype.evalCodeNumber_ = 0;
+
 Interpreter.prototype['stepCallExpression'] = function(stack, state, node) {
   if (!state.doneCallee_) {
     state.doneCallee_ = 1;
@@ -3549,7 +3586,8 @@ Interpreter.prototype['stepCallExpression'] = function(stack, state, node) {
         state.value = code;
       } else {
         try {
-          var ast = this.parse_(String(code));
+          var ast = this.parse_(String(code),
+             'eval' + (this.evalCodeNumber_++));
         } catch (e) {
           // Acorn threw a SyntaxError.  Rethrow as a trappable error.
           this.throwException(this.SYNTAX_ERROR, 'Invalid code: ' + e.message);
