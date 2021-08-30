@@ -1916,10 +1916,7 @@ Interpreter.prototype.initError = function(globalObject) {
       // Called as `Error()`.
       var newError = thisInterpreter.createObject(thisInterpreter.ERROR);
     }
-    if (opt_message) {
-      thisInterpreter.setProperty(newError, 'message', String(opt_message),
-          Interpreter.NONENUMERABLE_DESCRIPTOR);
-    }
+    thisInterpreter.populateError(newError, opt_message);
     return newError;
   }, true);
   this.setProperty(globalObject, 'Error', this.ERROR,
@@ -1939,10 +1936,7 @@ Interpreter.prototype.initError = function(globalObject) {
             // Called as `XyzError()`.
             var newError = thisInterpreter.createObject(constructor);
           }
-          if (opt_message) {
-            thisInterpreter.setProperty(newError, 'message',
-                String(opt_message), Interpreter.NONENUMERABLE_DESCRIPTOR);
-          }
+          thisInterpreter.populateError(newError, opt_message);
           return newError;
         }, true);
     thisInterpreter.setProperty(constructor, 'prototype',
@@ -2084,6 +2078,18 @@ Interpreter.prototype.populateRegExp = function(pseudoRegexp, nativeRegexp) {
       Interpreter.READONLY_NONENUMERABLE_DESCRIPTOR);
   this.setProperty(pseudoRegexp, 'multiline', nativeRegexp.multiline,
       Interpreter.READONLY_NONENUMERABLE_DESCRIPTOR);
+};
+
+/**
+ * Initialize a pseudo error object.
+ * @param {!Interpreter.Object} pseudoError The existing object to set.
+ * @param {string=} opt_message Error's message.
+ */
+Interpreter.prototype.populateError = function(pseudoError, opt_message) {
+  if (opt_message) {
+    this.setProperty(pseudoError, 'message', String(opt_message),
+        Interpreter.NONENUMERABLE_DESCRIPTOR);
+  }
 };
 
 /**
@@ -2968,8 +2974,7 @@ Interpreter.prototype.throwException = function(errorClass, opt_message) {
     var error = errorClass;  // This is a value to throw, not an error class.
   } else {
     var error = this.createObject(errorClass);
-    this.setProperty(error, 'message', opt_message,
-        Interpreter.NONENUMERABLE_DESCRIPTOR);
+    this.populateError(error, opt_message);
   }
   this.unwind(Interpreter.Completion.THROW, error, undefined);
   // Abort anything related to the current step.
