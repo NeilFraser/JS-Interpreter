@@ -2112,7 +2112,7 @@ Interpreter.prototype.populateError = function(pseudoError, opt_message) {
     var node = state.node;
     if (node['type'] === 'CallExpression') {
       var func = state.func_;
-      if (func) {
+      if (func && tracebackData.length) {
         tracebackData[tracebackData.length - 1].name =
             this.getProperty(func, 'name');
       }
