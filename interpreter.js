@@ -2106,18 +2106,36 @@ Interpreter.prototype.populateError = function(pseudoError, opt_message) {
     this.setProperty(pseudoError, 'message', String(opt_message),
         Interpreter.NONENUMERABLE_DESCRIPTOR);
   }
-  var stackString = '';
+  var tracebackData = [];
   for (var i = this.stateStack.length - 1; i >= 0; i--) {
-    var node = this.stateStack[i].node;
-    var loc = node['loc'];
-    if (loc && (!stackString || node['type'] === 'CallExpression')) {
-      stackString += '    at ' + loc.source + ':' +
-          loc.start.line + ':' + loc.start.column + '\n';
+    var state = this.stateStack[i];
+    var node = state.node;
+    if (node['type'] === 'CallExpression') {
+      var func = state.func_;
+      if (func) {
+        tracebackData[tracebackData.length - 1].name =
+            this.getProperty(func, 'name');
+      }
+    }
+    if (node['loc'] &&
+        (!tracebackData.length || node['type'] === 'CallExpression')) {
+      tracebackData.push({loc: node['loc']});
     }
   }
   var name = String(this.getProperty(pseudoError, 'name'));
   var message = String(this.getProperty(pseudoError, 'message'));
-  stackString = name + ': ' + message + '\n' + stackString;
+  var stackString = name + ': ' + message + '\n';
+  for (var i = 0; i < tracebackData.length; i++) {
+    var loc = tracebackData[i].loc;
+    var name = tracebackData[i].name;
+    var locString = loc['source'] + ':' +
+        loc['start']['line'] + ':' + loc['start']['column'];
+    if (name) {
+      stackString += '  at ' + name + ' (' + locString + ')\n';
+    } else {
+      stackString += '  at ' + locString + '\n';
+    }
+  }
   this.setProperty(pseudoError, 'stack', stackString.trim(),
       Interpreter.NONENUMERABLE_DESCRIPTOR);
 };
