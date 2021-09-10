@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>JS-Interpreter Babel Demo</title>
+  <link href="style.css" rel="stylesheet" type="text/css">
+  <script src="../acorn.js"></script>
+  <script src="../interpreter.js"></script>
+  <script src="babel.min.js"></script>
+  <script>
+    var myInterpreter;
+    function initAlert(interpreter, scope) {
+      var wrapper = function alert(text) {
+        return window.alert(arguments.length ? text : '');
+      };
+      interpreter.setProperty(scope, 'alert',
+          interpreter.createNativeFunction(wrapper));
+    }
+
+    function parseButton() {
+      var code = document.getElementById('code').value;
+      var options = {
+        'presets': ['es2015']
+      };
+      code = Babel.transform(code, options).code;
+
+      alert('Code transpiled to:\n' + code);
+      myInterpreter = new Interpreter(code, initAlert);
+      disable('');
+    }
+
+    function runButton() {
+      disable('disabled');
+      if (myInterpreter.run()) {
+        // Async function hit.  There's more code to run.
+        setTimeout(runButton, 100);
+      }
+    }
+
+    function disable(disabled) {
+      document.getElementById('runButton').disabled = disabled;
+    }
+  </script>
+</head>
+<body>
+  <h1>JS-Interpreter Babel Demo</h1>
+
+  <p>A transpiler is required to run ES6 or greater using the JS-Interpreter.
+  Babel is a good option which can generate ES5 either client-side or server-side.</p>
+
+  <p>For client-side transpiling, download
+  <a href="https://unpkg.com/@babel/standalone/babel.min.js">@babel/standalone</a>
+  and include it as a script tag on your page.  Then convert your code like this:</p>
+
+  <pre>code = Babel.transform(code, {'presets': ['es2015']}).code;</pre>
+
+  <p>One issue is that highlighting the user's code as it executes won't work
+  since it is the transpiled code that's actually being executed and the line
+  numbers won't match.</p>
+
+  <p>Type some ES6, click <em>Parse</em>, then click <em>Run</em> once.
+  Open your browser's console for errors.</p>
+
+  <p><textarea id="code" spellcheck="false">
+const result = [];
+const fibonacci = (n, output) => {
+  let a = 1, b = 1, sum;
+  for (let i = 0; i < n; i++) {
+    output.push(a);
+    sum = a + b;
+    a = b;
+    b = sum;
+  }
+}
+fibonacci(16, result);
+alert(result.join(', '));
+</textarea><br>
+  <button onclick="parseButton()">Parse</button>
+  <button onclick="runButton()" id="runButton" disabled="disabled">Run</button>
+  </p>
+
+  <p>Back to the <a href="../docs.html">JS-Interpreter documentation</a>.</p>
+
+</body>
+</html>

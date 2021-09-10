@@ -28,7 +28,7 @@
     &lt;script src="interpreter.js"&gt;&lt;/script&gt;
   </pre>
 
-  <p>Alternatively, use the compressed bundle (70kb):</p>
+  <p>Alternatively, use the compressed bundle (80kb):</p>
 
   <pre>
     &lt;script src="acorn_interpreter.js"&gt;&lt;/script&gt;
@@ -92,8 +92,8 @@
     var initFunc = function(interpreter, globalObject) {
       interpreter.setProperty(globalObject, 'url', String(location));
 
-      var wrapper = function(text) {
-        return alert(text);
+      var wrapper = function alert(text) {
+        return window.alert(text);
       };
       interpreter.setProperty(globalObject, 'alert',
           interpreter.createNativeFunction(wrapper));
@@ -114,7 +114,7 @@
       interpreter.setProperty(robot, 'fast', 99);
 
       // Define 'robot.forwards' function.
-      var wrapper = function(speed) {
+      var wrapper = function forwards(speed) {
         return realRobot.forwards(speed);
       };
       interpreter.setProperty(robot, 'forwards',
@@ -135,7 +135,7 @@
   <code>initFunc</code> like this:</p>
 
   <pre>
-    var wrapper = function(href, callback) {
+    var wrapper = function getXhr(href, callback) {
       var req = new XMLHttpRequest();
       req.open('GET', href, true);
       req.onreadystatechange = function() {
@@ -237,11 +237,9 @@
     sandbox.  If you need these, write your own interfaces.</dd>
     <dt>ES6</dt>
     <dd>More recent additions to JavaScript such as <code>let</code> or
-    <code>Set</code> aren't implemented.  <a href="https://babeljs.io/">Babel</a>
-    is a good method of transpiling newer versions of JavaScript to ES5.</dd>
-    <dt>Getters and Setters</dt>
-    <dd>Getter and setter functions are generally supported, but not on arrays or
-    system properties defined by the ES5 spec (e.g. Error.prototype.name).</dd>
+    <code>Set</code> aren't implemented.  Babel is a good method of transpiling
+    newer versions of JavaScript to ES5.  For a working example, see the
+    <a href="demos/babel.html">Babel demo</a>.</dd>
     <dt>toString &amp; valueOf</dt>
     <dd>User-created functions are not called when casting objects to primitives.</dd>
     <dt>Performance</dt>

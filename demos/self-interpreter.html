@@ -9,8 +9,8 @@
   <script>
     var myInterpreter;
     function initAlert(interpreter, globalObject) {
-      var wrapper = function(text) {
-        return alert(arguments.length ? text : '');
+      var wrapper = function alert(text) {
+        return window.alert(arguments.length ? text : '');
       };
       interpreter.setProperty(globalObject, 'alert',
           interpreter.createNativeFunction(wrapper));
@@ -84,7 +84,7 @@
   <p>Click <em>Parse</em>, then click <em>Run</em> once and wait a few seconds.
   Open your browser's console for errors.</p>
 
-  <p><textarea id="code">
+  <p><textarea id="code" spellcheck="false">
 // DO THIS FIRST!
 // PASTE CONTENTS OF acorn_interpreter.js HERE.
 

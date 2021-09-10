@@ -9,19 +9,19 @@
   <script>
     var myInterpreter;
     function initAlert(interpreter, globalObject) {
-      var wrapper = function(text) {
-        return alert(arguments.length ? text : '');
+      var wrapper = function alert(text) {
+        return window.alert(arguments.length ? text : '');
       };
       interpreter.setProperty(globalObject, 'alert',
           interpreter.createNativeFunction(wrapper));
 
-      var wrapper = function() {
+      var wrapper = function getInput() {
         return document.getElementById('JSON_input').value;
       };
       interpreter.setProperty(globalObject, 'getInput',
           interpreter.createNativeFunction(wrapper));
 
-      var wrapper = function(text) {
+      var wrapper = function setOutput(text) {
         document.getElementById('JSON_output').value = text;
       };
       interpreter.setProperty(globalObject, 'setOutput',
@@ -58,7 +58,7 @@
       disable('disabled');
       if (myInterpreter.run()) {
         // Async function hit.  There's more code to run.
-        disable('');
+        setTimeout(runButton, 100);
       }
     }
 
@@ -100,7 +100,7 @@
   <p>Click <em>Parse</em>, then either click <em>Step</em> repeatedly,
   or click <em>Run</em> once.  Open your browser's console for errors.</p>
 
-  <p><textarea id="code" style="height: 10em;">
+  <p><textarea id="code" style="height: 10em;" spellcheck="false">
 var data = JSON.parse(getInput());
 alert(Object.keys(data));
 setOutput(JSON.stringify(data));

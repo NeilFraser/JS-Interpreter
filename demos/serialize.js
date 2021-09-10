@@ -113,14 +113,29 @@ function deserialize(json, interpreter) {
       var nonConfigurable = jsonObj['nonConfigurable'] || [];
       var nonEnumerable = jsonObj['nonEnumerable'] || [];
       var nonWritable = jsonObj['nonWritable'] || [];
+      var getter = jsonObj['getter'] || [];
+      var setter = jsonObj['setter'] || [];
       var names = Object.getOwnPropertyNames(props);
       for (var j = 0; j < names.length; j++) {
         var name = names[j];
-        Object.defineProperty(obj, name,
-            {configurable: nonConfigurable.indexOf(name) === -1,
-             enumerable: nonEnumerable.indexOf(name) === -1,
-             writable: nonWritable.indexOf(name) === -1,
-             value: decodeValue(props[name])});
+        var descriptor = {
+          configurable: nonConfigurable.indexOf(name) === -1,
+          enumerable: nonEnumerable.indexOf(name) === -1
+        };
+        var hasGetter = getter.indexOf(name) !== -1;
+        var hasSetter = setter.indexOf(name) !== -1;
+        if (hasGetter || hasSetter) {
+          if (hasGetter) {
+            descriptor.get = interpreter.setProperty.placeholderGet_;
+          }
+          if (hasSetter) {
+            descriptor.set = interpreter.setProperty.placeholderSet_;
+          }
+        } else {
+          descriptor.value = decodeValue(props[name]);
+          descriptor.writable = nonWritable.indexOf(name) === -1;
+        }
+        Object.defineProperty(obj, name, descriptor);
       }
     }
     // Repopulate arrays.
@@ -256,11 +271,13 @@ function serialize(interpreter) {
     var nonConfigurable = [];
     var nonEnumerable = [];
     var nonWritable = [];
+    var getter = [];
+    var setter = [];
     var names = Object.getOwnPropertyNames(obj);
     for (var j = 0; j < names.length; j++) {
       var name = names[j];
-      props[name] = encodeValue(obj[name]);
       var descriptor = Object.getOwnPropertyDescriptor(obj, name);
+      props[name] = encodeValue(descriptor.value);
       if (!descriptor.configurable) {
         nonConfigurable.push(name);
       }
@@ -269,6 +286,12 @@ function serialize(interpreter) {
       }
       if (!descriptor.writable) {
         nonWritable.push(name);
+      }
+      if (descriptor.get) {
+        getter.push(name);
+      }
+      if (descriptor.set) {
+        setter.push(name);
       }
     }
     if (names.length) {
@@ -282,6 +305,12 @@ function serialize(interpreter) {
     }
     if (nonWritable.length) {
       jsonObj['nonWritable'] = nonWritable;
+    }
+    if (getter.length) {
+      jsonObj['getter'] = getter;
+    }
+    if (setter.length) {
+      jsonObj['setter'] = setter;
     }
   }
   return json;
@@ -297,7 +326,15 @@ function objectHunt_(node, objectList) {
     if (typeof node === 'object') {  // Recurse.
       var names = Object.getOwnPropertyNames(node);
       for (var i = 0; i < names.length; i++) {
-        objectHunt_(node[names[i]], objectList);
+        try {
+          objectHunt_(node[names[i]], objectList);
+        } catch (e) {
+          // Accessing some properties may trigger a placeholder getter.
+          // Squelch this error, but re-throw any others.
+          if (e.message !== 'Placeholder getter') {
+            throw e;
+          }
+        }
       }
     }
   }

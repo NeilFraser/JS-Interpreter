@@ -16,11 +16,11 @@
     }
 
     var myInterpreter;
-    function initAlert(interpreter, scope) {
-      var wrapper = function(text) {
-        return alert(arguments.length ? text : '');
+    function initAlert(interpreter, globalObject) {
+      var wrapper = function alert(text) {
+        return window.alert(arguments.length ? text : '');
       };
-      interpreter.setProperty(scope, 'alert',
+      interpreter.setProperty(globalObject, 'alert',
           interpreter.createNativeFunction(wrapper));
     }
 
@@ -54,7 +54,7 @@
       disable('disabled');
       if (myInterpreter.run()) {
         // Async function hit.  There's more code to run.
-        disable('');
+        setTimeout(runButton, 100);
       }
     }
 
@@ -87,7 +87,7 @@
   <p>Enter JavaScript code below, then click <em>Parse</em>.  To execute, either
   click <em>Step</em> repeatedly, or click <em>Run</em> once.
   Open your browser's console for errors.</p>
-  <p><textarea id="code">
+  <p><textarea id="code" spellcheck="false">
 var result = [];
 function fibonacci(n, output) {
   var a = 1, b = 1, sum;
