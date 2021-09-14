@@ -174,9 +174,11 @@ Interpreter.toStringCycles_ = [];
 Interpreter.vm = null;
 
 /**
- * The global object (`window` in a browser, `global` in node.js) is `this`.
+ * The global object (`window` in a browser, `global` in node.js) is usually
+ * `globalThis`, but older systems use `this`.
  */
-Interpreter.nativeGlobal = this;
+Interpreter.nativeGlobal =
+    (typeof globalThis === 'undefined') ? this : globalThis;
 
 /**
  * Code for executing regular expressions in a thread.
