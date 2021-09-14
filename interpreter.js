@@ -536,8 +536,8 @@ Interpreter.prototype.initFunction = function(globalObject) {
     // Acorn needs to parse code in the context of a function or else `return`
     // statements will be syntax errors.
     try {
-      var ast = this.parse_('(function(' + argsStr + ') {' + code + '})',
-          'function' + (this.functionCodeNumber_++));
+      var ast = thisInterpreter.parse_('(function(' + argsStr + ') {' + code + '})',
+          'function' + (thisInterpreter.functionCodeNumber_++));
     } catch (e) {
       // Acorn threw a SyntaxError.  Rethrow as a trappable error.
       thisInterpreter.throwException(thisInterpreter.SYNTAX_ERROR,
