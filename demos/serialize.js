@@ -52,6 +52,12 @@ function deserialize(json, interpreter) {
       functionHash[objectList[i].id] = objectList[i];
     }
   }
+  // Constructors for objects within Acorn.
+  var NODE_CONSTRUCTOR = interpreter.ast.constructor;
+  var NODE_LOC_CONSTRUCTOR = interpreter.ast.loc &&
+      interpreter.ast.loc.constructor;
+  var LINE_LOC_CONSTRUCTOR = interpreter.ast.loc &&
+      interpreter.ast.loc.end.constructor;
   // First pass: Create object stubs for every object.
   objectList = [];
   for (var i = 0; i < json.length; i++) {
@@ -96,7 +102,13 @@ function deserialize(json, interpreter) {
         obj = new Interpreter.State(undefined, undefined);
         break;
       case 'Node':
-        obj = new interpreter.nodeConstructor();
+        obj = new NODE_CONSTRUCTOR();
+        break;
+      case 'NodeLoc':
+        obj = new NODE_LOC_CONSTRUCTOR();
+        break;
+      case 'LineLoc':
+        obj = new LINE_LOC_CONSTRUCTOR();
         break;
       default:
         throw TypeError('Unknown type: ' + jsonObj['type']);
@@ -206,6 +218,12 @@ function serialize(interpreter) {
     root[properties[i]] = interpreter[properties[i]];
   }
 
+  // Constructors for objects within Acorn.
+  var NODE_CONSTRUCTOR = interpreter.ast.constructor;
+  var NODE_LOC_CONSTRUCTOR = interpreter.ast.loc &&
+      interpreter.ast.loc.constructor;
+  var LINE_LOC_CONSTRUCTOR = interpreter.ast.loc &&
+      interpreter.ast.loc.end.constructor;
   // Find all objects.
   var objectList = [];
   objectHunt_(root, objectList);
@@ -261,8 +279,14 @@ function serialize(interpreter) {
       case Interpreter.State.prototype:
         jsonObj['type'] = 'State';
         break;
-      case interpreter.nodeConstructor.prototype:
+      case NODE_CONSTRUCTOR.prototype:
         jsonObj['type'] = 'Node';
+        break;
+      case NODE_LOC_CONSTRUCTOR.prototype:
+        jsonObj['type'] = 'NodeLoc';
+        break;
+      case LINE_LOC_CONSTRUCTOR.prototype:
+        jsonObj['type'] = 'LineLoc';
         break;
       default:
         throw TypeError('Unknown type: ' + obj);
