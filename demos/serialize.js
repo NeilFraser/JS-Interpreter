@@ -114,6 +114,8 @@ function deserialize(json, interpreter) {
         break;
       case 'Node':
         obj = new NODE_CONSTRUCTOR();
+        delete obj.start;
+        delete obj.end;
         var locText = jsonObj['loc'];
         if (locText) {
           var loc = new NODE_LOC_CONSTRUCTOR();
