@@ -10,6 +10,21 @@
  */
 'use strict';
 
+
+// Constructors for objects within Acorn.
+var NODE_CONSTRUCTOR;
+var NODE_LOC_CONSTRUCTOR;
+var LINE_LOC_CONSTRUCTOR;
+
+function recordAcornConstructons(interpreter) {
+  // Constructors for objects within Acorn.
+  NODE_CONSTRUCTOR = interpreter.ast.constructor;
+  NODE_LOC_CONSTRUCTOR = interpreter.ast.loc &&
+      interpreter.ast.loc.constructor;
+  LINE_LOC_CONSTRUCTOR = interpreter.ast.loc &&
+      interpreter.ast.loc.end.constructor;
+}
+
 function deserialize(json, interpreter) {
   function decodeValue(value) {
     if (value && typeof value === 'object') {
@@ -43,21 +58,17 @@ function deserialize(json, interpreter) {
     // Require native functions to be present.
     throw Error('Interpreter must be initialized prior to deserialization.');
   }
+  recordAcornConstructons(interpreter);
+  var LOC_REGEX = /^(\d*):(\d*)-(\d*):(\d*) ?(.*)$/;
   // Find all native functions in existing interpreter.
   var objectList = [];
   objectHunt_(stack, objectList);
   var functionHash = Object.create(null);
   for (var i = 0; i < objectList.length; i++) {
-    if (typeof objectList[i] == 'function') {
+    if (typeof objectList[i] === 'function') {
       functionHash[objectList[i].id] = objectList[i];
     }
   }
-  // Constructors for objects within Acorn.
-  var NODE_CONSTRUCTOR = interpreter.ast.constructor;
-  var NODE_LOC_CONSTRUCTOR = interpreter.ast.loc &&
-      interpreter.ast.loc.constructor;
-  var LINE_LOC_CONSTRUCTOR = interpreter.ast.loc &&
-      interpreter.ast.loc.end.constructor;
   // First pass: Create object stubs for every object.
   objectList = [];
   for (var i = 0; i < json.length; i++) {
@@ -103,12 +114,31 @@ function deserialize(json, interpreter) {
         break;
       case 'Node':
         obj = new NODE_CONSTRUCTOR();
-        break;
-      case 'NodeLoc':
-        obj = new NODE_LOC_CONSTRUCTOR();
-        break;
-      case 'LineLoc':
-        obj = new LINE_LOC_CONSTRUCTOR();
+        var locText = jsonObj['loc'];
+        if (locText) {
+          var loc = new NODE_LOC_CONSTRUCTOR();
+          var m = locText.match(LOC_REGEX);
+          var locStart = null;
+          if (m[1] || m[2]) {
+            locStart = new LINE_LOC_CONSTRUCTOR();
+            locStart.line = Number(m[1]);
+            locStart.column = Number(m[2]);
+          }
+          loc.start = locStart;
+          var locEnd = null;
+          if (m[3] || m[4]) {
+            locEnd = new LINE_LOC_CONSTRUCTOR();
+            locEnd.line = Number(m[3]);
+            locEnd.column = Number(m[4]);
+          }
+          loc.end = locEnd;
+          if (m[5]) {
+            loc.source = decodeURI(m[5]);
+          } else {
+            delete loc.source;
+          }
+          obj.loc = loc;
+        }
         break;
       default:
         throw TypeError('Unknown type: ' + jsonObj['type']);
@@ -218,12 +248,7 @@ function serialize(interpreter) {
     root[properties[i]] = interpreter[properties[i]];
   }
 
-  // Constructors for objects within Acorn.
-  var NODE_CONSTRUCTOR = interpreter.ast.constructor;
-  var NODE_LOC_CONSTRUCTOR = interpreter.ast.loc &&
-      interpreter.ast.loc.constructor;
-  var LINE_LOC_CONSTRUCTOR = interpreter.ast.loc &&
-      interpreter.ast.loc.end.constructor;
+  recordAcornConstructons(interpreter);
   // Find all objects.
   var objectList = [];
   objectHunt_(root, objectList);
@@ -282,12 +307,6 @@ function serialize(interpreter) {
       case NODE_CONSTRUCTOR.prototype:
         jsonObj['type'] = 'Node';
         break;
-      case NODE_LOC_CONSTRUCTOR.prototype:
-        jsonObj['type'] = 'NodeLoc';
-        break;
-      case LINE_LOC_CONSTRUCTOR.prototype:
-        jsonObj['type'] = 'LineLoc';
-        break;
       default:
         throw TypeError('Unknown type: ' + obj);
     }
@@ -300,22 +319,43 @@ function serialize(interpreter) {
     var names = Object.getOwnPropertyNames(obj);
     for (var j = 0; j < names.length; j++) {
       var name = names[j];
-      var descriptor = Object.getOwnPropertyDescriptor(obj, name);
-      props[name] = encodeValue(descriptor.value);
-      if (!descriptor.configurable) {
-        nonConfigurable.push(name);
-      }
-      if (!descriptor.enumerable) {
-        nonEnumerable.push(name);
-      }
-      if (!descriptor.writable) {
-        nonWritable.push(name);
-      }
-      if (descriptor.get) {
-        getter.push(name);
-      }
-      if (descriptor.set) {
-        setter.push(name);
+      if (jsonObj['type'] === 'Node' && name === 'loc') {
+        // Compactly serialize the location objects on a Node.
+        var loc = obj.loc;
+        var locText = '';
+        if (loc.start) {
+          locText += loc.start.line + ':' + loc.start.column;
+        } else {
+          locText += ':';
+        }
+        locText += '-';
+        if (loc.end) {
+          locText += loc.end.line + ':' + loc.end.column;
+        } else {
+          locText += ':';
+        }
+        if (loc.source !== undefined) {
+          locText += ' ' + encodeURI(loc.source);
+        }
+        jsonObj['loc'] = locText;
+      } else {
+        var descriptor = Object.getOwnPropertyDescriptor(obj, name);
+        props[name] = encodeValue(descriptor.value);
+        if (!descriptor.configurable) {
+          nonConfigurable.push(name);
+        }
+        if (!descriptor.enumerable) {
+          nonEnumerable.push(name);
+        }
+        if (!descriptor.writable) {
+          nonWritable.push(name);
+        }
+        if (descriptor.get) {
+          getter.push(name);
+        }
+        if (descriptor.set) {
+          setter.push(name);
+        }
       }
     }
     if (names.length) {
@@ -343,13 +383,17 @@ function serialize(interpreter) {
 // Recursively search the stack to find all non-primitives.
 function objectHunt_(node, objectList) {
   if (node && (typeof node === 'object' || typeof node === 'function')) {
-    if (objectList.indexOf(node) != -1) {
+    if (objectList.indexOf(node) !== -1) {
       return;
     }
     objectList.push(node);
     if (typeof node === 'object') {  // Recurse.
+      var isAcornNode = Object.getPrototypeOf(node) === NODE_CONSTRUCTOR.prototype;
       var names = Object.getOwnPropertyNames(node);
       for (var i = 0; i < names.length; i++) {
+        if (isAcornNode && names[i] === 'loc') {
+          continue;  // Skip over node locations, they are specially handled.
+        }
         try {
           objectHunt_(node[names[i]], objectList);
         } catch (e) {
