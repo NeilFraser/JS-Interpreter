@@ -64,9 +64,6 @@ var Interpreter = function(code, opt_initFunc) {
   state.done = false;
   this.stateStack.length = 0;
   this.stateStack[0] = state;
-  // Preserve publicly properties from being pruned/renamed by JS compilers.
-  // Add others as needed.
-  this['stateStack'] = this.stateStack;
 };
 
 /**
@@ -3232,6 +3229,30 @@ Interpreter.prototype.boxThis_ = function(value) {
 };
 
 /**
+ * Return the global scope object.
+ * @return {!Interpreter.Scope} Scope object.
+ */
+Interpreter.prototype.getGlobalScope = function() {
+  return this.globalScope;
+};
+
+/**
+ * Return the state stack.
+ * @return {!Array<!Interpreter.State>} State stack.
+ */
+Interpreter.prototype.getStateStack = function() {
+  return this.stateStack;
+};
+
+/**
+ * Replace the state stack with a new one.
+ * @param {!Array<!Interpreter.State>} newStack New state stack.
+ */
+Interpreter.prototype.setStateStack = function(newStack) {
+  this.stateStack = newStack;
+};
+
+/**
  * Typedef for JS values.
  * @typedef {!Interpreter.Object|boolean|number|string|undefined|null}
  */
@@ -3337,7 +3358,7 @@ Interpreter.Object.prototype.toString = function() {
         break;
       }
     } while ((obj = obj.proto));
-    var obj = this;
+    obj = this;
     do {
       if ('message' in obj.properties) {
         message = obj.properties['message'];
@@ -4427,3 +4448,7 @@ Interpreter.prototype['getProperty'] = Interpreter.prototype.getProperty;
 Interpreter.prototype['setProperty'] = Interpreter.prototype.setProperty;
 Interpreter.prototype['nativeToPseudo'] = Interpreter.prototype.nativeToPseudo;
 Interpreter.prototype['pseudoToNative'] = Interpreter.prototype.pseudoToNative;
+Interpreter.prototype['getGlobalScope'] = Interpreter.prototype.getGlobalScope;
+Interpreter.prototype['getStateStack'] = Interpreter.prototype.getStateStack;
+Interpreter.prototype['setStateStack'] = Interpreter.prototype.setStateStack;
+

@@ -50,7 +50,7 @@ function deserialize(json, interpreter) {
     }
     return value;
   }
-  var stack = interpreter.stateStack;
+  var stack = interpreter.getStateStack();
   if (!Array.isArray(json)) {
     throw TypeError('Top-level JSON is not a list.');
   }

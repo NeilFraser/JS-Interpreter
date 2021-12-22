@@ -22,17 +22,17 @@
       var code = document.getElementById('code' + n).value;
       var intrp = new Interpreter('');
       // Replace this thread's global scope with the cross-thread global.
-      intrp.stateStack[0].scope = myInterpreter.globalScope;
+      intrp.getStateStack()[0].scope = myInterpreter.getGlobalScope();
       intrp.appendCode(code);
-      threads[n] = intrp.stateStack;
+      threads[n] = intrp.getStateStack();
       disable(n, '');
     }
 
     function stepButton(n) {
-      myInterpreter.stateStack = threads[n];
-      if (myInterpreter.stateStack.length) {
-        var node =
-            myInterpreter.stateStack[myInterpreter.stateStack.length - 1].node;
+      var stack = threads[n];
+      myInterpreter.setStateStack(stack);
+      if (stack.length) {
+        var node = stack[stack.length - 1].node;
         var start = node.start;
         var end = node.end;
       } else {
