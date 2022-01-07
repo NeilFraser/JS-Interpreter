@@ -342,52 +342,23 @@
                       num: _num, regexp: _regexp, string: _string};
   for (var kw in keywordTypes) exports.tokTypes["_" + kw] = keywordTypes[kw];
 
-  // This is a trick taken from Esprima. It turns out that, on
-  // non-Chrome browsers, to check whether a string is in a set, a
-  // predicate containing a big ugly `switch` statement is faster than
-  // a regular expression, and on Chrome the two are about on par.
-  // This function uses `eval` (non-lexical) to produce such a
-  // predicate from a space-separated string of words.
-  //
-  // It starts by sorting the words by length.
-
+  // Acorn's original code built up functions using strings for maximum efficiency.
+  // However, this triggered a CSP unsafe-eval requirement.  Here's a slower, but
+  // simpler approach.  -- Neil Fraser, January 2022.
   function makePredicate(words) {
     words = words.split(" ");
-    var f = "", cats = [];
-    out: for (var i = 0; i < words.length; ++i) {
-      for (var j = 0; j < cats.length; ++j)
-        if (cats[j][0].length == words[i].length) {
-          cats[j].push(words[i]);
-          continue out;
+    words.sort();
+    return function(str) {
+      for (var i = 0; i < words.length; i++) {
+        if (words[i] >= str) {
+          if (words[i] === str) {
+            return true;
+          }
+          break;
         }
-      cats.push([words[i]]);
-    }
-    function compareTo(arr) {
-      if (arr.length == 1) return f += "return str === " + JSON.stringify(arr[0]) + ";";
-      f += "switch(str){";
-      for (var i = 0; i < arr.length; ++i) f += "case " + JSON.stringify(arr[i]) + ":";
-      f += "return true}return false;";
-    }
-
-    // When there are more than three length categories, an outer
-    // switch first dispatches on the lengths, to save on comparisons.
-
-    if (cats.length > 3) {
-      cats.sort(function(a, b) {return b.length - a.length;});
-      f += "switch(str.length){";
-      for (var i = 0; i < cats.length; ++i) {
-        var cat = cats[i];
-        f += "case " + cat[0].length + ":";
-        compareTo(cat);
       }
-      f += "}";
-
-    // Otherwise, simply generate a flat `switch` statement.
-
-    } else {
-      compareTo(words);
-    }
-    return new Function("str", f);
+      return false;
+    };
   }
 
   // The ECMAScript 3 reserved word list.
