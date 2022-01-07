@@ -445,7 +445,7 @@ Interpreter.prototype.initGlobal = function(globalObject) {
   // Initialize global functions.
   var thisInterpreter = this;
   var func = this.createNativeFunction(
-      function(x) {throw EvalError("Can't happen");}, false);
+      function(_x) {throw EvalError("Can't happen");}, false);
   func.eval = true;
   this.setProperty(globalObject, 'eval', func,
       Interpreter.NONENUMERABLE_DESCRIPTOR);
@@ -1800,13 +1800,13 @@ Interpreter.prototype.initDate = function(globalObject) {
   var thisInterpreter = this;
   var wrapper;
   // Date constructor.
-  wrapper = function Date(value, var_args) {
+  wrapper = function Date(_value, var_args) {
     if (!thisInterpreter.calledWithNew()) {
       // Called as `Date()`.
       // Calling Date() as a function returns a string, no arguments are heeded.
       return Interpreter.nativeGlobal.Date();
     }
-    // Called as `new Date()`.
+    // Called as `new Date(...)`.
     var args = [null].concat(Array.from(arguments));
     this.data = new (Function.prototype.bind.apply(
         Interpreter.nativeGlobal.Date, args));

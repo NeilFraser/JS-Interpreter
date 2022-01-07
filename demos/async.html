@@ -19,7 +19,7 @@
         var req = new XMLHttpRequest();
         req.open('GET', href, true);
         req.onreadystatechange = function() {
-          if (req.readyState == 4 && req.status == 200) {
+          if (req.readyState === 4 && req.status === 200) {
             callback(req.responseText);
           }
         };
@@ -117,8 +117,8 @@ alert(getXhr('async.txt'));
 
   <script>
     disable('disabled');
-    if (location.protocol == 'file:' &&
-        navigator.userAgent.indexOf('Firefox') == -1) {
+    if (location.protocol === 'file:' &&
+        navigator.userAgent.indexOf('Firefox') === -1) {
       alert('Warning: This page is loaded with the "file:" protocol.\n' +
             'Your browser might prevent XHR from working here.');
     }

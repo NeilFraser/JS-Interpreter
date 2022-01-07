@@ -139,7 +139,7 @@
       var req = new XMLHttpRequest();
       req.open('GET', href, true);
       req.onreadystatechange = function() {
-        if (req.readyState == 4 && req.status == 200) {
+        if (req.readyState === 4 && req.status === 200) {
           callback(req.responseText);
         }
       };
