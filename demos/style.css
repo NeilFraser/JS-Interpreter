@@ -1,17 +1,29 @@
 body {
-  background-color: #fff;
+  background-color: black;
   font-family: sans-serif;
 }
 a:hover {
   color: red;
 }
 h1, h2, h3 {
-  font-weight: normal;
+    font-weight: 900;
+    text-align: center;
+    font-family: serif;
 }
 textarea {
   font-family: monospace;
   font-size: larger;
   height: 15em;
   width: 100%;
-  max-width: 111ex;
+  max-width: 56em;
+  min-height: 22em;
+}
+small {
+  margin-left: 6ex;
+}
+.footerpara{
+  margin-left: 6ex;
+}
+.container {
+  height: 5rem;
 }
