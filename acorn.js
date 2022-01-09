@@ -345,19 +345,15 @@
   // Acorn's original code built up functions using strings for maximum efficiency.
   // However, this triggered a CSP unsafe-eval requirement.  Here's a slower, but
   // simpler approach.  -- Neil Fraser, January 2022.
+  // https://github.com/NeilFraser/JS-Interpreter/issues/228
   function makePredicate(words) {
     words = words.split(" ");
-    words.sort();
+    var set = Object.create(null);
+    for (var i = 0; i < words.length; i++) {
+      set[words[i]] = true;
+    }
     return function(str) {
-      for (var i = 0; i < words.length; i++) {
-        if (words[i] >= str) {
-          if (words[i] === str) {
-            return true;
-          }
-          break;
-        }
-      }
-      return false;
+      return set[str] || false;
     };
   }
 
