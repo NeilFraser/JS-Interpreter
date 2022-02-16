@@ -23,9 +23,12 @@ var Interpreter = function(code, opt_initFunc) {
     code = this.parse_(code, 'code');
   }
   // Get a handle on Acorn's node_t object.
-  this.nodeConstructor = code.constructor;
+  var nodeConstructor = code.constructor;
+  this.newNode = function() {
+    return new nodeConstructor({'options': {}});
+  };
   // Clone the root 'Program' node so that the AST may be modified.
-  var ast = new this.nodeConstructor({options:{}});
+  var ast = this.newNode();
   for (var prop in code) {
     ast[prop] = (prop === 'body') ? code[prop].slice() : code[prop];
   }
@@ -3166,7 +3169,7 @@ Interpreter.prototype.createGetter_ = function(func, left) {
   // Normally `this` will be specified as the object component (o.x).
   // Sometimes `this` is explicitly provided (o).
   var funcThis = Array.isArray(left) ? left[0] : left;
-  var node = new this.nodeConstructor({options:{}});
+  var node = new this.newNode();
   node['type'] = 'CallExpression';
   var state = new Interpreter.State(node,
       this.stateStack[this.stateStack.length - 1].scope);
@@ -3195,7 +3198,7 @@ Interpreter.prototype.createSetter_ = function(func, left, value) {
   // Normally `this` will be specified as the object component (o.x).
   // Sometimes `this` is implicitly the global object (x).
   var funcThis = Array.isArray(left) ? left[0] : this.globalObject;
-  var node = new this.nodeConstructor({options:{}});
+  var node = new this.newNode();
   node['type'] = 'CallExpression';
   var state = new Interpreter.State(node,
       this.stateStack[this.stateStack.length - 1].scope);
@@ -3684,7 +3687,7 @@ Interpreter.prototype['stepCallExpression'] = function(stack, state, node) {
           // Acorn threw a SyntaxError.  Rethrow as a trappable error.
           this.throwException(this.SYNTAX_ERROR, 'Invalid code: ' + e.message);
         }
-        var evalNode = new this.nodeConstructor({options:{}});
+        var evalNode = new this.newNode();
         evalNode['type'] = 'EvalProgram_';
         evalNode['body'] = ast['body'];
         Interpreter.stripLocations_(evalNode, node['start'], node['end']);
@@ -4451,4 +4454,3 @@ Interpreter.prototype['pseudoToNative'] = Interpreter.prototype.pseudoToNative;
 Interpreter.prototype['getGlobalScope'] = Interpreter.prototype.getGlobalScope;
 Interpreter.prototype['getStateStack'] = Interpreter.prototype.getStateStack;
 Interpreter.prototype['setStateStack'] = Interpreter.prototype.setStateStack;
-
