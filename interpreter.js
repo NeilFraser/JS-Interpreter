@@ -174,6 +174,13 @@ Interpreter.toStringCycles_ = [];
 Interpreter.vm = null;
 
 /**
+ * Currently executing interpreter.  Needed so Interpreter.Object instances
+ * can know their environment.
+ * @type {Interpreter}
+ */
+Interpreter.currentInterpreter_ = null;
+
+/**
  * The global object (`window` in a browser, `global` in node.js) is usually
  * `globalThis`, but older systems use `this`.
  */
@@ -369,14 +376,23 @@ Interpreter.prototype.step = function() {
     } else if (this.paused_) {
       return true;
     }
+    // Record the interpreter in a global property so calls to toString/valueOf
+    // can execute in the proper context.
+    var oldInterpreterValue = Interpreter.currentInterpreter_;
+    Interpreter.currentInterpreter_ = this;
     try {
-      var nextState = this.stepFunctions_[type](stack, state, node);
-    } catch (e) {
-      // Eat any step errors.  They have been thrown on the stack.
-      if (e !== Interpreter.STEP_ERROR) {
-        // Uh oh.  This is a real error in the JS-Interpreter.  Rethrow.
-        throw e;
+      try {
+        var nextState = this.stepFunctions_[type](stack, state, node);
+      } catch (e) {
+        // Eat any step errors.  They have been thrown on the stack.
+        if (e !== Interpreter.STEP_ERROR) {
+          // Uh oh.  This is a real error in the JS-Interpreter.  Rethrow.
+          throw e;
+        }
       }
+    } finally {
+      // Restore to previous value (probably null, maybe nested toString calls).
+      Interpreter.currentInterpreter_ = oldInterpreterValue;
     }
     if (nextState) {
       stack.push(nextState);
@@ -3313,6 +3329,10 @@ Interpreter.Object.prototype.data = null;
  * @override
  */
 Interpreter.Object.prototype.toString = function() {
+  if (!Interpreter.currentInterpreter_) {
+    // Called from outside an interpreter.
+    return '[object Interpreter.Object]';
+  }
   if (!(this instanceof Interpreter.Object)) {
     // Primitive value.
     return String(this);
@@ -3392,6 +3412,11 @@ Interpreter.Object.prototype.toString = function() {
  * @override
  */
 Interpreter.Object.prototype.valueOf = function() {
+  var callingInterpreter = Interpreter.currentInterpreter_;
+  if (!callingInterpreter) {
+    // Called from outside an interpreter.
+    return this;
+  }
   if (this.data === undefined || this.data === null ||
       this.data instanceof RegExp) {
     return this;  // An Object, RegExp, or primitive.
