@@ -357,7 +357,7 @@ Interpreter.prototype.appendCode = function(code) {
  */
 Interpreter.prototype.step = function() {
   var stack = this.stateStack;
-  var startTime = Date.now();
+  var endTime = Date.now() + this['POLYFILL_TIMEOUT'];
   do {
     var state = stack[stack.length - 1];
     if (!state) {
@@ -390,7 +390,7 @@ Interpreter.prototype.step = function() {
       throw Error('Setter not supported in this context');
     }
     // This may be polyfill code.  Keep executing until we arrive at user code.
-  } while (!node['end'] && startTime + this['POLYFILL_TIMEOUT'] > Date.now());
+  } while (!node['end'] && endTime > Date.now());
   return true;
 };
 
