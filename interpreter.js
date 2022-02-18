@@ -3173,7 +3173,7 @@ Interpreter.prototype.createGetter_ = function(func, left) {
   node['type'] = 'CallExpression';
   var state = new Interpreter.State(node,
       this.stateStack[this.stateStack.length - 1].scope);
-  state.doneCallee_ = true;
+  state.doneCallee_ = 2;
   state.funcThis_ = funcThis;
   state.func_ = func;
   state.doneArgs_ = true;
@@ -3202,7 +3202,7 @@ Interpreter.prototype.createSetter_ = function(func, left, value) {
   node['type'] = 'CallExpression';
   var state = new Interpreter.State(node,
       this.stateStack[this.stateStack.length - 1].scope);
-  state.doneCallee_ = true;
+  state.doneCallee_ = 2;
   state.funcThis_ = funcThis;
   state.func_ = func;
   state.doneArgs_ = true;
