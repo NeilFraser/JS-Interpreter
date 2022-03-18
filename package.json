@@ -3,7 +3,7 @@
     "private": true,
     "version": "0.0.1",
     "description": "A sandboxed JavaScript interpreter in JavaScript.  Execute arbitrary JavaScript code line by line in isolation and safety.",
-    "main": "interpreter_acorn.js",
+    "main": "acorn_interpreter.js",
     "repository": {
       "type": "git",
       "url": "git+https://github.com/NeilFraser/JS-Interpreter.git"
