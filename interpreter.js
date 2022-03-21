@@ -10,6 +10,8 @@
  */
 'use strict';
 
+let acorn = require('acorn');
+
 /**
  * Create a new interpreter.
  * @param {string|!Object} code Raw JavaScript text or AST.
