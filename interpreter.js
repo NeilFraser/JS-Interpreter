@@ -4453,3 +4453,7 @@ Interpreter.prototype['pseudoToNative'] = Interpreter.prototype.pseudoToNative;
 Interpreter.prototype['getGlobalScope'] = Interpreter.prototype.getGlobalScope;
 Interpreter.prototype['getStateStack'] = Interpreter.prototype.getStateStack;
 Interpreter.prototype['setStateStack'] = Interpreter.prototype.setStateStack;
+
+if (typeof exports === 'object' && typeof module === 'object') {
+  module.exports = Interpreter;
+}
