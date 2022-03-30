@@ -75,6 +75,13 @@
       document.getElementById('serializeButton').disabled = disabled;
     }
 
+    function disableDeserialize() {
+      // Disable the deserialize button if the textarea is blank.
+      document.getElementById('deserializeButton').disabled =
+          !document.getElementById('serializeTextarea').value;
+    }
+    setInterval(disableDeserialize, 200);
+
     function createSelection(start, end) {
       var field = document.getElementById('code');
       if (field.createTextRange) {
@@ -124,7 +131,7 @@ alert(numbers.join('-'));
 
   <p>
     <button onclick="serializeButton()" id="serializeButton" disabled="disabled">Serialize &darr;</button>
-    <button onclick="deserializeButton()" id="deserializeButton">Deserialize &uarr;</button><br>
+    <button onclick="deserializeButton()" id="deserializeButton" disabled="disabled">Deserialize &uarr;</button><br>
     <textarea id="serializeTextarea" style="height: 10ex; width: 80ex;" spellcheck="false"></textarea>
   </p>
 
