@@ -303,6 +303,12 @@ Interpreter.prototype['REGEXP_THREAD_TIMEOUT'] = 1000;
 Interpreter.prototype['POLYFILL_TIMEOUT'] = 1000;
 
 /**
+ * Length of time (in ms) to allow a toString or valueOf function to execute
+ * before terminating it.
+ */
+Interpreter.prototype['TOSTRING_VALUEOF_TIMEOUT'] = 1000;
+
+/**
  * Flag indicating that a getter function needs to be called immediately.
  * @private
  */
@@ -885,11 +891,11 @@ Interpreter.prototype.initObject = function(globalObject) {
 
   // Instance methods on Object.
   this.setNativeFunctionPrototype(this.OBJECT, 'toString',
-      Interpreter.Object.prototype.toString);
+      Interpreter.Object.prototype.toStringPseudo);
   this.setNativeFunctionPrototype(this.OBJECT, 'toLocaleString',
       Interpreter.Object.prototype.toString);
   this.setNativeFunctionPrototype(this.OBJECT, 'valueOf',
-      Interpreter.Object.prototype.valueOf);
+      Interpreter.Object.prototype.valueOfPseudo);
 
   wrapper = function hasOwnProperty(prop) {
     throwIfNullUndefined(this);
@@ -3077,6 +3083,82 @@ Interpreter.prototype.setValue = function(ref, value) {
   }
 };
 
+Interpreter.prototype.callPseudoFunction = function(pseudoObj, funcName) {
+  // Create a Program node to act as a bottom tray for the call.
+  var nodeProgram = new this.newNode();
+  nodeProgram['type'] = 'Program';
+  nodeProgram['body'] = [];
+  var stateProgram = new Interpreter.State(nodeProgram, this.globalScope);
+  this.stateStack.push(stateProgram);
+  var doneLength = this.stateStack.length;
+  var endTime = Date.now() + this['TOSTRING_VALUEOF_TIMEOUT'];
+
+  // Next, look up what the named property contains.
+  var nodeMemberExpression = new this.newNode();
+  nodeMemberExpression['type'] = 'MemberExpression';
+  nodeMemberExpression['computed'] = false;
+  var nodeMemberExpressionProperty = new this.newNode();
+  nodeMemberExpressionProperty['type'] = 'Identifier';
+  nodeMemberExpressionProperty['name'] = funcName;
+  nodeMemberExpression['property'] = nodeMemberExpressionProperty;
+  var stateMemberExpression =
+      new Interpreter.State(nodeMemberExpression, this.globalScope);
+  stateMemberExpression.components = false;
+  stateMemberExpression.doneObject_ = true;
+  stateMemberExpression.value = pseudoObj;
+  this.stateStack.push(stateMemberExpression);
+  do {
+    this.step();
+    if (endTime < Date.now()) {
+      //this.throwException(this.EVAL_ERROR, 'Timeout while calling ' + funcName);
+    }
+  } while (this.stateStack.length > doneLength);
+  stateProgram.value;
+  debugger;
+
+  this.stateStack.pop();  // Remove the program state.
+
+
+  return stateProgram.value;
+};
+
+Interpreter.prototype.callPseudoFunction_ = function(pseudoObj, funcName) {
+  var node0 = new this.newNode();
+  node0['type'] = 'Program';
+  node0['body'] = [];
+  var state0 = new Interpreter.State(node0, this.globalScope);
+
+  var node1 = new this.newNode();
+  node1['type'] = 'CallExpression';
+  var state1 = new Interpreter.State(node1, this.globalScope);
+  state1.doneCallee_ = 1;
+  state1.doneArgs_ = true;
+
+  var node2 = new this.newNode();
+  node2['type'] = 'MemberExpression';
+  var node2Property = new this.newNode();
+  node2Property['type'] = 'Identifier';
+  node2Property['name'] = funcName;
+  node2['property'] = node2Property;
+  var state2 = new Interpreter.State(node2, this.globalScope);
+  state2.components = true;
+  state2.doneObject_ = true;
+  state2.value = pseudoObj;
+
+  var doneLength = this.stateStack.length + 1;
+  this.stateStack.push(state0, state1, state2);
+
+  var endTime = Date.now() + this['TOSTRING_VALUEOF_TIMEOUT'];
+  do {
+    this.step();
+    if (endTime > Date.now()) {
+      //this.throwException(this.EVAL_ERROR, 'Timeout while calling ' + funcName);
+    }
+  } while (this.stateStack.length > doneLength);
+  this.stateStack.pop();  // Remove the program state.
+  return state0.value;
+};
+
 /**
  * Throw an exception in the interpreter that can be handled by an
  * interpreter try/catch statement.  If unhandled, a real exception will
@@ -3417,6 +3499,15 @@ Interpreter.Object.prototype.valueOf = function() {
     // Called from outside an interpreter.
     return this;
   }
+  return callingInterpreter.callPseudoFunction(this, 'valueOf');
+};
+
+/**
+ * Return the object's value.
+ * @return {Interpreter.Value} Value.
+ * @override
+ */
+Interpreter.Object.prototype.valueOfPseudo = function() {
   if (this.data === undefined || this.data === null ||
       this.data instanceof RegExp) {
     return this;  // An Object, RegExp, or primitive.
