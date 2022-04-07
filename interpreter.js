@@ -381,14 +381,12 @@ Interpreter.prototype.step = function() {
     var oldInterpreterValue = Interpreter.currentInterpreter_;
     Interpreter.currentInterpreter_ = this;
     try {
-      try {
-        var nextState = this.stepFunctions_[type](stack, state, node);
-      } catch (e) {
-        // Eat any step errors.  They have been thrown on the stack.
-        if (e !== Interpreter.STEP_ERROR) {
-          // Uh oh.  This is a real error in the JS-Interpreter.  Rethrow.
-          throw e;
-        }
+      var nextState = this.stepFunctions_[type](stack, state, node);
+    } catch (e) {
+      // Eat any step errors.  They have been thrown on the stack.
+      if (e !== Interpreter.STEP_ERROR) {
+        // Uh oh.  This is a real error in the JS-Interpreter.  Rethrow.
+        throw e;
       }
     } finally {
       // Restore to previous value (probably null, maybe nested toString calls).
