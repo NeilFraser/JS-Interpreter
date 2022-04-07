@@ -3982,7 +3982,7 @@ Interpreter.prototype['stepForInStatement'] = function(stack, state, node) {
   // Reevaluate the variable since it could be a setter on the global object.
   state.doneVariable_ = false;
   state.doneSetter_ = false;
-  // Sixth and finally, execute the body if there was one.  this.
+  // Sixth and finally, execute the body if there was one.
   if (node['body']) {
     return new Interpreter.State(node['body'], state.scope);
   }

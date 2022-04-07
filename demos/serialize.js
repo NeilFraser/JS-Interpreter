@@ -130,6 +130,12 @@ function deserialize(json, interpreter) {
       delete obj.end;
       var locText = jsonObj['loc'];
       if (locText) {
+        // Turn a serialized string '1:0-4:21 code' into a location object:
+        // {
+        //   start: {line 1, column: 0},
+        //   end: {line 4, column: 21},
+        //   source: "code"
+        // }
         var loc = new NODE_LOC_CONSTRUCTOR();
         var m = locText.match(LOC_REGEX);
         var locStart = null;
@@ -344,7 +350,13 @@ function serialize(interpreter) {
     for (var j = 0; j < names.length; j++) {
       var name = names[j];
       if (jsonObj['type'] === 'Node' && name === 'loc') {
-        // Compactly serialize the location objects on a Node.
+        // Compactly serialize the location objects on a Node:
+        // {
+        //   start: {line 1, column: 0},
+        //   end: {line 4, column: 21},
+        //   source: "code"
+        // }
+        // into a string like this: '1:0-4:21 code'
         var loc = obj.loc;
         var locText = '';
         if (loc.start) {
