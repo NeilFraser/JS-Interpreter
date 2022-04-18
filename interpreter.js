@@ -10,6 +10,8 @@
  */
 'use strict';
 
+let acorn = require('acorn');
+
 /**
  * Create a new interpreter.
  * @param {string|!Object} code Raw JavaScript text or AST.
@@ -4479,3 +4481,7 @@ Interpreter.prototype['pseudoToNative'] = Interpreter.prototype.pseudoToNative;
 Interpreter.prototype['getGlobalScope'] = Interpreter.prototype.getGlobalScope;
 Interpreter.prototype['getStateStack'] = Interpreter.prototype.getStateStack;
 Interpreter.prototype['setStateStack'] = Interpreter.prototype.setStateStack;
+
+if (typeof exports === 'object' && typeof module === 'object') {
+  module.exports = Interpreter;
+}

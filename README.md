@@ -1,15 +1,20 @@
 JS-Interpreter
 ==============
 
-A sandboxed JavaScript interpreter in JavaScript.  Execute arbitrary JavaScript
-code line by line in isolation and safety.
+adds exports to use [NeilFraser/JS-Interpreter](https://github.com/NeilFraser/JS-Interpreter) with npm.
 
-Live demo:
-https://neil.fraser.name/software/JS-Interpreter/
-
-Documentation:
-https://neil.fraser.name/software/JS-Interpreter/docs.html
-
-Developers using JS-Interpreter should subscribe to the announcement newsgroup.
-Security issues and major changes will be posted here:
-https://groups.google.com/g/js-interpreter-announce
+## Usage
+To add this repo as a dependency, add the following line to the dependencies of your `package.json`
+```json
+"dependencies": {
+    "js-interpreter": "https://github.com/derwehr/js-interpreter.git",
+  },
+```
+Then import js-interpreter either using `import` or `require`
+```JavaScript
+import Interpreter from 'js-interpreter';
+```
+or
+```JavaScript
+const Interpreter = require('js-interpreter');
+```

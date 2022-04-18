@@ -1,0 +1,20 @@
+{
+  "name": "js-interpreter",
+  "private": true,
+  "version": "0.0.1",
+  "description": "A sandboxed JavaScript interpreter in JavaScript.  Execute arbitrary JavaScript code line by line in isolation and safety.",
+  "main": "interpreter.js",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/NeilFraser/JS-Interpreter.git"
+  },
+  "author": "Neil Fraser",
+  "license": "Apache-2.0",
+  "bugs": {
+    "url": "https://github.com/NeilFraser/JS-Interpreter/issues"
+  },
+  "homepage": "https://github.com/NeilFraser/JS-Interpreter#readme",
+  "dependencies": {
+    "acorn": "^8.7.0"
+  }
+}
