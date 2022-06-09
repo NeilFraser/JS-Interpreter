@@ -2994,7 +2994,8 @@ Interpreter.prototype.setValueToScope = function(name, value) {
 };
 
 /**
- * Create a new scope for the given node.
+ * Create a new scope for the given node and populate it with all variables
+ * and named functions.
  * @param {!Object} node AST node (usually a program or function when initally
  *   calling this function, though it recurses to scan many child nodes).
  * @param {!Interpreter.Scope} scope Scope dictionary to populate.
@@ -3007,42 +3008,43 @@ Interpreter.prototype.populateScope_ = function(node, scope) {
         this.setProperty(scope.object, node['declarations'][i]['id']['name'],
             undefined, Interpreter.VARIABLE_DESCRIPTOR);
       }
-      return;
+      break;
     case 'FunctionDeclaration':
+      console.log(node['id']['name']);
       this.setProperty(scope.object, node['id']['name'],
           this.createFunction(node, scope), Interpreter.VARIABLE_DESCRIPTOR);
-      return;  // Do not recurse into function.
-    case 'FunctionExpression':
-      return;  // Do not recurse into function.
-    case 'ExpressionStatement':
-    case 'ReturnStatement':
-    case 'ThrowStatement':
-    case 'BinaryExpression':
-    case 'ConditionalExpression':
-    case 'ThisExpression':
-    case 'UnaryExpression':
-    case 'UpdateExpression':
-    case 'Identifier':
-      // Not an exhaustive list, just ones that show up a lot.
-      return;  // Can't contain variable/function declarations.
-  }
-  var nodeClass = node['constructor'];
-  for (var name in node) {
-    if (name === 'loc') continue;
-    var prop = node[name];
-    if (prop && typeof prop === 'object') {
-      if (Array.isArray(prop)) {
-        for (var i = 0; i < prop.length; i++) {
-          if (prop[i] && prop[i].constructor === nodeClass) {
-            this.populateScope_(prop[i], scope);
+      break;
+    case 'BlockStatement':
+    case 'CatchClause':
+    case 'DoWhileStatement':
+    case 'ForInStatement':
+    case 'ForStatement':
+    case 'IfStatement':
+    case 'LabeledStatement':
+    case 'Program':
+    case 'SwitchStatement':
+    case 'TryStatement':
+    case 'WithStatement':
+    case 'WhileStatement':
+      // All the structures within which a variable or function could hide.
+      var nodeClass = node['constructor'];
+      for (var name in node) {
+        if (name === 'loc') continue;
+        var prop = node[name];
+        if (prop && typeof prop === 'object') {
+          if (Array.isArray(prop)) {
+            for (var i = 0; i < prop.length; i++) {
+              if (prop[i] && prop[i].constructor === nodeClass) {
+                this.populateScope_(prop[i], scope);
+              }
+            }
+          } else {
+            if (prop.constructor === nodeClass) {
+              this.populateScope_(prop, scope);
+            }
           }
         }
-      } else {
-        if (prop.constructor === nodeClass) {
-          this.populateScope_(prop, scope);
-        }
       }
-    }
   }
 };
 
