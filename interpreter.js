@@ -63,7 +63,7 @@ var Interpreter = function(code, opt_initFunc) {
   this.value = undefined;
   // Point at the main program.
   this.ast = ast;
-  var state = new Interpreter.State(this.ast, this.globalScope);
+  state = new Interpreter.State(this.ast, this.globalScope);
   state.done = false;
   this.stateStack.length = 0;
   this.stateStack[0] = state;
@@ -334,7 +334,7 @@ Interpreter.prototype.parse_ = function(code, sourceFile) {
      options[name] = Interpreter.PARSE_OPTIONS[name];
    }
    options['sourceFile'] = sourceFile;
-   return acorn.parse(code, options);
+   return Interpreter.nativeGlobal['acorn'].parse(code, options);
 };
 
 /**
@@ -2189,9 +2189,9 @@ Interpreter.prototype.populateError = function(pseudoError, opt_message) {
       tracebackData.push({loc: node['loc']});
     }
   }
-  var name = String(this.getProperty(pseudoError, 'name'));
-  var message = String(this.getProperty(pseudoError, 'message'));
-  var stackString = name + ': ' + message + '\n';
+  var errorName = String(this.getProperty(pseudoError, 'name'));
+  var errorMessage = String(this.getProperty(pseudoError, 'message'));
+  var stackString = errorName + ': ' + errorMessage + '\n';
   for (var i = 0; i < tracebackData.length; i++) {
     var loc = tracebackData[i].loc;
     var name = tracebackData[i].name;
@@ -2519,9 +2519,9 @@ Interpreter.prototype.pseudoToNative = function(pseudoObj, opt_cycles) {
     pseudo: [],
     native: []
   };
-  var i = cycles.pseudo.indexOf(pseudoObj);
-  if (i !== -1) {
-    return cycles.native[i];
+  var index = cycles.pseudo.indexOf(pseudoObj);
+  if (index !== -1) {
+    return cycles.native[index];
   }
   cycles.pseudo.push(pseudoObj);
   var nativeObj;
@@ -3010,7 +3010,6 @@ Interpreter.prototype.populateScope_ = function(node, scope) {
       }
       break;
     case 'FunctionDeclaration':
-      console.log(node['id']['name']);
       this.setProperty(scope.object, node['id']['name'],
           this.createFunction(node, scope), Interpreter.VARIABLE_DESCRIPTOR);
       break;

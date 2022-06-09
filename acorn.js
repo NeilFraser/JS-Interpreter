@@ -715,7 +715,7 @@
   // since a '/' inside a '[]' set does not end the expression.
 
   function readRegexp() {
-    var content = "", escaped, inClass, start = tokPos;
+    var escaped, inClass, start = tokPos;
     for (;;) {
       if (tokPos >= inputLen) raise(start, "Unterminated regular expression");
       var ch = input.charAt(tokPos);
