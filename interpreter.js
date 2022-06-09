@@ -2995,27 +2995,40 @@ Interpreter.prototype.setValueToScope = function(name, value) {
 
 /**
  * Create a new scope for the given node.
- * @param {!Object} node AST node (program or function).
+ * @param {!Object} node AST node (usually a program or function when initally
+ *   calling this function, though it recurses to scan many child nodes).
  * @param {!Interpreter.Scope} scope Scope dictionary to populate.
  * @private
  */
 Interpreter.prototype.populateScope_ = function(node, scope) {
-  if (node['type'] === 'VariableDeclaration') {
-    for (var i = 0; i < node['declarations'].length; i++) {
-      this.setProperty(scope.object, node['declarations'][i]['id']['name'],
-          undefined, Interpreter.VARIABLE_DESCRIPTOR);
-    }
-  } else if (node['type'] === 'FunctionDeclaration') {
-    this.setProperty(scope.object, node['id']['name'],
-        this.createFunction(node, scope), Interpreter.VARIABLE_DESCRIPTOR);
-    return;  // Do not recurse into function.
-  } else if (node['type'] === 'FunctionExpression') {
-    return;  // Do not recurse into function.
-  } else if (node['type'] === 'ExpressionStatement') {
-    return;  // Expressions can't contain variable/function declarations.
+  switch (node['type']) {
+    case 'VariableDeclaration':
+      for (var i = 0; i < node['declarations'].length; i++) {
+        this.setProperty(scope.object, node['declarations'][i]['id']['name'],
+            undefined, Interpreter.VARIABLE_DESCRIPTOR);
+      }
+      return;
+    case 'FunctionDeclaration':
+      this.setProperty(scope.object, node['id']['name'],
+          this.createFunction(node, scope), Interpreter.VARIABLE_DESCRIPTOR);
+      return;  // Do not recurse into function.
+    case 'FunctionExpression':
+      return;  // Do not recurse into function.
+    case 'ExpressionStatement':
+    case 'ReturnStatement':
+    case 'ThrowStatement':
+    case 'BinaryExpression':
+    case 'ConditionalExpression':
+    case 'ThisExpression':
+    case 'UnaryExpression':
+    case 'UpdateExpression':
+    case 'Identifier':
+      // Not an exhaustive list, just ones that show up a lot.
+      return;  // Can't contain variable/function declarations.
   }
   var nodeClass = node['constructor'];
   for (var name in node) {
+    if (name === 'loc') continue;
     var prop = node[name];
     if (prop && typeof prop === 'object') {
       if (Array.isArray(prop)) {
@@ -3600,6 +3613,7 @@ Interpreter.prototype['stepBreakStatement'] = function(stack, state, node) {
 Interpreter.prototype.evalCodeNumber_ = 0;
 
 Interpreter.prototype['stepCallExpression'] = function(stack, state, node) {
+  // Handles both CallExpression and NewExpression.
   if (!state.doneCallee_) {
     state.doneCallee_ = 1;
     // Components needed to determine value of `this`.
@@ -3787,6 +3801,7 @@ Interpreter.prototype['stepCatchClause'] = function(stack, state, node) {
 
 Interpreter.prototype['stepConditionalExpression'] =
     function(stack, state, node) {
+  // Handles both ConditionalExpression and IfStatement.
   var mode = state.mode_ || 0;
   if (mode === 0) {
     state.mode_ = 1;
@@ -3822,6 +3837,7 @@ Interpreter.prototype['stepDebuggerStatement'] = function(stack, state, node) {
 };
 
 Interpreter.prototype['stepDoWhileStatement'] = function(stack, state, node) {
+  // Handles both DoWhileStatement and WhileStatement.
   if (node['type'] === 'DoWhileStatement' && state.test_ === undefined) {
     // First iteration of do/while executes without checking test.
     state.value = true;
