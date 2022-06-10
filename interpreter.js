@@ -344,13 +344,13 @@ Interpreter.prototype.parse_ = function(code, sourceFile) {
 Interpreter.prototype.appendCode = function(code) {
   var state = this.stateStack[0];
   if (!state || state.node['type'] !== 'Program') {
-    throw Error('Expecting original AST to start with a Program node.');
+    throw Error('Expecting original AST to start with a Program node');
   }
   if (typeof code === 'string') {
     code = this.parse_(code, 'appendCode' + (this.appendCodeNumber_++));
   }
   if (!code || code['type'] !== 'Program') {
-    throw Error('Expecting new AST to start with a Program node.');
+    throw Error('Expecting new AST to start with a Program node');
   }
   this.populateScope_(code, state.scope);
   // Append the new program to the old one.
@@ -2180,21 +2180,21 @@ Interpreter.prototype.populateError = function(pseudoError, opt_message) {
     if (node['type'] === 'CallExpression') {
       var func = state.func_;
       if (func && tracebackData.length) {
-        tracebackData[tracebackData.length - 1].name =
+        tracebackData[tracebackData.length - 1].datumName =
             this.getProperty(func, 'name');
       }
     }
     if (node['loc'] &&
         (!tracebackData.length || node['type'] === 'CallExpression')) {
-      tracebackData.push({loc: node['loc']});
+      tracebackData.push({datumLoc: node['loc']});
     }
   }
   var errorName = String(this.getProperty(pseudoError, 'name'));
   var errorMessage = String(this.getProperty(pseudoError, 'message'));
   var stackString = errorName + ': ' + errorMessage + '\n';
   for (var i = 0; i < tracebackData.length; i++) {
-    var loc = tracebackData[i].loc;
-    var name = tracebackData[i].name;
+    var loc = tracebackData[i].datumLoc;
+    var name = tracebackData[i].datumName;
     var locString = loc['source'] + ':' +
         loc['start']['line'] + ':' + loc['start']['column'];
     if (name) {
@@ -2814,7 +2814,7 @@ Interpreter.prototype.setProperty = function(obj, name, value, opt_descriptor) {
   } else {
     // Set the property.
     if (value === Interpreter.VALUE_IN_DESCRIPTOR) {
-      throw ReferenceError('Value not specified.');
+      throw ReferenceError('Value not specified');
     }
     // Determine the parent (possibly self) where the property is defined.
     var defObj = obj;
@@ -2887,7 +2887,7 @@ Interpreter.prototype.setAsyncFunctionPrototype =
 Interpreter.prototype.getScope = function() {
   var scope = this.stateStack[this.stateStack.length - 1].scope;
   if (!scope) {
-    throw Error('No scope found.');
+    throw Error('No scope found');
   }
   return scope;
 };
@@ -4475,8 +4475,7 @@ Interpreter.prototype['stepWhileStatement'] =
 
 // Preserve top-level API functions from being pruned/renamed by JS compilers.
 // Add others as needed.
-// The global object (`window` in a browser, `global` in node.js) is `this`.
-this['Interpreter'] = Interpreter;
+Interpreter.nativeGlobal['Interpreter'] = Interpreter;
 Interpreter.prototype['step'] = Interpreter.prototype.step;
 Interpreter.prototype['run'] = Interpreter.prototype.run;
 Interpreter.prototype['appendCode'] = Interpreter.prototype.appendCode;
