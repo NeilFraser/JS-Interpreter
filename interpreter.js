@@ -3021,6 +3021,7 @@ Interpreter.prototype.populateScope_ = function(node, scope) {
     case 'IfStatement':
     case 'LabeledStatement':
     case 'Program':
+    case 'SwitchCase':
     case 'SwitchStatement':
     case 'TryStatement':
     case 'WithStatement':
