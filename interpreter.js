@@ -70,16 +70,16 @@ var Interpreter = function(code, opt_initFunc) {
 };
 
 /**
-  * Completion Value Types.
-  * @enum {number}
-  */
- Interpreter.Completion = {
-   NORMAL: 0,
-   BREAK: 1,
-   CONTINUE: 2,
-   RETURN: 3,
-   THROW: 4
- };
+ * Completion Value Types.
+ * @enum {number}
+ */
+Interpreter.Completion = {
+  NORMAL: 0,
+  BREAK: 1,
+  CONTINUE: 2,
+  RETURN: 3,
+  THROW: 4
+};
 
 /**
  * @const {!Object} Configuration used for all Acorn parsing.
