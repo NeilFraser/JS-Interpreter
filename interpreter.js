@@ -355,6 +355,7 @@ Interpreter.prototype.appendCode = function(code) {
   this.populateScope_(code, state.scope);
   // Append the new program to the old one.
   Array.prototype.push.apply(state.node['body'], code['body']);
+  state.node['body'].variableCache_ = null;
   state.done = false;
 };
 
@@ -364,7 +365,6 @@ Interpreter.prototype.appendCode = function(code) {
  */
 Interpreter.prototype.step = function() {
   var stack = this.stateStack;
-  var endTime = Date.now() + this['POLYFILL_TIMEOUT'];
   do {
     var state = stack[stack.length - 1];
     if (!state) {
@@ -404,6 +404,11 @@ Interpreter.prototype.step = function() {
       throw Error('Setter not supported in this context');
     }
     // This may be polyfill code.  Keep executing until we arrive at user code.
+    if (!endTime && !node['end']) {
+      // Ideally this would be defined at the top of the function, but that
+      // wastes time if the step isn't a polyfill.
+      var endTime = Date.now() + this['POLYFILL_TIMEOUT'];
+    }
   } while (!node['end'] && endTime > Date.now());
   return true;
 };
@@ -2999,53 +3004,77 @@ Interpreter.prototype.setValueToScope = function(name, value) {
  * @param {!Object} node AST node (usually a program or function when initally
  *   calling this function, though it recurses to scan many child nodes).
  * @param {!Interpreter.Scope} scope Scope dictionary to populate.
+ * @return {!Object} Map of all variable and function names.
  * @private
  */
 Interpreter.prototype.populateScope_ = function(node, scope) {
-  switch (node['type']) {
-    case 'VariableDeclaration':
-      for (var i = 0; i < node['declarations'].length; i++) {
-        this.setProperty(scope.object, node['declarations'][i]['id']['name'],
-            undefined, Interpreter.VARIABLE_DESCRIPTOR);
-      }
-      break;
-    case 'FunctionDeclaration':
-      this.setProperty(scope.object, node['id']['name'],
-          this.createFunction(node, scope), Interpreter.VARIABLE_DESCRIPTOR);
-      break;
-    case 'BlockStatement':
-    case 'CatchClause':
-    case 'DoWhileStatement':
-    case 'ForInStatement':
-    case 'ForStatement':
-    case 'IfStatement':
-    case 'LabeledStatement':
-    case 'Program':
-    case 'SwitchCase':
-    case 'SwitchStatement':
-    case 'TryStatement':
-    case 'WithStatement':
-    case 'WhileStatement':
-      // All the structures within which a variable or function could hide.
-      var nodeClass = node['constructor'];
-      for (var name in node) {
-        if (name === 'loc') continue;
-        var prop = node[name];
-        if (prop && typeof prop === 'object') {
-          if (Array.isArray(prop)) {
-            for (var i = 0; i < prop.length; i++) {
-              if (prop[i] && prop[i].constructor === nodeClass) {
-                this.populateScope_(prop[i], scope);
+  var variableCache;
+  if (!node.variableCache_) {
+    variableCache = Object.create(null);
+    switch (node['type']) {
+      case 'VariableDeclaration':
+        for (var i = 0; i < node['declarations'].length; i++) {
+          variableCache[node['declarations'][i]['id']['name']] = true;
+        }
+        break;
+      case 'FunctionDeclaration':
+        variableCache[node['id']['name']] = node;
+        break;
+      case 'BlockStatement':
+      case 'CatchClause':
+      case 'DoWhileStatement':
+      case 'ForInStatement':
+      case 'ForStatement':
+      case 'IfStatement':
+      case 'LabeledStatement':
+      case 'Program':
+      case 'SwitchCase':
+      case 'SwitchStatement':
+      case 'TryStatement':
+      case 'WithStatement':
+      case 'WhileStatement':
+        // All the structures within which a variable or function could hide.
+        var nodeClass = node['constructor'];
+        for (var name in node) {
+          if (name === 'loc') continue;
+          var prop = node[name];
+          if (prop && typeof prop === 'object') {
+            var childCache;
+            if (Array.isArray(prop)) {
+              for (var i = 0; i < prop.length; i++) {
+                if (prop[i] && prop[i].constructor === nodeClass) {
+                  childCache = this.populateScope_(prop[i], scope);
+                  for (var name in childCache) {
+                    variableCache[name] = childCache[name];
+                  }
+                }
               }
-            }
-          } else {
-            if (prop.constructor === nodeClass) {
-              this.populateScope_(prop, scope);
+            } else {
+              if (prop.constructor === nodeClass) {
+                childCache = this.populateScope_(prop, scope);
+                for (var name in childCache) {
+                  variableCache[name] = childCache[name];
+                }
+              }
             }
           }
         }
-      }
+    }
+    node.variableCache_ = variableCache;
+  } else {
+    variableCache = node.variableCache_;
   }
+  for (var name in variableCache) {
+    if (variableCache[name] === true) {
+      this.setProperty(scope.object, name, undefined,
+          Interpreter.VARIABLE_DESCRIPTOR);
+    } else {
+      this.setProperty(scope.object, name,
+          this.createFunction(variableCache[name], scope),
+          Interpreter.VARIABLE_DESCRIPTOR);
+    }
+  }
+  return variableCache;
 };
 
 /**
