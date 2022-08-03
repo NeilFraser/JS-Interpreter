@@ -221,6 +221,7 @@ Interpreter.WORKER_CODE = [
         "throw Error('Unknown RegExp operation: ' + data[0]);",
     "}",
     "postMessage(result);",
+    "close();",
   "};"];
 
 /**
