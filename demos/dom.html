@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>JS-Interpreter DOM Demo</title>
+  <link href="style.css" rel="stylesheet" type="text/css">
+  <script src="../acorn.js"></script>
+  <script src="../interpreter.js"></script>
+  <script>
+    var myInterpreter;
+    function initDom(interpreter, globalObject) {
+      // Create 'Element' class.  Constructable.
+      var wrapper = function Element() {
+        this.nativeElement = null;
+      };
+      var pseudoElementClass = interpreter.createNativeFunction(wrapper, true);
+      interpreter.setProperty(globalObject, 'Element', pseudoElementClass);
+      var pseudoElementProto = interpreter.getProperty(pseudoElementClass, 'prototype');
+
+      // Create 'Element.hasChildNodes' function.
+      // Technically this should be on Node, and Element should subclass Node.
+      var wrapper = function hasChildNodes() {
+        return this.nativeElement.hasChildNodes();
+      };
+      interpreter.setProperty(pseudoElementProto, 'hasChildNodes',
+          interpreter.createNativeFunction(wrapper));
+
+      // Create 'Element.innerHTML' property.  It uses getters and setters.
+      var getterWrapper = function() {
+        return this.nativeElement.innerHTML;
+      };
+      var innerHTMLGetter = interpreter.createNativeFunction(getterWrapper, false);
+      var setterWrapper = function(text) {
+        this.nativeElement.innerHTML = text;
+      };
+      var innerHTMLSetter = interpreter.createNativeFunction(setterWrapper, false);
+      interpreter.setProperty(pseudoElementProto, 'innerHTML', Interpreter.VALUE_IN_DESCRIPTOR,
+          {get: innerHTMLGetter, set: innerHTMLSetter});
+
+      // Create 'document' global object.
+      var pseudoDocument = interpreter.nativeToPseudo({});
+      interpreter.setProperty(globalObject, 'document', pseudoDocument);
+
+      // Define 'document.getElementById' function.
+      var wrapper = function getElementById(id) {
+        var nativeElement = document.getElementById(id);
+        if (!nativeElement) {
+          return null;
+        }
+        var pseudoElement = interpreter.createObject(pseudoElementClass);
+        pseudoElement.nativeElement = nativeElement;
+        return pseudoElement;
+      };
+      interpreter.setProperty(pseudoDocument, 'getElementById',
+          interpreter.createNativeFunction(wrapper));
+
+      // Create 'alert()' function.
+      var wrapper = function alert(text) {
+        return window.alert(arguments.length ? text : '');
+      };
+      interpreter.setProperty(globalObject, 'alert',
+          interpreter.createNativeFunction(wrapper));
+    }
+
+    function parseButton() {
+      var code = document.getElementById('code').value;
+      myInterpreter = new Interpreter(code, initDom);
+      disable('');
+    }
+
+    function runButton() {
+      disable('disabled');
+      if (myInterpreter.run()) {
+        // Async function hit.  There's more code to run.
+        setTimeout(runButton, 100);
+      }
+    }
+
+    function disable(disabled) {
+      document.getElementById('runButton').disabled = disabled;
+    }
+  </script>
+</head>
+<body>
+  <h1>JS-Interpreter DOM Demo</h1>
+
+  <p>The JS-Interpreter is a sandbox, it doesn't have any access to the DOM --
+  unless you provide your own interface functions.  This demo creates the
+  following interfaces:</p>
+
+  <ul>
+    <li><code>document.getElementById(id) &rarr; Element|null</code></li>
+    <li><code>Element.prototype.hasChildNodes() &rarr; boolean</code></li>
+    <li><code>Element.prototype.innerHTML &rarr; string</code></li>
+  </ul>
+
+  <p>This minimal demo can be used as the basis for a more extensive interface.
+  Expose as much of the DOM as you need, but be mindful of providing too much
+  access.  For example, granting the ability to set innerHTML enables interpreted
+  code to write script tags.  Open your browser's console for errors.</p>
+
+  <fieldset>
+    <legend>This div's ID is "banner":</legend>
+    <div id="banner"></div>
+  </fieldset>
+
+  <p><textarea id="code" spellcheck="false">
+var element = document.getElementById('banner');
+alert('Banner has child nodes: ' + element.hasChildNodes());  // False
+element.innerHTML = 'Hello from the <i>JS-Interpreter!</i>';
+alert('Banner has child nodes: ' + element.hasChildNodes());  // True
+</textarea><br>
+  <button onclick="parseButton()">Parse</button>
+  <button onclick="runButton()" id="runButton" disabled="disabled">Run</button>
+  </p>
+
+  <p>Back to the <a href="../docs.html">JS-Interpreter documentation</a>.</p>
+
+</body>
+</html>
