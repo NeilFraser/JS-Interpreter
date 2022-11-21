@@ -3130,6 +3130,10 @@ Interpreter.prototype.setValue = function(ref, value) {
  * @param {string=} opt_message Message being thrown.
  */
 Interpreter.prototype.throwException = function(errorClass, opt_message) {
+  if (!this.globalScope) {
+    // This is an error being thrown in the initialization, throw a real error.
+    throw (opt_message === undefined) ? errorClass : opt_message;
+  }
   if (opt_message === undefined) {
     var error = errorClass;  // This is a value to throw, not an error class.
   } else {
