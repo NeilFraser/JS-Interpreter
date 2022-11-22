@@ -14,6 +14,9 @@
         if (native === null) {
           return null;
         }
+        if (nativeToPseudoDom_.cache_.has(native)) {
+          return nativeToPseudoDom_.cache_.get(native);
+        }
         var pseudoClass;
         if (native instanceof Element) {
           pseudoClass = pseudoElementClass;
@@ -25,8 +28,11 @@
         var pseudo = interpreter.createObject(pseudoClass);
         // Link this pseudo DOM object to the native DOM object.
         pseudo.nativeNode = native;
+        nativeToPseudoDom_.cache_.set(native, pseudo);
         return pseudo;
       }
+      // Cache pseudo DOM objects so that there are no duplicates.
+      nativeToPseudoDom_.cache_ = new WeakMap();
 
       // Create 'Node' class.  Constructable, but not with 'new'.
       var wrapper = function Node() {
@@ -52,6 +58,13 @@
       interpreter.setProperty(pseudoNodeProto, 'hasChildNodes',
           interpreter.createNativeFunction(wrapper));
 
+      // Define 'Node.removeChild' function.
+      var wrapper = function removeChild(childNode) {
+        return nativeToPseudoDom_(this.nativeNode.removeChild(childNode.nativeNode));
+      };
+      interpreter.setProperty(pseudoNodeProto, 'removeChild',
+          interpreter.createNativeFunction(wrapper));
+
       // Define 'Node.firstChild' property.  It uses a getter (no setter).
       var getterWrapper = function() {
         return this.nativeNode.firstChild;
@@ -62,11 +75,19 @@
 
       // Define 'Node.lastChild' property.  It uses a getter (no setter).
       var getterWrapper = function() {
-        return this.nativeNode.lastChild;
+        return nativeToPseudoDom_(this.nativeNode.lastChild);
       };
       var firstChildGetter = interpreter.createNativeFunction(getterWrapper, false);
       interpreter.setProperty(pseudoNodeProto, 'lastChild', Interpreter.VALUE_IN_DESCRIPTOR,
           {get: firstChildGetter});
+
+      // Define 'Node.parentNode' property.  It uses a getter (no setter).
+      var getterWrapper = function() {
+        return nativeToPseudoDom_(this.nativeNode.parentNode);
+      };
+      var parentNodeGetter = interpreter.createNativeFunction(getterWrapper, false);
+      interpreter.setProperty(pseudoNodeProto, 'parentNode', Interpreter.VALUE_IN_DESCRIPTOR,
+          {get: parentNodeGetter});
 
       // Define 'Element.innerHTML' property.  It uses a getter and setter.
       var getterWrapper = function() {
@@ -91,12 +112,6 @@
       // Create 'document' global object.
       var pseudoDocument = interpreter.nativeToPseudo({});
       interpreter.setProperty(globalObject, 'document', pseudoDocument);
-
-      // Define 'document.head' and 'document.body' properties.
-      // Technically these should be getters and setters.  But in the real world
-      // they don't usually change values.
-      interpreter.setProperty(pseudoDocument, 'head', nativeToPseudoDom_(document.head));
-      interpreter.setProperty(pseudoDocument, 'body', nativeToPseudoDom_(document.body));
 
       // Define 'document.getElementById' function.
       var wrapper = function getElementById(id) {
@@ -154,12 +169,12 @@
   following interfaces:</p>
 
   <ul>
-    <li><code>document.head/body</code></li>
     <li><code>document.getElementById(id)</code></li>
     <li><code>document.createElement(tagName)</code></li>
     <li><code>document.createTextNode(text)</code></li>
     <li><code>Node.prototype.hasChildNodes()</code></li>
-    <li><code>Node.prototype.firstChild/lastChild</code></li>
+    <li><code>Node.prototype.removeChild(node)</code></li>
+    <li><code>Node.prototype.firstChild/lastChild/parentNode</code></li>
     <li><code>Element.prototype.appendChild(node)</code></li>
     <li><code>Element.prototype.innerHTML</code></li>
   </ul>
@@ -175,11 +190,10 @@
   </fieldset>
 
   <p><textarea id="code" spellcheck="false">
-var element = document.getElementById('banner');
 var italics = document.createElement('i');
 italics.appendChild(document.createTextNode('Hello from '));
 italics.innerHTML += '<u>JS-Interpreter</u>';
-element.appendChild(italics);
+document.getElementById('banner').appendChild(italics);
 </textarea><br>
   <button onclick="parseButton()">Parse</button>
   <button onclick="runButton()" id="runButton" disabled="disabled">Run</button>
