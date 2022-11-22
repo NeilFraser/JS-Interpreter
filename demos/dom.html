@@ -9,52 +9,117 @@
   <script>
     var myInterpreter;
     function initDom(interpreter, globalObject) {
-      // Create 'Element' class.  Constructable.
+      // Given a native Node or Element, create a pseudo version.
+      function nativeToPseudoDom_(native) {
+        if (native === null) {
+          return null;
+        }
+        var pseudoClass;
+        if (native instanceof Element) {
+          pseudoClass = pseudoElementClass;
+        } else if (native instanceof Node) {
+          pseudoClass = pseudoNodeClass;
+        } else {
+          throw Error('Only Node and Element are supported.');
+        }
+        var pseudo = interpreter.createObject(pseudoClass);
+        // Link this pseudo DOM object to the native DOM object.
+        pseudo.nativeNode = native;
+        return pseudo;
+      }
+
+      // Create 'Node' class.  Constructable, but not with 'new'.
+      var wrapper = function Node() {
+        throw TypeError('Illegal constructor.');
+      };
+      var pseudoNodeClass = interpreter.createNativeFunction(wrapper, true);
+      interpreter.setProperty(globalObject, 'Node', pseudoNodeClass);
+      var pseudoNodeProto = interpreter.getProperty(pseudoNodeClass, 'prototype');
+
+      // Create 'Element' class.  Constructable, but not with 'new'.
       var wrapper = function Element() {
-        this.nativeElement = null;
+        throw TypeError('Illegal constructor.');
       };
       var pseudoElementClass = interpreter.createNativeFunction(wrapper, true);
       interpreter.setProperty(globalObject, 'Element', pseudoElementClass);
-      var pseudoElementProto = interpreter.getProperty(pseudoElementClass, 'prototype');
+      var pseudoElementProto = interpreter.createObject(pseudoNodeClass);
+      interpreter.setProperty(pseudoElementClass, 'prototype', pseudoElementProto);
 
-      // Create 'Element.hasChildNodes' function.
-      // Technically this should be on Node, and Element should subclass Node.
+      // Define 'Node.hasChildNodes' function.
       var wrapper = function hasChildNodes() {
-        return this.nativeElement.hasChildNodes();
+        return this.nativeNode.hasChildNodes();
       };
-      interpreter.setProperty(pseudoElementProto, 'hasChildNodes',
+      interpreter.setProperty(pseudoNodeProto, 'hasChildNodes',
           interpreter.createNativeFunction(wrapper));
 
-      // Create 'Element.innerHTML' property.  It uses getters and setters.
+      // Define 'Node.firstChild' property.  It uses a getter (no setter).
       var getterWrapper = function() {
-        return this.nativeElement.innerHTML;
+        return this.nativeNode.firstChild;
+      };
+      var firstChildGetter = interpreter.createNativeFunction(getterWrapper, false);
+      interpreter.setProperty(pseudoNodeProto, 'firstChild', Interpreter.VALUE_IN_DESCRIPTOR,
+          {get: firstChildGetter});
+
+      // Define 'Node.lastChild' property.  It uses a getter (no setter).
+      var getterWrapper = function() {
+        return this.nativeNode.lastChild;
+      };
+      var firstChildGetter = interpreter.createNativeFunction(getterWrapper, false);
+      interpreter.setProperty(pseudoNodeProto, 'lastChild', Interpreter.VALUE_IN_DESCRIPTOR,
+          {get: firstChildGetter});
+
+      // Define 'Element.innerHTML' property.  It uses a getter and setter.
+      var getterWrapper = function() {
+        return this.nativeNode.innerHTML;
       };
       var innerHTMLGetter = interpreter.createNativeFunction(getterWrapper, false);
       var setterWrapper = function(text) {
-        this.nativeElement.innerHTML = text;
+        this.nativeNode.innerHTML = text;
       };
       var innerHTMLSetter = interpreter.createNativeFunction(setterWrapper, false);
       interpreter.setProperty(pseudoElementProto, 'innerHTML', Interpreter.VALUE_IN_DESCRIPTOR,
           {get: innerHTMLGetter, set: innerHTMLSetter});
 
+      // Define 'Element.appendChild' function.
+      var wrapper = function appendChild(pseudoChild) {
+        this.nativeNode.appendChild(pseudoChild.nativeNode);
+        return pseudoChild;
+      };
+      interpreter.setProperty(pseudoElementProto, 'appendChild',
+          interpreter.createNativeFunction(wrapper));
+
       // Create 'document' global object.
       var pseudoDocument = interpreter.nativeToPseudo({});
       interpreter.setProperty(globalObject, 'document', pseudoDocument);
 
+      // Define 'document.head' and 'document.body' properties.
+      // Technically these should be getters and setters.  But in the real world
+      // they don't usually change values.
+      interpreter.setProperty(pseudoDocument, 'head', nativeToPseudoDom_(document.head));
+      interpreter.setProperty(pseudoDocument, 'body', nativeToPseudoDom_(document.body));
+
       // Define 'document.getElementById' function.
       var wrapper = function getElementById(id) {
-        var nativeElement = document.getElementById(id);
-        if (!nativeElement) {
-          return null;
-        }
-        var pseudoElement = interpreter.createObject(pseudoElementClass);
-        pseudoElement.nativeElement = nativeElement;
-        return pseudoElement;
+        return nativeToPseudoDom_(document.getElementById(id));
       };
       interpreter.setProperty(pseudoDocument, 'getElementById',
           interpreter.createNativeFunction(wrapper));
 
-      // Create 'alert()' function.
+      // Define 'document.createElement' function.
+      var wrapper = function createElement(tagName) {
+        return nativeToPseudoDom_(document.createElement(tagName));
+      };
+      interpreter.setProperty(pseudoDocument, 'createElement',
+          interpreter.createNativeFunction(wrapper));
+
+      // Define 'document.createTextNode' function.
+      var wrapper = function createTextNode(text) {
+        return nativeToPseudoDom_(document.createTextNode(text));
+      };
+      interpreter.setProperty(pseudoDocument, 'createTextNode',
+          interpreter.createNativeFunction(wrapper));
+
+      // Define 'alert()' function.
       var wrapper = function alert(text) {
         return window.alert(arguments.length ? text : '');
       };
@@ -89,9 +154,14 @@
   following interfaces:</p>
 
   <ul>
-    <li><code>document.getElementById(id) &rarr; Element|null</code></li>
-    <li><code>Element.prototype.hasChildNodes() &rarr; boolean</code></li>
-    <li><code>Element.prototype.innerHTML &rarr; string</code></li>
+    <li><code>document.head/body</code></li>
+    <li><code>document.getElementById(id)</code></li>
+    <li><code>document.createElement(tagName)</code></li>
+    <li><code>document.createTextNode(text)</code></li>
+    <li><code>Node.prototype.hasChildNodes()</code></li>
+    <li><code>Node.prototype.firstChild/lastChild</code></li>
+    <li><code>Element.prototype.appendChild(node)</code></li>
+    <li><code>Element.prototype.innerHTML</code></li>
   </ul>
 
   <p>This minimal demo can be used as the basis for a more extensive interface.
@@ -106,9 +176,10 @@
 
   <p><textarea id="code" spellcheck="false">
 var element = document.getElementById('banner');
-alert('Banner has child nodes: ' + element.hasChildNodes());  // False
-element.innerHTML = 'Hello from the <i>JS-Interpreter!</i>';
-alert('Banner has child nodes: ' + element.hasChildNodes());  // True
+var italics = document.createElement('i');
+italics.appendChild(document.createTextNode('Hello from '));
+italics.innerHTML += '<u>JS-Interpreter</u>';
+element.appendChild(italics);
 </textarea><br>
   <button onclick="parseButton()">Parse</button>
   <button onclick="runButton()" id="runButton" disabled="disabled">Run</button>
