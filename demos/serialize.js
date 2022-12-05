@@ -240,15 +240,13 @@ function populateObject_(jsonObj, obj) {
       }
       return value;
     }
-    if ((data = value['Number'])) {
-      // Special number: {'Number': 'Infinity'}
-      return Number(data);
-    }
     if ((data = value['Value'])) {
-      // Special value: {'Value': 'undefined'}
       if (value['Value'] === 'undefined') {
+        // Special value: {'Value': 'undefined'}
         return undefined;
       }
+      // Special number: 'Infinity', '-Infinity', 'NaN', '-0'
+      return Number(data);
     }
   }
   return value;
@@ -455,13 +453,13 @@ function encodeLoc_(loc) {
   }
   if (typeof value === 'number') {
     if (value === Infinity) {
-      return {'Number': 'Infinity'};
+      return {'Value': 'Infinity'};
     } else if (value === -Infinity) {
-      return {'Number': '-Infinity'};
+      return {'Value': '-Infinity'};
     } else if (isNaN(value)) {
-      return {'Number': 'NaN'};
+      return {'Value': 'NaN'};
     } else if (1 / value === -Infinity) {
-      return {'Number': '-0'};
+      return {'Value': '-0'};
     }
   }
   return value;
