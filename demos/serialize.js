@@ -27,7 +27,7 @@ var LINE_LOC_CONSTRUCTOR;
  * @param {!Interpreter} interpreter JS-Interpreter instance.
  * @private
  */
-function recordAcornConstructons_(interpreter) {
+function recordAcornConstructors_(interpreter) {
   // Constructors for objects within Acorn.
   if (!interpreter.ast) {
     // The 'ast' property has been renamed by the compiler.
@@ -55,7 +55,7 @@ function deserialize(json, interpreter) {
     // Require native functions to be present.
     throw Error('Interpreter must be initialized prior to deserialization.');
   }
-  recordAcornConstructons_(interpreter);
+  recordAcornConstructors_(interpreter);
   // Find all native functions in existing interpreter.
   objectList = [];
   objectHunt_(stack);
@@ -284,7 +284,7 @@ function serialize(interpreter) {
     root[properties[i]] = interpreter[properties[i]];
   }
 
-  recordAcornConstructons_(interpreter);
+  recordAcornConstructors_(interpreter);
   // Find all objects.
   objectList = [];
   objectHunt_(root, objectList);
@@ -304,9 +304,8 @@ function serialize(interpreter) {
         if (obj === Interpreter.SCOPE_REFERENCE) {
           jsonObj['type'] = 'ScopeReference';
           continue;  // No need to index properties.
-        } else {
-          jsonObj['type'] = 'Object';
         }
+        jsonObj['type'] = 'Object';
         break;
       case Function.prototype:
         jsonObj['type'] = 'Function';

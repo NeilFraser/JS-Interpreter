@@ -1906,8 +1906,17 @@ Interpreter.prototype.initRegExp = function(globalObject) {
     }
     pattern = pattern === undefined ? '' : String(pattern);
     flags = flags ? String(flags) : '';
-    thisInterpreter.populateRegExp(rgx,
-        new Interpreter.nativeGlobal.RegExp(pattern, flags));
+    if (!/^[gmi]*$/.test(flags)) {
+      // Don't allow ES6 flags 'y' and 's' to pass through.
+      thisInterpreter.throwException(thisInterpreter.SYNTAX_ERROR, 'Invalid regexp flag');
+    }
+    try {
+      var nativeRegExp = new Interpreter.nativeGlobal.RegExp(pattern, flags)
+    } catch (e) {
+      // Throws if flags are repeated.
+      thisInterpreter.throwException(thisInterpreter.SYNTAX_ERROR, e.message);
+    }
+    thisInterpreter.populateRegExp(rgx, nativeRegExp);
     return rgx;
   };
   this.REGEXP = this.createNativeFunction(wrapper, true);

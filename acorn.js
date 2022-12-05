@@ -28,6 +28,7 @@
   "use strict";
 
   exports.version = "0.4.1";
+  // Plus additional edits marked with 'JS-Interpreter change' comments.
 
   // The main exported interface (under `self.acorn` when in the
   // browser) is a `parse` function that takes a code string and
@@ -342,6 +343,7 @@
                       num: _num, regexp: _regexp, string: _string};
   for (var kw in keywordTypes) exports.tokTypes["_" + kw] = keywordTypes[kw];
 
+  // JS-Interpreter change:
   // Acorn's original code built up functions using strings for maximum efficiency.
   // However, this triggered a CSP unsafe-eval requirement.  Here's a slower, but
   // simpler approach.  -- Neil Fraser, January 2022.
@@ -715,6 +717,9 @@
   // since a '/' inside a '[]' set does not end the expression.
 
   function readRegexp() {
+    // JS-Interpreter change:
+    // Removed redundant declaration of 'content' here.  Caused lint errors.
+    // -- Neil Fraser, June 2022.
     var escaped, inClass, start = tokPos;
     for (;;) {
       if (tokPos >= inputLen) raise(start, "Unterminated regular expression");
@@ -733,7 +738,11 @@
     // Need to use `readWord1` because '\uXXXX' sequences are allowed
     // here (don't ask).
     var mods = readWord1();
-    if (mods && !/^[gmsiy]*$/.test(mods)) raise(start, "Invalid regexp flag");
+    // JS-Interpreter change:
+    // Acorn used to use 'gmsiy' to check for flags.  But 's' and 'y' are ES6.
+    // -- Neil Fraser, December 2022.
+    // https://github.com/acornjs/acorn/issues/1163
+    if (mods && !/^[gmi]*$/.test(mods)) raise(start, "Invalid regexp flag");
     return finishToken(_regexp, new RegExp(content, mods));
   }
 
