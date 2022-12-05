@@ -16,8 +16,6 @@ var NODE_CONSTRUCTOR;
 var NODE_LOC_CONSTRUCTOR;
 var LINE_LOC_CONSTRUCTOR;
 
-var LOC_REGEX = /^(\d*):(\d*)-(\d*):(\d*) ?(.*)$/;
-
 /**
  * All non-primitives in the interpreter.
  * @type {!Array<!Object>}
@@ -130,38 +128,48 @@ function deserialize(json, interpreter) {
       delete obj.end;
       var locText = jsonObj['loc'];
       if (locText) {
-        // Turn a serialized string '1:0-4:21 code' into a location object:
-        // {
-        //   start: {line 1, column: 0},
-        //   end: {line 4, column: 21},
-        //   source: "code"
-        // }
-        var loc = new NODE_LOC_CONSTRUCTOR();
-        var m = locText.match(LOC_REGEX);
-        var locStart = null;
-        if (m[1] || m[2]) {
-          locStart = new LINE_LOC_CONSTRUCTOR();
-          locStart.line = Number(m[1]);
-          locStart.column = Number(m[2]);
-        }
-        loc.start = locStart;
-        var locEnd = null;
-        if (m[3] || m[4]) {
-          locEnd = new LINE_LOC_CONSTRUCTOR();
-          locEnd.line = Number(m[3]);
-          locEnd.column = Number(m[4]);
-        }
-        loc.end = locEnd;
-        if (m[5]) {
-          loc.source = decodeURI(m[5]);
-        } else {
-          delete loc.source;
-        }
-        obj.loc = loc;
+        obj.loc = decodeLoc_(locText);
       }
       return obj;
   }
   throw TypeError('Unknown type: ' + jsonObj['type']);
+}
+
+var LOC_REGEX = /^(\d*):(\d*)-(\d*):(\d*) ?(.*)$/;
+
+/**
+ * Turn a serialized string '1:0-4:21 code' into a location object:
+ * {
+ *   start: {line 1, column: 0},
+ *   end: {line 4, column: 21},
+ *   source: "code"
+ * }
+ * @param {string} locText Serialized location.
+ * @return {!Object} Location object.
+ */
+function decodeLoc_(locText) {
+  var loc = new NODE_LOC_CONSTRUCTOR();
+  var m = locText.match(LOC_REGEX);
+  var locStart = null;
+  if (m[1] || m[2]) {
+    locStart = new LINE_LOC_CONSTRUCTOR();
+    locStart.line = Number(m[1]);
+    locStart.column = Number(m[2]);
+  }
+  loc.start = locStart;
+  var locEnd = null;
+  if (m[3] || m[4]) {
+    locEnd = new LINE_LOC_CONSTRUCTOR();
+    locEnd.line = m[3] ? Number(m[3]) : Number(m[1]);
+    locEnd.column = Number(m[4]);
+  }
+  loc.end = locEnd;
+  if (m[5]) {
+    loc.source = decodeURI(m[5]);
+  } else {
+    delete loc.source;
+  }
+  return loc;
 }
 
 /**
@@ -350,30 +358,7 @@ function serialize(interpreter) {
     for (var j = 0; j < names.length; j++) {
       var name = names[j];
       if (jsonObj['type'] === 'Node' && name === 'loc') {
-        // Compactly serialize the location objects on a Node:
-        // {
-        //   start: {line 1, column: 0},
-        //   end: {line 4, column: 21},
-        //   source: "code"
-        // }
-        // into a string like this: '1:0-4:21 code'
-        var loc = obj.loc;
-        var locText = '';
-        if (loc.start) {
-          locText += loc.start.line + ':' + loc.start.column;
-        } else {
-          locText += ':';
-        }
-        locText += '-';
-        if (loc.end) {
-          locText += loc.end.line + ':' + loc.end.column;
-        } else {
-          locText += ':';
-        }
-        if (loc.source !== undefined) {
-          locText += ' ' + encodeURI(loc.source);
-        }
-        jsonObj['loc'] = locText;
+        jsonObj['loc'] = encodeLoc_(obj.loc);
       } else {
         var descriptor = Object.getOwnPropertyDescriptor(obj, name);
         props[name] = encodeValue_(descriptor.value);
@@ -415,6 +400,39 @@ function serialize(interpreter) {
   }
   objectList = [];  // Garbage collect.
   return json;
+}
+
+/**
+ * Compactly serialize the location objects on a Node:
+ * {
+ *   start: {line 1, column: 0},
+ *   end: {line 4, column: 21},
+ *   source: "code"
+ * }
+ * into a string like this: '1:0-4:21 code'
+ * @param {!Object} loc Location object.
+ * @return {string} Serializade location.
+ */
+function encodeLoc_(loc) {
+  var locText = '';
+  if (loc.start) {
+    locText += loc.start.line + ':' + loc.start.column;
+  } else {
+    locText += ':';
+  }
+  locText += '-';
+  if (loc.end) {
+    if (!loc.start || loc.start.line !== loc.end.line) {
+      locText += loc.end.line;
+    }
+    locText += ':' + loc.end.column;
+  } else {
+    locText += ':';
+  }
+  if (loc.source !== undefined) {
+    locText += ' ' + encodeURI(loc.source);
+  }
+  return locText;
 }
 
 /**
