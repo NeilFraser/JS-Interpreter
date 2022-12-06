@@ -2251,7 +2251,7 @@ Interpreter.prototype.vmCall = function(code, sandbox, nativeRegExp, callback) {
   var options = {'timeout': this['REGEXP_THREAD_TIMEOUT']};
   try {
     return Interpreter.vm['runInNewContext'](code, sandbox, options);
-  } catch (e) {
+  } catch (_e) {
     callback(null);
     this.throwException(this.ERROR, 'RegExp Timeout: ' + nativeRegExp);
   }
@@ -2314,7 +2314,7 @@ Interpreter.prototype.regExpTimeout = function(nativeRegExp, worker, callback) {
       try {
         thisInterpreter.throwException(thisInterpreter.ERROR,
             'RegExp Timeout: ' + nativeRegExp);
-      } catch (e) {
+      } catch (_e) {
         // Eat the expected Interpreter.STEP_ERROR.
       }
   }, this['REGEXP_THREAD_TIMEOUT']);
@@ -2854,7 +2854,7 @@ Interpreter.prototype.setProperty = function(obj, name, value, opt_descriptor) {
       // No setter, simple assignment.
       try {
         obj.properties[name] = value;
-      } catch (e) {
+      } catch (_e) {
         if (strict) {
           this.throwException(this.TYPE_ERROR, "Cannot assign to read only " +
               "property '" + name + "' of object '" + obj + "'");
@@ -4408,7 +4408,7 @@ Interpreter.prototype['stepUnaryExpression'] = function(stack, state, node) {
         var name = String(value[1]);
         try {
           delete obj.properties[name];
-        } catch (e) {
+        } catch (_e) {
           if (state.scope.strict) {
             this.throwException(this.TYPE_ERROR, "Cannot delete property '" +
                                 name + "' of '" + obj + "'");
