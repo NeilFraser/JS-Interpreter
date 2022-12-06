@@ -4050,31 +4050,35 @@ Interpreter.prototype['stepForInStatement'] = function(stack, state, node) {
 };
 
 Interpreter.prototype['stepForStatement'] = function(stack, state, node) {
-  var mode = state.mode_ || 0;
-  if (mode === 0) {
-    state.mode_ = 1;
-    if (node['init']) {
-      return new Interpreter.State(node['init'], state.scope);
-    }
-  } else if (mode === 1) {
-    state.mode_ = 2;
-    if (node['test']) {
-      return new Interpreter.State(node['test'], state.scope);
-    }
-  } else if (mode === 2) {
-    state.mode_ = 3;
-    if (node['test'] && !state.value) {
-      // Done, exit loop.
-      stack.pop();
-    } else {  // Execute the body.
-      state.isLoop = true;
-      return new Interpreter.State(node['body'], state.scope);
-    }
-  } else if (mode === 3) {
-    state.mode_ = 1;
-    if (node['update']) {
-      return new Interpreter.State(node['update'], state.scope);
-    }
+  switch (state.mode_) {
+    default:
+      state.mode_ = 1;
+      if (node['init']) {
+        return new Interpreter.State(node['init'], state.scope);
+      }
+      break;
+    case 1:
+      state.mode_ = 2;
+      if (node['test']) {
+        return new Interpreter.State(node['test'], state.scope);
+      }
+      break;
+    case 2:
+      state.mode_ = 3;
+      if (node['test'] && !state.value) {
+        // Done, exit loop.
+        stack.pop();
+      } else {  // Execute the body.
+        state.isLoop = true;
+        return new Interpreter.State(node['body'], state.scope);
+      }
+      break;
+    case 3:
+      state.mode_ = 1;
+      if (node['update']) {
+        return new Interpreter.State(node['update'], state.scope);
+      }
+      break;
   }
 };
 
@@ -4378,43 +4382,51 @@ Interpreter.prototype['stepUnaryExpression'] = function(stack, state, node) {
   }
   stack.pop();
   var value = state.value;
-  if (node['operator'] === '-') {
-    value = -value;
-  } else if (node['operator'] === '+') {
-    value = +value;
-  } else if (node['operator'] === '!') {
-    value = !value;
-  } else if (node['operator'] === '~') {
-    value = ~value;
-  } else if (node['operator'] === 'delete') {
-    var result = true;
-    // If value is not an array, then it is a primitive, or some other value.
-    // If so, skip the delete and return true.
-    if (Array.isArray(value)) {
-      var obj = value[0];
-      if (obj === Interpreter.SCOPE_REFERENCE) {
-        // `delete foo;` is the same as `delete window.foo;`.
-        obj = state.scope;
-      }
-      var name = String(value[1]);
-      try {
-        delete obj.properties[name];
-      } catch (e) {
-        if (state.scope.strict) {
-          this.throwException(this.TYPE_ERROR, "Cannot delete property '" +
-                              name + "' of '" + obj + "'");
-        } else {
-          result = false;
+  switch (node['operator']) {
+    case '-':
+      value = -value;
+      break;
+    case '+':
+      value = +value;
+      break;
+    case '!':
+      value = !value;
+      break;
+    case '~':
+      value = ~value;
+      break;
+    case 'delete':
+      var result = true;
+      // If value is not an array, then it is a primitive, or some other value.
+      // If so, skip the delete and return true.
+      if (Array.isArray(value)) {
+        var obj = value[0];
+        if (obj === Interpreter.SCOPE_REFERENCE) {
+          // `delete foo;` is the same as `delete window.foo;`.
+          obj = state.scope;
+        }
+        var name = String(value[1]);
+        try {
+          delete obj.properties[name];
+        } catch (e) {
+          if (state.scope.strict) {
+            this.throwException(this.TYPE_ERROR, "Cannot delete property '" +
+                                name + "' of '" + obj + "'");
+          } else {
+            result = false;
+          }
         }
       }
-    }
-    value = result;
-  } else if (node['operator'] === 'typeof') {
-    value = (value && value.class === 'Function') ? 'function' : typeof value;
-  } else if (node['operator'] === 'void') {
-    value = undefined;
-  } else {
-    throw SyntaxError('Unknown unary operator: ' + node['operator']);
+      value = result;
+      break;
+    case 'typeof':
+      value = (value && value.class === 'Function') ? 'function' : typeof value;
+      break;
+    case 'void':
+      value = undefined;
+      break;
+    default:
+      throw SyntaxError('Unknown unary operator: ' + node['operator']);
   }
   stack[stack.length - 1].value = value;
 };
