@@ -86,7 +86,7 @@ Interpreter.Completion = {
  */
 Interpreter.PARSE_OPTIONS = {
   'locations': true,
-  'ecmaVersion': 5
+  'ecmaVersion': 5  // Needed in the event a version > 0.5.0 of Acorn is used.
 };
 
 /**

@@ -51,11 +51,11 @@
   // the parser process. These options are recognized:
 
   var defaultOptions = exports.defaultOptions = {
-    // `ecmaVersion` indicates the ECMAScript version to parse. Must
-    // be either 3 or 5. This
-    // influences support for strict mode, the set of reserved words, and
-    // support for getters and setter.
-    ecmaVersion: 5,
+    // JS-Interpreter change:
+    // `ecmaVersion` option has been removed along with all cases where
+    // it is checked.  In this version of Acorn it was limited to 3 or 5,
+    // and there's no use case for 3 with JS-Interpreter.
+
     // Turn on `strictSemicolons` to prevent the parser from doing
     // automatic semicolon insertion.
     strictSemicolons: false,
@@ -365,10 +365,6 @@
       return set[str] || false;
     };
   }
-
-  // The ECMAScript 3 reserved word list.
-
-  var isReservedWord3 = makePredicate("abstract boolean byte char class double enum export extends final float goto implements import int interface long native package private protected public short static super synchronized throws transient volatile");
 
   // ECMAScript 5 reserved words.
 
@@ -1028,7 +1024,7 @@
   // Test whether a statement node is the string literal `"use strict"`.
 
   function isUseStrict(stmt) {
-    return options.ecmaVersion >= 5 && stmt.type === "ExpressionStatement" &&
+    return stmt.type === "ExpressionStatement" &&
       stmt.expression.type === "Literal" && stmt.expression.value === "use strict";
   }
 
@@ -1638,7 +1634,7 @@
       if (eat(_colon)) {
         prop.value = parseExpression(true);
         kind = prop.kind = "init";
-      } else if (options.ecmaVersion >= 5 && prop.key.type === "Identifier" &&
+      } else if (prop.key.type === "Identifier" &&
                  (prop.key.name === "get" || prop.key.name === "set")) {
         isGetSet = sawGetSet = true;
         kind = prop.kind = prop.key.name;
@@ -1739,8 +1735,7 @@
     if (liberal && options.forbidReserved == "everywhere") liberal = false;
     if (tokType === _name) {
       if (!liberal &&
-          (options.forbidReserved &&
-           (options.ecmaVersion === 3 ? isReservedWord3 : isReservedWord5)(tokVal) ||
+          (options.forbidReserved && isReservedWord5(tokVal) ||
            strict && isStrictReservedWord(tokVal)) &&
           input.slice(tokStart, tokEnd).indexOf("\\") == -1)
         raise(tokStart, "The keyword '" + tokVal + "' is reserved");
