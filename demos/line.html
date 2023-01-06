@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>JS-Interpreter Line Step Demo</title>
+  <link href="style.css" rel="stylesheet" type="text/css">
+  <script src="../acorn.js"></script>
+  <script src="../interpreter.js"></script>
+  <script>
+    var myInterpreter;
+    function initAlert(interpreter, globalObject) {
+      var wrapper = function alert(text) {
+        return window.alert(arguments.length ? text : '');
+      };
+      interpreter.setProperty(globalObject, 'alert',
+          interpreter.createNativeFunction(wrapper));
+    }
+
+    function parseButton() {
+      var code = document.getElementById('code').value;
+      myInterpreter = new Interpreter(code, initAlert);
+      disable('');
+    }
+
+    function stepButton() {
+      var stack = myInterpreter.getStateStack();
+      if (stack.length) {
+        var node = stack[stack.length - 1].node;
+        var start = node.start;
+        var end = node.end;
+      } else {
+        var node = null;
+        var start = 0;
+        var end = 0;
+      }
+      createSelection(start, end);
+      var stepAgain = !isLine(stack);
+      try {
+        var ok = myInterpreter.step();
+      } finally {
+        if (!ok) {
+          disable('disabled');
+        }
+      }
+      if (stepAgain) {
+        stepButton();
+      }
+    }
+
+    // Is the current stack at the beginning of a new line?
+    function isLine(stack) {
+      if (!stack.length) {
+        // End of program, don't keep steping.
+        isLine.oldStack_ = [];
+        return true;
+      }
+      var state = stack[stack.length - 1];
+      var node = state.node;
+      var type = node.type;
+
+      if (type !== 'VariableDeclaration' &&
+          type.substr(-9) !== 'Statement') {
+        // Current node is not a statement.
+        return false;
+      }
+
+      if (type === 'BlockStatement') {
+        // Not a 'line' by most definitions.
+        return false;
+      }
+
+      if (type === 'VariableDeclaration' &&
+          stack[stack.length - 2].node.type === 'ForStatement') {
+        // This 'var' is not a line: for (var i = 0; ...)
+        return false;
+      }
+
+      if (isLine.oldStack_[isLine.oldStack_.length - 1] === state) {
+        // Never repeat the same statement multiple times.
+        // Typically a statement is stepped into and out of.
+        return false;
+      }
+
+      if (isLine.oldStack_.indexOf(state) !== -1 && type !== 'ForStatement' &&
+          type !== 'WhileStatement' && type !== 'DoWhileStatement') {
+        // Don't revisit a statement on the stack (e.g. 'if') when exiting.
+        // The exception is loops.
+        return false;
+      }
+
+      isLine.oldStack_ = stack.slice();
+      return true;
+    }
+    isLine.oldStack_ = [];
+
+    function runButton() {
+      disable('disabled');
+      if (myInterpreter.run()) {
+        // Async function hit.  There's more code to run.
+        setTimeout(runButton, 100);
+      }
+    }
+
+    function disable(disabled) {
+      document.getElementById('stepButton').disabled = disabled;
+      document.getElementById('runButton').disabled = disabled;
+    }
+
+    function createSelection(start, end) {
+      var field = document.getElementById('code');
+      if (field.createTextRange) {
+        var selRange = field.createTextRange();
+        selRange.collapse(true);
+        selRange.moveStart('character', start);
+        selRange.moveEnd('character', end);
+        selRange.select();
+      } else if (field.setSelectionRange) {
+        field.setSelectionRange(start, end);
+      } else if (field.selectionStart) {
+        field.selectionStart = start;
+        field.selectionEnd = end;
+      }
+      field.focus();
+    }
+  </script>
+</head>
+<body>
+  <h1>JS-Interpreter Line Step Demo</h1>
+
+  <p>Some applications may wish to step line by line, not node by node.
+  See the <tt>isLine</tt> function in the source code for this page.</p>
+
+  <p>Click <em>Parse</em>, then either click <em>Step</em> repeatedly,
+  or click <em>Run</em> once.  Open your browser's console for errors.</p>
+
+  <p><textarea id="code" spellcheck="false">
+var result = [];
+function fibonacci(n, output) {
+  var a = 1, b = 1, sum;
+  for (var i = 0; i &lt; n; i++) {
+    output.push(a);
+    sum = a + b;
+    a = b;
+    b = sum;
+  }
+}
+fibonacci(16, result);
+alert(result.join(', '));
+</textarea><br>
+  <button onclick="parseButton()">Parse</button>
+  <button onclick="stepButton()" id="stepButton" disabled="disabled">Step</button>
+  <button onclick="runButton()" id="runButton" disabled="disabled">Run</button>
+  </p>
+
+  <p>Back to the <a href="../docs.html">JS-Interpreter documentation</a>.</p>
+
+  <script>
+    disable('disabled');
+  </script>
+</body>
+</html>
