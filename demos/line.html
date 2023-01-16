@@ -40,6 +40,7 @@
       } finally {
         if (!ok) {
           disable('disabled');
+          stepAgain = false;
         }
       }
       if (stepAgain) {
@@ -49,11 +50,6 @@
 
     // Is the current stack at the beginning of a new line?
     function isLine(stack) {
-      if (!stack.length) {
-        // End of program, don't keep steping.
-        isLine.oldStack_ = [];
-        return true;
-      }
       var state = stack[stack.length - 1];
       var node = state.node;
       var type = node.type;
