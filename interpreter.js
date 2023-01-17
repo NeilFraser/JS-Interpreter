@@ -3913,6 +3913,7 @@ Interpreter.prototype['stepEvalProgram_'] = function(stack, state, node) {
 
 Interpreter.prototype['stepExpressionStatement'] = function(stack, state, node) {
   if (!state.done_) {
+    this.value = undefined;
     state.done_ = true;
     return new Interpreter.State(node['expression'], state.scope);
   }
