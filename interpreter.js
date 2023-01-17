@@ -386,7 +386,12 @@ Interpreter.prototype.step = function() {
     } catch (e) {
       // Eat any step errors.  They have been thrown on the stack.
       if (e !== Interpreter.STEP_ERROR) {
-        // Uh oh.  This is a real error in the JS-Interpreter.  Rethrow.
+        // This is a real error, either in the JS-Interpreter, or an uncaught
+        // error in the interpreted code.  Rethrow.
+        if (this.value !== e) {
+          // Uh oh.  Internal error in the JS-Interpreter.
+          this.value = undefined;
+        }
         throw e;
       }
     } finally {
@@ -398,10 +403,12 @@ Interpreter.prototype.step = function() {
     }
     if (this.getterStep_) {
       // Getter from this step was not handled.
+      this.value = undefined;
       throw Error('Getter not supported in this context');
     }
     if (this.setterStep_) {
       // Setter from this step was not handled.
+      this.value = undefined;
       throw Error('Setter not supported in this context');
     }
     // This may be polyfill code.  Keep executing until we arrive at user code.
@@ -3207,6 +3214,9 @@ Interpreter.prototype.unwind = function(type, value, label) {
   } else {
     realError = String(value);
   }
+  // Overwrite the previous (more or less random) interpreter return value.
+  // Replace it with the error.
+  this.value = realError;
   throw realError;
 };
 
