@@ -287,7 +287,7 @@ function serialize(interpreter) {
   recordAcornConstructors_(interpreter);
   // Find all objects.
   objectList = [];
-  objectHunt_(root, objectList);
+  objectHunt_(root);
   // Serialize every object.
   var json = [];
   for (var i = 0; i < objectList.length; i++) {
@@ -465,36 +465,48 @@ function encodeLoc_(loc) {
 }
 
 /**
- * Recursively search the stack to find all non-primitives.
+ * Search the stack to find all non-primitives.
  * Stores the results in the objectList global variable.
- * @param {!Object} node Root node to start searching.
+ * @param {!Object} root Root node to start searching.
  */
-function objectHunt_(node) {
-  if (node && (typeof node === 'object' || typeof node === 'function')) {
-    if (objectList.indexOf(node) !== -1) {
-      return;
-    }
-    objectList.push(node);
-    if (typeof node === 'object') {  // Recurse.
-      var isAcornNode =
-          Object.getPrototypeOf(node) === NODE_CONSTRUCTOR.prototype;
-      var names = Object.getOwnPropertyNames(node);
-      for (var i = 0; i < names.length; i++) {
-        var name = names[i];
-        if (isAcornNode && name === 'loc') {
-          continue;  // Skip over node locations, they are specially handled.
-        }
-        try {
-          var nextNode = node[name];
-        } catch (e) {
-          // Accessing some properties may trigger a placeholder getter.
-          // Squelch this error, but re-throw any others.
-          if (e.message !== 'Placeholder getter') {
-            throw e;
+function objectHunt_(root) {
+  var objectSet = null;
+  if (typeof Set === 'function') {
+    // Double the speed of serialization if ES6's Set is available.
+    objectSet = new Set();
+  }
+  var todo = [root];
+  while (todo.length > 0) {
+    var node = todo.pop();
+    if (node && (typeof node === 'object' || typeof node === 'function')) {
+      if (objectSet ? objectSet.has(node) : objectList.indexOf(node) !== -1) {
+        continue;
+      }
+      if (objectSet) {
+        objectSet.add(node);
+      }
+      objectList.push(node);
+      if (typeof node === 'object') {  // Recurse.
+        var isAcornNode =
+            Object.getPrototypeOf(node) === NODE_CONSTRUCTOR.prototype;
+        var names = Object.getOwnPropertyNames(node);
+        for (var i = 0; i < names.length; i++) {
+          var name = names[i];
+          if (isAcornNode && name === 'loc') {
+            continue;  // Skip over node locations, they are specially handled.
           }
-          continue;
+          try {
+            var nextNode = node[name];
+          } catch (e) {
+            // Accessing some properties may trigger a placeholder getter.
+            // Squelch this error, but re-throw any others.
+            if (e.message !== 'Placeholder getter') {
+              throw e;
+            }
+            continue;
+          }
+          todo.push(nextNode);
         }
-        objectHunt_(nextNode);
       }
     }
   }
