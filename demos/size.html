@@ -39,7 +39,14 @@
           bytes += val.length * 2;
           measured.add(val);
         } else if (type === 'object' && val !== null && !measured.has(val)) {
-          notMeasured = notMeasured.concat(Object.keys(val), Object.values(val));
+          const keys = Object.keys(val);
+          const vals = Object.values(val);
+          try {
+            notMeasured.push(...keys, ...vals);
+          } catch (_e) {
+            // Arguments too long.  Use much slower concat.
+            notMeasured = notMeasured.concat(keys, vals);
+          }
           measured.add(val);
         }
       }
@@ -55,7 +62,7 @@
             'Time: ' +  Math.round(elapsedTime / 1024) + ' seconds');
     }
 
-    function updatRoughSize() {
+    function updateRoughSize() {
       var startTime = Date.now();
       var bytes = roughValueMemoryBytes(myInterpreter.getStateStack());
       var elapsedTime =(Date.now() - startTime);
@@ -111,7 +118,7 @@
 
   <p><textarea id="code" spellcheck="false">
 var bigString = '1 + 1;\n';
-for (var i = 0; i < 16; i++) {
+for (var i = 0; i &lt; 16; i++) {
   bigString += bigString;
 }
 var f = new Function(bigString);
@@ -119,7 +126,7 @@ var f = new Function(bigString);
   <button onclick="parseButton()">Parse</button>
   <button onclick="runButton()" id="runButton" disabled="disabled">Run</button>
   <button onclick="updateJsonSize()">JSON Size</button>
-  <button onclick="updatRoughSize()">Rough Size</button>
+  <button onclick="updateRoughSize()">Rough Size</button>
   </p>
 
   <p>Back to the <a href="../docs.html">JS-Interpreter documentation</a>.</p>
