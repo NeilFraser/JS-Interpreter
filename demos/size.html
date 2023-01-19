@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>JS-Interpreter Size Demo</title>
+  <link href="style.css" rel="stylesheet" type="text/css">
+  <script src="../acorn.js"></script>
+  <script src="../interpreter.js"></script>
+  <script src="serialize.js"></script>
+  <script>
+    var myInterpreter;
+    function initAlert(interpreter, globalObject) {
+      var wrapper = function alert(text) {
+        return window.alert(arguments.length ? text : '');
+      };
+      interpreter.setProperty(globalObject, 'alert',
+          interpreter.createNativeFunction(wrapper));
+    }
+
+    function parseButton() {
+      var code = document.getElementById('code').value;
+      myInterpreter = new Interpreter(code, initAlert);
+      disable('');
+    }
+
+    function roughValueMemoryBytes(value) {
+      const measured = new Set();
+      let notMeasured = [value];
+      let bytes = 0;
+
+      while (notMeasured.length) {
+        const val = notMeasured.pop();
+        bytes += 8;  // Rough estimate of overhead per value.
+
+        const type = typeof val;
+        if (type === 'string' && !measured.has(val)) {
+          // Assume that the native JS environment has a string table
+          // and that each string is only counted once.
+          bytes += val.length * 2;
+          measured.add(val);
+        } else if (type === 'object' && val !== null && !measured.has(val)) {
+          notMeasured = notMeasured.concat(Object.keys(val), Object.values(val));
+          measured.add(val);
+        }
+      }
+      return bytes;
+    }
+
+    function updateJsonSize() {
+      var startTime = Date.now();
+      var json = serialize(myInterpreter);
+      var bytes = JSON.stringify(json).length;
+      var elapsedTime =(Date.now() - startTime);
+      alert('JSON size: ' + Math.round(bytes / 1024) + ' KB\n' +
+            'Time: ' +  Math.round(elapsedTime / 1024) + ' seconds');
+    }
+
+    function updatRoughSize() {
+      var startTime = Date.now();
+      var bytes = roughValueMemoryBytes(myInterpreter.getStateStack());
+      var elapsedTime =(Date.now() - startTime);
+      alert('Rough size: ' + Math.round(bytes / 1024) + ' KB\n' +
+            'Time: ' +  Math.round(elapsedTime / 1024) + ' seconds');
+    }
+
+    function runButton() {
+      disable('disabled');
+      if (myInterpreter.run()) {
+        // Async function hit.  There's more code to run.
+        setTimeout(runButton, 100);
+      }
+    }
+
+    function disable(disabled) {
+      document.getElementById('runButton').disabled = disabled;
+    }
+
+    function createSelection(start, end) {
+      var field = document.getElementById('code');
+      if (field.createTextRange) {
+        var selRange = field.createTextRange();
+        selRange.collapse(true);
+        selRange.moveStart('character', start);
+        selRange.moveEnd('character', end);
+        selRange.select();
+      } else if (field.setSelectionRange) {
+        field.setSelectionRange(start, end);
+      } else if (field.selectionStart) {
+        field.selectionStart = start;
+        field.selectionEnd = end;
+      }
+      field.focus();
+    }
+  </script>
+  <style>
+    #kb {
+      font-weight: bold;
+      color: red;
+    }
+  </style>
+</head>
+<body>
+  <h1>JS-Interpreter Size Demo</h1>
+
+  <p>Some applications need to measure the size of the interpreted runtime
+  to ensure that memory bombs are terminated.</p>
+
+  <p>Click <em>Parse</em>, then click <em>Run</em> once,
+  then click either of the size reporting buttons.
+  Open your browser's console for errors.</p>
+
+  <p><textarea id="code" spellcheck="false">
+var bigString = '1 + 1;\n';
+for (var i = 0; i < 16; i++) {
+  bigString += bigString;
+}
+var f = new Function(bigString);
+</textarea><br>
+  <button onclick="parseButton()">Parse</button>
+  <button onclick="runButton()" id="runButton" disabled="disabled">Run</button>
+  <button onclick="updateJsonSize()">JSON Size</button>
+  <button onclick="updatRoughSize()">Rough Size</button>
+  </p>
+
+  <p>Back to the <a href="../docs.html">JS-Interpreter documentation</a>.</p>
+
+  <script>
+    disable('disabled');
+  </script>
+</body>
+</html>
