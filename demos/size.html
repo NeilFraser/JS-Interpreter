@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>JS-Interpreter Size Demo</title>
+  <link href="style.css" rel="stylesheet" type="text/css">
+  <script src="../acorn.js"></script>
+  <script src="../interpreter.js"></script>
+  <script>
+    var myInterpreter;
+    function initAlert(interpreter, globalObject) {
+      var wrapper = function alert(text) {
+        return window.alert(arguments.length ? text : '');
+      };
+      interpreter.setProperty(globalObject, 'alert',
+          interpreter.createNativeFunction(wrapper));
+    }
+
+    function parseButton() {
+      var code = document.getElementById('code').value;
+      myInterpreter = new Interpreter(code, initAlert);
+      disable('');
+      updateRoughSize();
+    }
+
+    function stepButton() {
+      var stack = myInterpreter.getStateStack();
+      if (stack.length) {
+        var node = stack[stack.length - 1].node;
+        var start = node.start;
+        var end = node.end;
+      } else {
+        var node = null;
+        var start = 0;
+        var end = 0;
+      }
+      createSelection(start, end);
+      var stepAgain = !isLine(stack);
+      try {
+        var ok = myInterpreter.step();
+      } finally {
+        if (!ok) {
+          disable('disabled');
+          stepAgain = false;
+        }
+      }
+      if (stepAgain) {
+        stepButton();
+      } else {
+        updateRoughSize();
+      }
+    }
+
+    // Is the current stack at the beginning of a new line?
+    function isLine(stack) {
+      var state = stack[stack.length - 1];
+      var node = state.node;
+      var type = node.type;
+
+      if (type !== 'VariableDeclaration' &&
+          type.substr(-9) !== 'Statement') {
+        // Current node is not a statement.
+        return false;
+      }
+
+      if (type === 'BlockStatement') {
+        // Not a 'line' by most definitions.
+        return false;
+      }
+
+      if (type === 'VariableDeclaration' &&
+          stack[stack.length - 2].node.type === 'ForStatement') {
+        // This 'var' is not a line: for (var i = 0; ...)
+        return false;
+      }
+
+      if (isLine.oldStack_[isLine.oldStack_.length - 1] === state) {
+        // Never repeat the same statement multiple times.
+        // Typically a statement is stepped into and out of.
+        return false;
+      }
+
+      if (isLine.oldStack_.indexOf(state) !== -1 && type !== 'ForStatement' &&
+          type !== 'WhileStatement' && type !== 'DoWhileStatement') {
+        // Don't revisit a statement on the stack (e.g. 'if') when exiting.
+        // The exception is loops.
+        return false;
+      }
+
+      isLine.oldStack_ = stack.slice();
+      return true;
+    }
+    isLine.oldStack_ = [];
+
+
+    function roughValueMemoryBytes(value) {
+      const measured = new Set();
+      let notMeasured = [value];
+      let bytes = 0;
+
+      while (notMeasured.length) {
+        const val = notMeasured.pop();
+        bytes += 8;  // Rough estimate of overhead per value.
+
+        const type = typeof val;
+        if (type === 'string' && !measured.has(val)) {
+          // Assume that the native JS environment has a string table
+          // and that each string is only counted once.
+          bytes += val.length * 2;
+          measured.add(val);
+        } else if (type === 'object' && val !== null && !measured.has(val)) {
+          const keys = Object.keys(val);
+          const vals = Object.values(val);
+          try {
+            notMeasured.push(...keys, ...vals);
+          } catch (_e) {
+            // Arguments too long.  Use much slower concat.
+            notMeasured = notMeasured.concat(keys, vals);
+          }
+          measured.add(val);
+        }
+      }
+      return bytes;
+    }
+
+    function updateRoughSize() {
+      var startTime = Date.now();
+      var bytes = roughValueMemoryBytes(myInterpreter.getStateStack());
+      var elapsedTime = (Date.now() - startTime);
+      document.getElementById('kb').textContent =
+          Math.round(bytes / 1024).toLocaleString() + ' KB';
+      console.log('Memory estimate took ' + Math.round(elapsedTime / 1000) + ' seconds');
+    }
+
+    function disable(disabled) {
+      document.getElementById('stepButton').disabled = disabled;
+    }
+
+    function createSelection(start, end) {
+      var field = document.getElementById('code');
+      if (field.createTextRange) {
+        var selRange = field.createTextRange();
+        selRange.collapse(true);
+        selRange.moveStart('character', start);
+        selRange.moveEnd('character', end);
+        selRange.select();
+      } else if (field.setSelectionRange) {
+        field.setSelectionRange(start, end);
+      } else if (field.selectionStart) {
+        field.selectionStart = start;
+        field.selectionEnd = end;
+      }
+      field.focus();
+    }
+  </script>
+  <style>
+    #kb {
+      font-weight: bold;
+      color: red;
+    }
+  </style>
+</head>
+<body>
+  <h1>JS-Interpreter Size Demo</h1>
+
+  <p>Some applications need to measure the size of the interpreted runtime
+  to ensure that memory bombs are terminated.  See the <tt>roughValueMemoryBytes</tt>
+  function in this pages's source.</p>
+
+  <p>The current memory usage is rougly <span id="kb">0 KB</span>.</p>
+
+  <p>Click <em>Parse</em>, then click <em>Step</em> repeatedly.
+  Open your browser's console for errors.</p>
+
+  <p><textarea id="code" spellcheck="false">
+var bigString = 'x';
+while (true) {
+  bigString += bigString;
+}
+</textarea><br>
+  <button onclick="parseButton()">Parse</button>
+  <button onclick="stepButton()" id="stepButton" disabled="disabled">Step</button>
+  </p>
+
+  <p>Back to the <a href="../docs.html">JS-Interpreter documentation</a>.</p>
+
+  <script>
+    disable('disabled');
+  </script>
+</body>
+</html>
