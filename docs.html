@@ -221,8 +221,8 @@
   chance to execute.</p>
 
   <p>Memory bombs (e.g. <code>var x='X'; while(1) x=x+x;</code>) can be detected
-  by periodically serializing the interpereter into a JSON string, and aborting
-  execution if the string length is too long.</p>
+  by periodically measuring the size of the stack, and aborting execution if it
+  grows too large.</p>
 
   <p>For a working example, see the
   <a href="demos/size.html">size demo</a>.</p>
