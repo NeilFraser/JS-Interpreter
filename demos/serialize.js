@@ -17,10 +17,21 @@ var NODE_LOC_CONSTRUCTOR;
 var LINE_LOC_CONSTRUCTOR;
 
 /**
- * All non-primitives in the interpreter.
+ * All non-primitives in the interpreter as an Array.
  * @type {!Array<!Object>}
  */
- var objectList = [];
+var objectList = [];
+
+/**
+ * All non-primitves in the interpreter as a Set.
+ * Double the speed of serialization if ES6's Set is available.
+ * @type {Set|undefined}
+ */
+var objectSet;
+if (typeof Set === 'function') {
+  objectSet = new Set();
+}
+
 
 /**
  * Inspect an interpreter and record the constructors used to create new nodes.
@@ -58,7 +69,9 @@ function deserialize(json, interpreter) {
   recordAcornConstructors_(interpreter);
   // Find all native functions in existing interpreter.
   objectList = [];
+  objectSet && objectSet.clear();
   objectHunt_(stack);
+  objectSet && objectSet.clear();  // Garbage collect.
   var functionMap = Object.create(null);
   for (var i = 0; i < objectList.length; i++) {
     var obj = objectList[i];
@@ -287,7 +300,9 @@ function serialize(interpreter) {
   recordAcornConstructors_(interpreter);
   // Find all objects.
   objectList = [];
+  objectSet && objectSet.clear();
   objectHunt_(root);
+  objectSet && objectSet.clear();  // Garbage collect.
   // Serialize every object.
   var json = [];
   for (var i = 0; i < objectList.length; i++) {
@@ -465,48 +480,37 @@ function encodeLoc_(loc) {
 }
 
 /**
- * Search the stack to find all non-primitives.
+ * Recursively search the stack to find all non-primitives.
  * Stores the results in the objectList global variable.
- * @param {!Object} root Root node to start searching.
+ * @param {!Object} node Root node to start searching.
  */
-function objectHunt_(root) {
-  var objectSet = null;
-  if (typeof Set === 'function') {
-    // Double the speed of serialization if ES6's Set is available.
-    objectSet = new Set();
-  }
-  var todo = [root];
-  while (todo.length > 0) {
-    var node = todo.pop();
-    if (node && (typeof node === 'object' || typeof node === 'function')) {
-      if (objectSet ? objectSet.has(node) : objectList.indexOf(node) !== -1) {
-        continue;
-      }
-      if (objectSet) {
-        objectSet.add(node);
-      }
-      objectList.push(node);
-      if (typeof node === 'object') {  // Recurse.
-        var isAcornNode =
-            Object.getPrototypeOf(node) === NODE_CONSTRUCTOR.prototype;
-        var names = Object.getOwnPropertyNames(node);
-        for (var i = 0; i < names.length; i++) {
-          var name = names[i];
-          if (isAcornNode && name === 'loc') {
-            continue;  // Skip over node locations, they are specially handled.
-          }
-          try {
-            var nextNode = node[name];
-          } catch (e) {
-            // Accessing some properties may trigger a placeholder getter.
-            // Squelch this error, but re-throw any others.
-            if (e.message !== 'Placeholder getter') {
-              throw e;
-            }
-            continue;
-          }
-          todo.push(nextNode);
+function objectHunt_(node) {
+  if (node && (typeof node === 'object' || typeof node === 'function')) {
+    if (objectSet ? objectSet.has(node) : objectList.indexOf(node) !== -1) {
+      return;
+    }
+    objectSet && objectSet.add(node);
+    objectList.push(node);
+    if (typeof node === 'object') {  // Recurse.
+      var isAcornNode =
+          Object.getPrototypeOf(node) === NODE_CONSTRUCTOR.prototype;
+      var names = Object.getOwnPropertyNames(node);
+      for (var i = 0; i < names.length; i++) {
+        var name = names[i];
+        if (isAcornNode && name === 'loc') {
+          continue;  // Skip over node locations, they are specially handled.
         }
+        try {
+          var nextNode = node[name];
+        } catch (e) {
+          // Accessing some properties may trigger a placeholder getter.
+          // Squelch this error, but re-throw any others.
+          if (e.message !== 'Placeholder getter') {
+            throw e;
+          }
+          continue;
+        }
+        objectHunt_(nextNode);
       }
     }
   }
