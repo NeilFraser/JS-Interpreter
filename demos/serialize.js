@@ -17,10 +17,21 @@ var NODE_LOC_CONSTRUCTOR;
 var LINE_LOC_CONSTRUCTOR;
 
 /**
- * All non-primitives in the interpreter.
+ * All non-primitives in the interpreter as an Array.
  * @type {!Array<!Object>}
  */
- var objectList = [];
+var objectList = [];
+
+/**
+ * All non-primitves in the interpreter as a Set.
+ * Double the speed of serialization if ES6's Set is available.
+ * @type {Set|undefined}
+ */
+var objectSet;
+if (typeof Set === 'function') {
+  objectSet = new Set();
+}
+
 
 /**
  * Inspect an interpreter and record the constructors used to create new nodes.
@@ -58,7 +69,9 @@ function deserialize(json, interpreter) {
   recordAcornConstructors_(interpreter);
   // Find all native functions in existing interpreter.
   objectList = [];
+  objectSet && objectSet.clear();
   objectHunt_(stack);
+  objectSet && objectSet.clear();  // Garbage collect.
   var functionMap = Object.create(null);
   for (var i = 0; i < objectList.length; i++) {
     var obj = objectList[i];
@@ -287,7 +300,9 @@ function serialize(interpreter) {
   recordAcornConstructors_(interpreter);
   // Find all objects.
   objectList = [];
-  objectHunt_(root, objectList);
+  objectSet && objectSet.clear();
+  objectHunt_(root);
+  objectSet && objectSet.clear();  // Garbage collect.
   // Serialize every object.
   var json = [];
   for (var i = 0; i < objectList.length; i++) {
@@ -471,9 +486,10 @@ function encodeLoc_(loc) {
  */
 function objectHunt_(node) {
   if (node && (typeof node === 'object' || typeof node === 'function')) {
-    if (objectList.indexOf(node) !== -1) {
+    if (objectSet ? objectSet.has(node) : objectList.indexOf(node) !== -1) {
       return;
     }
+    objectSet && objectSet.add(node);
     objectList.push(node);
     if (typeof node === 'object') {  // Recurse.
       var isAcornNode =
