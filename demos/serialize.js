@@ -27,9 +27,9 @@ var objectList = [];
  * Double the speed of serialization if ES6's Set is available.
  * @type {Set|undefined}
  */
-var objectSet;
+var objectMap;
 if (typeof Set === 'function') {
-  objectSet = new Set();
+  objectMap = new Map();
 }
 
 
@@ -69,9 +69,8 @@ function deserialize(json, interpreter) {
   recordAcornConstructors_(interpreter);
   // Find all native functions in existing interpreter.
   objectList = [];
-  objectSet && objectSet.clear();
+  objectMap && objectMap.clear();
   objectHunt_(stack);
-  objectSet && objectSet.clear();  // Garbage collect.
   var functionMap = Object.create(null);
   for (var i = 0; i < objectList.length; i++) {
     var obj = objectList[i];
@@ -93,7 +92,9 @@ function deserialize(json, interpreter) {
   for (var prop in root) {
     interpreter[prop] = root[prop];
   }
-  objectList = [];  // Garbage collect.
+  // Garbage collect.
+  objectList = [];
+  objectMap && objectMap.clear();
 }
 
 /**
@@ -300,9 +301,8 @@ function serialize(interpreter) {
   recordAcornConstructors_(interpreter);
   // Find all objects.
   objectList = [];
-  objectSet && objectSet.clear();
+  objectMap && objectMap.clear();
   objectHunt_(root);
-  objectSet && objectSet.clear();  // Garbage collect.
   // Serialize every object.
   var json = [];
   for (var i = 0; i < objectList.length; i++) {
@@ -410,7 +410,9 @@ function serialize(interpreter) {
       jsonObj['setter'] = setter;
     }
   }
-  objectList = [];  // Garbage collect.
+  // Garbage collect.
+  objectList = [];
+  objectMap && objectMap.clear();
   return json;
 }
 
@@ -456,8 +458,8 @@ function encodeLoc_(loc) {
  */
  function encodeValue_(value) {
   if (value && (typeof value === 'object' || typeof value === 'function')) {
-    var ref = objectList.indexOf(value);
-    if (ref === -1) {
+    var ref = objectMap ? objectMap.get(value) : objectList.indexOf(value);
+    if (ref === undefined || ref === -1) {
       throw RangeError('Object not found in table.');
     }
     return {'#': ref};
@@ -486,10 +488,10 @@ function encodeLoc_(loc) {
  */
 function objectHunt_(node) {
   if (node && (typeof node === 'object' || typeof node === 'function')) {
-    if (objectSet ? objectSet.has(node) : objectList.indexOf(node) !== -1) {
+    if (objectMap ? objectMap.has(node) : objectList.indexOf(node) !== -1) {
       return;
     }
-    objectSet && objectSet.add(node);
+    objectMap && objectMap.set(node, objectList.length);
     objectList.push(node);
     if (typeof node === 'object') {  // Recurse.
       var isAcornNode =
