@@ -1262,11 +1262,15 @@
         if (strict && isStrictBadIdWord(clause.param.name))
           raise(clause.param.start, "Binding " + clause.param.name + " in strict mode");
         expect(_parenR);
-        clause.guard = null;
+        // JS-Interpreter change:
+        // Obsolete unused property; commenting out.
+        // clause.guard = null;
         clause.body = parseBlock();
         node.handler = finishNode(clause, "CatchClause");
       }
-      node.guardedHandlers = empty;
+      // JS-Interpreter change:
+      // Obsolete unused property; commenting out.
+      // node.guardedHandlers = empty;
       node.finalizer = eat(_finally) ? parseBlock() : null;
       if (!node.handler && !node.finalizer)
         raise(node.start, "Missing catch or finally clause");
