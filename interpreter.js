@@ -3825,17 +3825,6 @@ Interpreter.prototype['stepCallExpression'] = function(stack, state, node) {
   }
 };
 
-Interpreter.prototype['stepCatchClause'] = function(stack, state, node) {
-  // No need to hit this node again on the way back up the stack.
-  stack.pop();
-  // Create an empty scope.
-  var scope = this.createSpecialScope(state.scope);
-  // Add the argument.
-  this.setProperty(scope.object, node['param']['name'], state.throwValue);
-  // Execute catch clause.
-  return new Interpreter.State(node['body'], scope);
-};
-
 Interpreter.prototype['stepConditionalExpression'] =
     function(stack, state, node) {
   // Handles both ConditionalExpression and IfStatement.
@@ -4349,10 +4338,12 @@ Interpreter.prototype['stepTryStatement'] = function(stack, state, node) {
   if (state.cv && state.cv.type === Interpreter.Completion.THROW &&
       !state.doneHandler_ && node['handler']) {
     state.doneHandler_ = true;
-    var nextState = new Interpreter.State(node['handler'], state.scope);
-    nextState.throwValue = state.cv.value;
+    // Create an new scope and add the error variable.
+    var scope = this.createSpecialScope(state.scope);
+    this.setProperty(scope.object, node['handler']['param']['name'], state.cv.value);
     state.cv = undefined;  // This error has been handled, don't rethrow.
-    return nextState;
+    // Execute catch clause.
+    return new Interpreter.State(node['handler']['body'], scope);
   }
   if (!state.doneFinalizer_ && node['finalizer']) {
     state.doneFinalizer_ = true;

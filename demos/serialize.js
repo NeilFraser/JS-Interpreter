@@ -23,12 +23,12 @@ var LINE_LOC_CONSTRUCTOR;
 var objectList = [];
 
 /**
- * All non-primitves in the interpreter as a Set.
- * Double the speed of serialization if ES6's Set is available.
- * @type {Set|undefined}
+ * A Map mapping non-primitves their corresponding indices in objectList.
+ * Doubles the speed of serialisation if ES6's Map is available.
+ * @type {Map|undefined}
  */
 var objectMap;
-if (typeof Set === 'function') {
+if (typeof Map === 'function') {
   objectMap = new Map();
 }
 
