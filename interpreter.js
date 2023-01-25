@@ -3826,17 +3826,14 @@ Interpreter.prototype['stepCallExpression'] = function(stack, state, node) {
 };
 
 Interpreter.prototype['stepCatchClause'] = function(stack, state, node) {
-  if (!state.done_) {
-    state.done_ = true;
-    // Create an empty scope.
-    var scope = this.createSpecialScope(state.scope);
-    // Add the argument.
-    this.setProperty(scope.object, node['param']['name'], state.throwValue);
-    // Execute catch clause.
-    return new Interpreter.State(node['body'], scope);
-  } else {
-    stack.pop();
-  }
+  // No need to hit this node again on the way back up the stack.
+  stack.pop();
+  // Create an empty scope.
+  var scope = this.createSpecialScope(state.scope);
+  // Add the argument.
+  this.setProperty(scope.object, node['param']['name'], state.throwValue);
+  // Execute catch clause.
+  return new Interpreter.State(node['body'], scope);
 };
 
 Interpreter.prototype['stepConditionalExpression'] =
@@ -4513,13 +4510,10 @@ Interpreter.prototype['stepWithStatement'] = function(stack, state, node) {
   if (!state.doneObject_) {
     state.doneObject_ = true;
     return new Interpreter.State(node['object'], state.scope);
-  } else if (!state.doneBody_) {
-    state.doneBody_ = true;
-    var scope = this.createSpecialScope(state.scope, state.value);
-    return new Interpreter.State(node['body'], scope);
-  } else {
-    stack.pop();
   }
+  stack.pop();
+  var scope = this.createSpecialScope(state.scope, state.value);
+  return new Interpreter.State(node['body'], scope);
 };
 
 Interpreter.prototype['stepWhileStatement'] =
