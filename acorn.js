@@ -30,6 +30,11 @@
   exports.version = "0.5.0";
   // Plus additional edits marked with 'JS-Interpreter change' comments.
 
+  // JS-Interpreter change:
+  // No longer exporting defaultOptions, getLineInfo, tokenize, tokTypes,
+  // isIdentifierStart, and isIdentifierChar.  Not used by JS-Interpreter.
+  // -- Neil Fraser, February 2023.
+
   // The main exported interface (under `self.acorn` when in the
   // browser) is a `parse` function that takes a code string and
   // returns an abstract syntax tree as specified by [Mozilla parser
@@ -50,7 +55,7 @@
   // A second optional argument can be given to further configure
   // the parser process. These options are recognized:
 
-  var defaultOptions = exports.defaultOptions = {
+  var defaultOptions = {
     // JS-Interpreter change:
     // `ecmaVersion` option has been removed along with all cases where
     // it is checked.  In this version of Acorn it was limited to 3 or 5,
@@ -123,7 +128,7 @@
   // offset. `input` should be the code string that the offset refers
   // into.
 
-  var getLineInfo = exports.getLineInfo = function(input, offset) {
+  var getLineInfo = function(input, offset) {
     for (var line = 1, cur = 0;;) {
       lineBreak.lastIndex = cur;
       var match = lineBreak.exec(input);
@@ -308,14 +313,11 @@
   var _plusMin = {binop: 9, prefix: true, beforeExpr: true};
   var _multiplyModulo = {binop: 10, beforeExpr: true};
 
-  // Provide access to the token types for external users of the
-  // tokenizer.
-
-  exports.tokTypes = {bracketL: _bracketL, bracketR: _bracketR, braceL: _braceL, braceR: _braceR,
+  var tokTypes = {bracketL: _bracketL, bracketR: _bracketR, braceL: _braceL, braceR: _braceR,
                       parenL: _parenL, parenR: _parenR, comma: _comma, semi: _semi, colon: _colon,
                       dot: _dot, question: _question, slash: _slash, eq: _eq, name: _name, eof: _eof,
                       num: _num, regexp: _regexp, string: _string};
-  for (var kw in keywordTypes) exports.tokTypes["_" + kw] = keywordTypes[kw];
+  for (var kw in keywordTypes) tokTypes["_" + kw] = keywordTypes[kw];
 
   // JS-Interpreter change:
   // Acorn's original code built up functions using strings for maximum efficiency.
@@ -373,7 +375,7 @@
 
   // Test whether a given character code starts an identifier.
 
-  var isIdentifierStart = exports.isIdentifierStart = function(code) {
+  var isIdentifierStart = function(code) {
     if (code < 65) return code === 36;
     if (code < 91) return true;
     if (code < 97) return code === 95;
@@ -383,7 +385,7 @@
 
   // Test whether a given character is part of an identifier.
 
-  var isIdentifierChar = exports.isIdentifierChar = function(code) {
+  var isIdentifierChar = function(code) {
     if (code < 48) return code === 36;
     if (code < 58) return true;
     if (code < 65) return false;
