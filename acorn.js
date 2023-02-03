@@ -313,11 +313,9 @@
   var _plusMin = {binop: 9, prefix: true, beforeExpr: true};
   var _multiplyModulo = {binop: 10, beforeExpr: true};
 
-  var tokTypes = {bracketL: _bracketL, bracketR: _bracketR, braceL: _braceL, braceR: _braceR,
-                      parenL: _parenL, parenR: _parenR, comma: _comma, semi: _semi, colon: _colon,
-                      dot: _dot, question: _question, slash: _slash, eq: _eq, name: _name, eof: _eof,
-                      num: _num, regexp: _regexp, string: _string};
-  for (var kw in keywordTypes) tokTypes["_" + kw] = keywordTypes[kw];
+  // JS-Interpreter change:
+  // tokTypes map never used.  Removed.
+  // -- Neil Fraser, February 2023.
 
   // JS-Interpreter change:
   // Acorn's original code built up functions using strings for maximum efficiency.
