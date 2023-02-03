@@ -1238,7 +1238,7 @@
       }
       // JS-Interpreter change:
       // Obsolete unused property; commenting out.
-        // -- Neil Fraser, January 2023.
+      // -- Neil Fraser, January 2023.
       // node.guardedHandlers = empty;
       node.finalizer = eat(_finally) ? parseBlock() : null;
       if (!node.handler && !node.finalizer)
