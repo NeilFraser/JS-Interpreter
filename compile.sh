@@ -6,6 +6,12 @@ if test -f "compiler.jar"; then
 else
   echo "Downloading Closure Compiler."
   wget -N https://unpkg.com/google-closure-compiler-java/compiler.jar
+  if test -f "compiler.jar"; then
+    echo "Downloaded Closure Compiler."
+  else
+    echo "Unable to download Closure Compiler."
+    exit 1
+  fi
 fi
 
 # Compile Acorn (using simple optimizations so AST property names don't rename).
