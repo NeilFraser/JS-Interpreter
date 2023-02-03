@@ -55,6 +55,7 @@
     // `ecmaVersion` option has been removed along with all cases where
     // it is checked.  In this version of Acorn it was limited to 3 or 5,
     // and there's no use case for 3 with JS-Interpreter.
+    // -- Neil Fraser, December 2022.
 
     // Turn on `strictSemicolons` to prevent the parser from doing
     // automatic semicolon insertion.
@@ -134,43 +135,9 @@
     return {line: line, column: offset - cur};
   };
 
-  // Acorn is organized as a tokenizer and a recursive-descent parser.
-  // The `tokenize` export provides an interface to the tokenizer.
-  // Because the tokenizer is optimized for being efficiently used by
-  // the Acorn parser itself, this interface is somewhat crude and not
-  // very modular. Performing another parse or call to `tokenize` will
-  // reset the internal state, and invalidate existing tokenizers.
-
-  exports.tokenize = function(inpt, opts) {
-    input = String(inpt); inputLen = input.length;
-    setOptions(opts);
-    initTokenState();
-
-    var t = {};
-    function getToken(forceRegexp) {
-      lastEnd = tokEnd;
-      readToken(forceRegexp);
-      t.start = tokStart; t.end = tokEnd;
-      t.startLoc = tokStartLoc; t.endLoc = tokEndLoc;
-      t.type = tokType; t.value = tokVal;
-      return t;
-    }
-    getToken.jumpTo = function(pos, reAllowed) {
-      tokPos = pos;
-      if (options.locations) {
-        tokCurLine = 1;
-        tokLineStart = lineBreak.lastIndex = 0;
-        var match;
-        while ((match = lineBreak.exec(input)) && match.index < pos) {
-          ++tokCurLine;
-          tokLineStart = match.index + match[0].length;
-        }
-      }
-      tokRegexpAllowed = reAllowed;
-      skipSpace();
-    };
-    return getToken;
-  };
+  // JS-Interpreter change:
+  // tokenize function never used.  Removed.
+  // -- Neil Fraser, February 2023.
 
   // State is kept in (closure-)global variables. We already saw the
   // `options`, `input`, and `inputLen` variables above.
@@ -1264,12 +1231,14 @@
         expect(_parenR);
         // JS-Interpreter change:
         // Obsolete unused property; commenting out.
+        // -- Neil Fraser, January 2023.
         // clause.guard = null;
         clause.body = parseBlock();
         node.handler = finishNode(clause, "CatchClause");
       }
       // JS-Interpreter change:
       // Obsolete unused property; commenting out.
+        // -- Neil Fraser, January 2023.
       // node.guardedHandlers = empty;
       node.finalizer = eat(_finally) ? parseBlock() : null;
       if (!node.handler && !node.finalizer)
