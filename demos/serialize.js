@@ -102,7 +102,7 @@ function deserialize(json, interpreter) {
  * But don't populate its properties yet.
  * @param {!Object} jsonObj JSON description of object.
  * @param {!Object} functionMap Map of ID to native functions.
- * @return {!Object} Stub of real object.
+ * @returns {!Object} Stub of real object.
  * @private
  */
  function createObjectStub_(jsonObj, functionMap) {
@@ -159,7 +159,7 @@ var LOC_REGEX = /^(\d*):(\d*)-(\d*):(\d*) ?(.*)$/;
  *   source: "code"
  * }
  * @param {string} locText Serialized location.
- * @return {!Object} Location object.
+ * @returns {!Object} Location object.
  */
 function decodeLoc_(locText) {
   var loc = new NODE_LOC_CONSTRUCTOR();
@@ -240,7 +240,7 @@ function populateObject_(jsonObj, obj) {
  * Most values are themselves.  But objects are references, and Infinity, NaN,
  * -0 and undefined are specially encoded.
  * @param {*} value Serialized value.
- * @return {*} Real value.
+ * @returns {*} Real value.
  * @private
  */
  function decodeValue_(value) {
@@ -269,7 +269,7 @@ function populateObject_(jsonObj, obj) {
 /**
  * Generate JSON that completely describes an interpreter's state.
  * @param {!Interpreter} interpreter JS-Interpreter instance to serialize.
- * @return {string} Serialized JSON.
+ * @returns {string} Serialized JSON.
  */
 function serialize(interpreter) {
   // Shallow-copy all properties of interest onto a root object.
@@ -425,7 +425,7 @@ function serialize(interpreter) {
  * }
  * into a string like this: '1:0-4:21 code'
  * @param {!Object} loc Location object.
- * @return {string} Serializade location.
+ * @returns {string} Serialized location.
  */
 function encodeLoc_(loc) {
   var locText = '';
@@ -454,7 +454,7 @@ function encodeLoc_(loc) {
  * Most values are themselves.  But objects are references, and Infinity, NaN,
  * -0 and undefined are specially encoded.
  * @param {*} value Real value.
- * @return {*} Serialized value.
+ * @returns {*} Serialized value.
  */
  function encodeValue_(value) {
   if (value && (typeof value === 'object' || typeof value === 'function')) {
