@@ -2975,7 +2975,14 @@ Interpreter.prototype.setValueToScope = function(name, value) {
   var strict = scope.strict;
   while (scope && scope !== this.globalScope) {
     if (name in scope.object.properties) {
-      scope.object.properties[name] = value;
+      try {
+        scope.object.properties[name] = value;
+      } catch (_e) {
+        if (strict) {
+          this.throwException(this.TYPE_ERROR,
+              "Cannot assign to read only variable '" + name + "'");
+        }
+      }
       return undefined;
     }
     scope = scope.parentScope;
@@ -3104,10 +3111,9 @@ Interpreter.prototype.setValue = function(ref, value) {
   if (ref[0] === Interpreter.SCOPE_REFERENCE) {
     // A null/varname variable lookup.
     return this.setValueToScope(ref[1], value);
-  } else {
-    // An obj/prop components tuple (foo.bar).
-    return this.setProperty(ref[0], ref[1], value);
   }
+  // An obj/prop components tuple (foo.bar).
+  return this.setProperty(ref[0], ref[1], value);
 };
 
 /**
