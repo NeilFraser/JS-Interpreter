@@ -2920,7 +2920,8 @@ Interpreter.prototype.createScope = function(node, parentScope) {
 /**
  * Create a new special scope dictionary. Similar to createScope(), but
  * doesn't assume that the scope is for a function body.
- * This is used for 'catch' clauses and 'with' statements.
+ * This is used for 'catch' clauses, 'with' statements,
+ * and named function expressions.
  * @param {!Interpreter.Scope} parentScope Scope to link to.
  * @param {Interpreter.Object=} opt_object Optional object to transform into
  *     scope.
@@ -3732,11 +3733,6 @@ Interpreter.prototype['stepCallExpression'] = function(stack, state, node) {
         this.setProperty(argsList, i, state.arguments_[i]);
       }
       this.setProperty(scope.object, 'arguments', argsList);
-      // Add the function's name (var x = function foo(){};)
-      var name = funcNode['id'] && funcNode['id']['name'];
-      if (name) {
-        this.setProperty(scope.object, name, func);
-      }
       if (!scope.strict) {
         state.funcThis_ = this.boxThis_(state.funcThis_);
       }
@@ -4067,7 +4063,18 @@ Interpreter.prototype['stepFunctionDeclaration'] =
 Interpreter.prototype['stepFunctionExpression'] = function(stack, state, node) {
   stack.pop();
   state = stack[stack.length - 1];
-  state.value = this.createFunction(node, state.scope, state.destinationName);
+  var parentScope = state.scope;
+  if (node['id']) {
+    // Create a tiny scope to store the function name.
+    // E.g. var x = function foo(){};
+    parentScope = this.createSpecialScope(parentScope);
+  }
+  state.value = this.createFunction(node, parentScope, state.destinationName);
+  if (node['id']) {
+    // Record the function name.  Read-only in strict mode.
+    this.setProperty(parentScope.object, node['id']['name'], state.value,
+        Interpreter.READONLY_DESCRIPTOR);
+  }
 };
 
 Interpreter.prototype['stepIdentifier'] = function(stack, state, node) {
