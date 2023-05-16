@@ -4076,7 +4076,7 @@ Interpreter.prototype['stepFunctionExpression'] = function(stack, state, node) {
   }
   state.value = this.createFunction(node, parentScope, state.destinationName);
   if (node['id']) {
-    // Record the function name.  Read-only in strict mode.
+    // Record the function name, read-only.
     this.setProperty(parentScope.object, node['id']['name'], state.value,
         Interpreter.READONLY_DESCRIPTOR);
   }
