@@ -3720,23 +3720,18 @@ Interpreter.prototype['stepCallExpression'] = function(stack, state, node) {
     var funcNode = func.node;
     if (funcNode) {
       var scope = this.createScope(funcNode['body'], func.parentScope);
-      // Add all arguments.
-      var hasArgumentsParam = false;
+      // Build arguments variable.
+      var argsList = this.createArray();
+      for (var i = 0; i < state.arguments_.length; i++) {
+        this.setProperty(argsList, i, state.arguments_[i]);
+      }
+      this.setProperty(scope.object, 'arguments', argsList);
+      // Add all arguments (may clobber 'arguments' if a param is named such).
       for (var i = 0; i < funcNode['params'].length; i++) {
         var paramName = funcNode['params'][i]['name'];
-        if (paramName === 'arguments') hasArgumentsParam = true;
         var paramValue = state.arguments_.length > i ? state.arguments_[i] :
             undefined;
         this.setProperty(scope.object, paramName, paramValue);
-      }
-      // Build arguments variable.
-      // But only if there wasn't already a parameter named 'arguments'.
-      if (!hasArgumentsParam) {
-        var argsList = this.createArray();
-        for (var i = 0; i < state.arguments_.length; i++) {
-          this.setProperty(argsList, i, state.arguments_[i]);
-        }
-        this.setProperty(scope.object, 'arguments', argsList);
       }
       if (!scope.strict) {
         state.funcThis_ = this.boxThis_(state.funcThis_);
