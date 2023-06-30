@@ -27,7 +27,13 @@
 })(this, function(exports) {
   "use strict";
 
-  exports.version = "0.4.1";
+  exports.version = "0.5.0";
+  // Plus additional edits marked with 'JS-Interpreter change' comments.
+
+  // JS-Interpreter change:
+  // No longer exporting defaultOptions, getLineInfo, tokenize, tokTypes,
+  // isIdentifierStart, and isIdentifierChar.  Not used by JS-Interpreter.
+  // -- Neil Fraser, February 2023.
 
   // The main exported interface (under `self.acorn` when in the
   // browser) is a `parse` function that takes a code string and
@@ -49,12 +55,13 @@
   // A second optional argument can be given to further configure
   // the parser process. These options are recognized:
 
-  var defaultOptions = exports.defaultOptions = {
-    // `ecmaVersion` indicates the ECMAScript version to parse. Must
-    // be either 3 or 5. This
-    // influences support for strict mode, the set of reserved words, and
-    // support for getters and setter.
-    ecmaVersion: 5,
+  var defaultOptions = {
+    // JS-Interpreter change:
+    // `ecmaVersion` option has been removed along with all cases where
+    // it is checked.  In this version of Acorn it was limited to 3 or 5,
+    // and there's no use case for 3 with JS-Interpreter.
+    // -- Neil Fraser, December 2022.
+
     // Turn on `strictSemicolons` to prevent the parser from doing
     // automatic semicolon insertion.
     strictSemicolons: false,
@@ -62,8 +69,13 @@
     // trailing commas in array and object literals.
     allowTrailingCommas: true,
     // By default, reserved words are not enforced. Enable
-    // `forbidReserved` to enforce them.
+    // `forbidReserved` to enforce them. When this option has the
+    // value "everywhere", reserved words and keywords can also not be
+    // used as property names.
     forbidReserved: false,
+    // When enabled, a return at the top level is not considered an
+    // error.
+    allowReturnOutsideFunction: false,
     // When `locations` is on, `loc` properties holding objects with
     // `start` and `end` properties in `{line, column}` form (with
     // line being 1-based and column 0-based) will be attached to the
@@ -77,7 +89,8 @@
     // character offsets that denote the start and end of the comment.
     // When the `locations` option is on, two more parameters are
     // passed, the full `{line, column}` locations of the start and
-    // end of the comments.
+    // end of the comments. Note that you are not allowed to call the
+    // parser from the callback—that will corrupt its internal state.
     onComment: null,
     // Nodes have their start and end characters offsets recorded in
     // `start` and `end` properties (directly on the node, rather than
@@ -94,11 +107,11 @@
     // toplevel forms of the parsed file to the `Program` (top) node
     // of an existing parse tree.
     program: null,
-    // When `location` is on, you can pass this to record the source
+    // When `locations` is on, you can pass this to record the source
     // file in every node's `loc` object.
     sourceFile: null,
     // This value, if given, is stored in every node, whether
-    // `location` is on or off.
+    // `locations` is on or off.
     directSourceFile: null
   };
 
@@ -115,7 +128,7 @@
   // offset. `input` should be the code string that the offset refers
   // into.
 
-  var getLineInfo = exports.getLineInfo = function(input, offset) {
+  var getLineInfo = function(input, offset) {
     for (var line = 1, cur = 0;;) {
       lineBreak.lastIndex = cur;
       var match = lineBreak.exec(input);
@@ -127,42 +140,9 @@
     return {line: line, column: offset - cur};
   };
 
-  // Acorn is organized as a tokenizer and a recursive-descent parser.
-  // The `tokenize` export provides an interface to the tokenizer.
-  // Because the tokenizer is optimized for being efficiently used by
-  // the Acorn parser itself, this interface is somewhat crude and not
-  // very modular. Performing another parse or call to `tokenize` will
-  // reset the internal state, and invalidate existing tokenizers.
-
-  exports.tokenize = function(inpt, opts) {
-    input = String(inpt); inputLen = input.length;
-    setOptions(opts);
-    initTokenState();
-
-    var t = {};
-    function getToken(forceRegexp) {
-      readToken(forceRegexp);
-      t.start = tokStart; t.end = tokEnd;
-      t.startLoc = tokStartLoc; t.endLoc = tokEndLoc;
-      t.type = tokType; t.value = tokVal;
-      return t;
-    }
-    getToken.jumpTo = function(pos, reAllowed) {
-      tokPos = pos;
-      if (options.locations) {
-        tokCurLine = 1;
-        tokLineStart = lineBreak.lastIndex = 0;
-        var match;
-        while ((match = lineBreak.exec(input)) && match.index < pos) {
-          ++tokCurLine;
-          tokLineStart = match.index + match[0].length;
-        }
-      }
-      tokRegexpAllowed = reAllowed;
-      skipSpace();
-    };
-    return getToken;
-  };
+  // JS-Interpreter change:
+  // tokenize function never used.  Removed.
+  // -- Neil Fraser, February 2023.
 
   // State is kept in (closure-)global variables. We already saw the
   // `options`, `input`, and `inputLen` variables above.
@@ -333,66 +313,25 @@
   var _plusMin = {binop: 9, prefix: true, beforeExpr: true};
   var _multiplyModulo = {binop: 10, beforeExpr: true};
 
-  // Provide access to the token types for external users of the
-  // tokenizer.
+  // JS-Interpreter change:
+  // tokTypes map never used.  Removed.
+  // -- Neil Fraser, February 2023.
 
-  exports.tokTypes = {bracketL: _bracketL, bracketR: _bracketR, braceL: _braceL, braceR: _braceR,
-                      parenL: _parenL, parenR: _parenR, comma: _comma, semi: _semi, colon: _colon,
-                      dot: _dot, question: _question, slash: _slash, eq: _eq, name: _name, eof: _eof,
-                      num: _num, regexp: _regexp, string: _string};
-  for (var kw in keywordTypes) exports.tokTypes["_" + kw] = keywordTypes[kw];
-
-  // This is a trick taken from Esprima. It turns out that, on
-  // non-Chrome browsers, to check whether a string is in a set, a
-  // predicate containing a big ugly `switch` statement is faster than
-  // a regular expression, and on Chrome the two are about on par.
-  // This function uses `eval` (non-lexical) to produce such a
-  // predicate from a space-separated string of words.
-  //
-  // It starts by sorting the words by length.
-
+  // JS-Interpreter change:
+  // Acorn's original code built up functions using strings for maximum efficiency.
+  // However, this triggered a CSP unsafe-eval requirement.  Here's a slower, but
+  // simpler approach.  -- Neil Fraser, January 2022.
+  // https://github.com/NeilFraser/JS-Interpreter/issues/228
   function makePredicate(words) {
     words = words.split(" ");
-    var f = "", cats = [];
-    out: for (var i = 0; i < words.length; ++i) {
-      for (var j = 0; j < cats.length; ++j)
-        if (cats[j][0].length == words[i].length) {
-          cats[j].push(words[i]);
-          continue out;
-        }
-      cats.push([words[i]]);
+    var set = Object.create(null);
+    for (var i = 0; i < words.length; i++) {
+      set[words[i]] = true;
     }
-    function compareTo(arr) {
-      if (arr.length == 1) return f += "return str === " + JSON.stringify(arr[0]) + ";";
-      f += "switch(str){";
-      for (var i = 0; i < arr.length; ++i) f += "case " + JSON.stringify(arr[i]) + ":";
-      f += "return true}return false;";
-    }
-
-    // When there are more than three length categories, an outer
-    // switch first dispatches on the lengths, to save on comparisons.
-
-    if (cats.length > 3) {
-      cats.sort(function(a, b) {return b.length - a.length;});
-      f += "switch(str.length){";
-      for (var i = 0; i < cats.length; ++i) {
-        var cat = cats[i];
-        f += "case " + cat[0].length + ":";
-        compareTo(cat);
-      }
-      f += "}";
-
-    // Otherwise, simply generate a flat `switch` statement.
-
-    } else {
-      compareTo(words);
-    }
-    return new Function("str", f);
+    return function(str) {
+      return set[str] || false;
+    };
   }
-
-  // The ECMAScript 3 reserved word list.
-
-  var isReservedWord3 = makePredicate("abstract boolean byte char class double enum export extends final float goto implements import int interface long native package private protected public short static super synchronized throws transient volatile");
 
   // ECMAScript 5 reserved words.
 
@@ -434,7 +373,7 @@
 
   // Test whether a given character code starts an identifier.
 
-  var isIdentifierStart = exports.isIdentifierStart = function(code) {
+  var isIdentifierStart = function(code) {
     if (code < 65) return code === 36;
     if (code < 91) return true;
     if (code < 97) return code === 95;
@@ -444,7 +383,7 @@
 
   // Test whether a given character is part of an identifier.
 
-  var isIdentifierChar = exports.isIdentifierChar = function(code) {
+  var isIdentifierChar = function(code) {
     if (code < 48) return code === 36;
     if (code < 58) return true;
     if (code < 65) return false;
@@ -748,7 +687,10 @@
   // since a '/' inside a '[]' set does not end the expression.
 
   function readRegexp() {
-    var content = "", escaped, inClass, start = tokPos;
+    // JS-Interpreter change:
+    // Removed redundant declaration of 'content' here.  Caused lint errors.
+    // -- Neil Fraser, June 2022.
+    var escaped, inClass, start = tokPos;
     for (;;) {
       if (tokPos >= inputLen) raise(start, "Unterminated regular expression");
       var ch = input.charAt(tokPos);
@@ -766,8 +708,18 @@
     // Need to use `readWord1` because '\uXXXX' sequences are allowed
     // here (don't ask).
     var mods = readWord1();
-    if (mods && !/^[gmsiy]*$/.test(mods)) raise(start, "Invalid regexp flag");
-    return finishToken(_regexp, new RegExp(content, mods));
+    // JS-Interpreter change:
+    // Acorn used to use 'gmsiy' to check for flags.  But 's' and 'y' are ES6.
+    // -- Neil Fraser, December 2022.
+    // https://github.com/acornjs/acorn/issues/1163
+    if (mods && !/^[gmi]*$/.test(mods)) raise(start, "Invalid regexp flag");
+    try {
+      var value = new RegExp(content, mods);
+    } catch (e) {
+      if (e instanceof SyntaxError) raise(start, e.message);
+      raise(e);
+    }
+    return finishToken(_regexp, value);
   }
 
   // Read an integer in the given radix. Return null if zero digits
@@ -930,13 +882,8 @@
   function readWord() {
     var word = readWord1();
     var type = _name;
-    if (!containsEsc) {
-      if (isKeyword(word)) type = keywordTypes[word];
-      else if (options.forbidReserved &&
-               (options.ecmaVersion === 3 ? isReservedWord3 : isReservedWord5)(word) ||
-               strict && isStrictReservedWord(word))
-        raise(tokStart, "The keyword '" + word + "' is reserved");
-    }
+    if (!containsEsc && isKeyword(word))
+      type = keywordTypes[word];
     return finishToken(type, word);
   }
 
@@ -976,7 +923,7 @@
 
   function setStrict(strct) {
     strict = strct;
-    tokPos = lastEnd;
+    tokPos = tokStart;
     if (options.locations) {
       while (tokPos < tokLineStart) {
         tokLineStart = input.lastIndexOf("\n", tokLineStart - 2) + 1;
@@ -1044,7 +991,7 @@
   // Test whether a statement node is the string literal `"use strict"`.
 
   function isUseStrict(stmt) {
-    return options.ecmaVersion >= 5 && stmt.type === "ExpressionStatement" &&
+    return stmt.type === "ExpressionStatement" &&
       stmt.expression.type === "Literal" && stmt.expression.value === "use strict";
   }
 
@@ -1216,7 +1163,8 @@
       return finishNode(node, "IfStatement");
 
     case _return:
-      if (!inFunction) raise(tokStart, "'return' outside of function");
+      if (!inFunction && !options.allowReturnOutsideFunction)
+        raise(tokStart, "'return' outside of function");
       next();
 
       // In `return` (and `break`/`continue`), the keywords with
@@ -1281,11 +1229,17 @@
         if (strict && isStrictBadIdWord(clause.param.name))
           raise(clause.param.start, "Binding " + clause.param.name + " in strict mode");
         expect(_parenR);
-        clause.guard = null;
+        // JS-Interpreter change:
+        // Obsolete unused property; commenting out.
+        // -- Neil Fraser, January 2023.
+        // clause.guard = null;
         clause.body = parseBlock();
         node.handler = finishNode(clause, "CatchClause");
       }
-      node.guardedHandlers = empty;
+      // JS-Interpreter change:
+      // Obsolete unused property; commenting out.
+      // -- Neil Fraser, January 2023.
+      // node.guardedHandlers = empty;
       node.finalizer = eat(_finally) ? parseBlock() : null;
       if (!node.handler && !node.finalizer)
         raise(node.start, "Missing catch or finally clause");
@@ -1653,7 +1607,7 @@
       if (eat(_colon)) {
         prop.value = parseExpression(true);
         kind = prop.kind = "init";
-      } else if (options.ecmaVersion >= 5 && prop.key.type === "Identifier" &&
+      } else if (prop.key.type === "Identifier" &&
                  (prop.key.name === "get" || prop.key.name === "set")) {
         isGetSet = sawGetSet = true;
         kind = prop.kind = prop.key.name;
@@ -1751,7 +1705,19 @@
 
   function parseIdent(liberal) {
     var node = startNode();
-    node.name = tokType === _name ? tokVal : (liberal && !options.forbidReserved && tokType.keyword) || unexpected();
+    if (liberal && options.forbidReserved == "everywhere") liberal = false;
+    if (tokType === _name) {
+      if (!liberal &&
+          (options.forbidReserved && isReservedWord5(tokVal) ||
+           strict && isStrictReservedWord(tokVal)) &&
+          input.slice(tokStart, tokEnd).indexOf("\\") == -1)
+        raise(tokStart, "The keyword '" + tokVal + "' is reserved");
+      node.name = tokVal;
+    } else if (liberal && tokType.keyword) {
+      node.name = tokType.keyword;
+    } else {
+      unexpected();
+    }
     tokRegexpAllowed = false;
     next();
     return finishNode(node, "Identifier");

@@ -15,3 +15,8 @@ textarea {
   width: 100%;
   max-width: 111ex;
 }
+
+em {
+  padding: 0 1ex;
+  border: dotted 1px #888;
+}

@@ -35,9 +35,9 @@
     }
 
     function stepButton() {
-      if (myInterpreter.stateStack.length) {
-        var node =
-            myInterpreter.stateStack[myInterpreter.stateStack.length - 1].node;
+      var stack = myInterpreter.getStateStack();
+      if (stack.length) {
+        var node = stack[stack.length - 1].node;
         var start = node.start;
         var end = node.end;
       } else {

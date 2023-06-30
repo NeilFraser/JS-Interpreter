@@ -61,6 +61,9 @@
     nextStep();
   </pre>
 
+  <p>By default, one step is a single operation.  For an example of how to
+  step line by line, see the <a href="demos/line.html">line step demo</a>.</p>
+
   <p>Alternatively, if the code is known to be safe from infinite loops, it may
   be executed to completion by calling the <code>run</code> function once:</p>
 
@@ -139,7 +142,7 @@
       var req = new XMLHttpRequest();
       req.open('GET', href, true);
       req.onreadystatechange = function() {
-        if (req.readyState == 4 && req.status == 200) {
+        if (req.readyState === 4 && req.status === 200) {
           callback(req.responseText);
         }
       };
@@ -177,10 +180,13 @@
   Another limitation is that serialization reaches beyond the public API, and
   thus does not work with the compressed bundle (acorn_interpreter.js).  Yet
   another limitation is that the serialization format is rather large; it has a
-  60 kb overhead due to the standard polyfills.</p>
+  300 kb overhead due to the standard polyfills.</p>
 
   <p>For a working example, see the
   <a href="demos/serialize.html">serialization demo</a>.</p>
+
+  <p>Another example shows how to use serialization of every step to enable
+  <a href="demos/backwards.html">stepping backwards</a>.</p>
 
   <h2>Threading</h2>
 
@@ -215,8 +221,11 @@
   chance to execute.</p>
 
   <p>Memory bombs (e.g. <code>var x='X'; while(1) x=x+x;</code>) can be detected
-  by periodically serializing the interpereter into a JSON string, and aborting
-  execution if the string length is too long.</p>
+  by periodically measuring the size of the stack, and aborting execution if it
+  grows too large.</p>
+
+  <p>For a working example, see the
+  <a href="demos/size.html">size demo</a>.</p>
 
   <h2>Regular Expressions</h2>
 
@@ -234,7 +243,8 @@
   <dl>
     <dt>API</dt>
     <dd>None of the DOM APIs are exposed.  That's kind of the point of a
-    sandbox.  If you need these, write your own interfaces.</dd>
+    sandbox.  If you need these, write your own interfaces.  For a working
+    example, see the <a href="demos/dom.html">DOM demo</a>.</dd>
     <dt>ES6</dt>
     <dd>More recent additions to JavaScript such as <code>let</code> or
     <code>Set</code> aren't implemented.  Babel is a good method of transpiling
@@ -254,7 +264,7 @@
 
   <h2>Dependency</h2>
 
-  <p>The only dependency is <a href="http://marijnhaverbeke.nl/acorn/">Acorn</a>,
+  <p>The only dependency is <a href="https://github.com/acornjs/acorn">Acorn</a>,
   a beautifully written JavaScript parser by Marijn Haverbeke.  It is included
   in the JS-Interpreter package.</p>
 

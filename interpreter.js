@@ -23,9 +23,12 @@ var Interpreter = function(code, opt_initFunc) {
     code = this.parse_(code, 'code');
   }
   // Get a handle on Acorn's node_t object.
-  this.nodeConstructor = code.constructor;
+  var nodeConstructor = code.constructor;
+  this.newNode = function() {
+    return new nodeConstructor({'options': {}});
+  };
   // Clone the root 'Program' node so that the AST may be modified.
-  var ast = new this.nodeConstructor({options:{}});
+  var ast = this.newNode();
   for (var prop in code) {
     ast[prop] = (prop === 'body') ? code[prop].slice() : code[prop];
   }
@@ -60,33 +63,30 @@ var Interpreter = function(code, opt_initFunc) {
   this.value = undefined;
   // Point at the main program.
   this.ast = ast;
-  var state = new Interpreter.State(this.ast, this.globalScope);
+  state = new Interpreter.State(this.ast, this.globalScope);
   state.done = false;
   this.stateStack.length = 0;
   this.stateStack[0] = state;
-  // Preserve publicly properties from being pruned/renamed by JS compilers.
-  // Add others as needed.
-  this['stateStack'] = this.stateStack;
 };
 
 /**
-  * Completion Value Types.
-  * @enum {number}
-  */
- Interpreter.Completion = {
-   NORMAL: 0,
-   BREAK: 1,
-   CONTINUE: 2,
-   RETURN: 3,
-   THROW: 4
- };
+ * Completion Value Types.
+ * @enum {number}
+ */
+Interpreter.Completion = {
+  NORMAL: 0,
+  BREAK: 1,
+  CONTINUE: 2,
+  RETURN: 3,
+  THROW: 4,
+};
 
 /**
  * @const {!Object} Configuration used for all Acorn parsing.
  */
 Interpreter.PARSE_OPTIONS = {
   'locations': true,
-  'ecmaVersion': 5
+  'ecmaVersion': 5,  // Needed in the event a version > 0.5.0 of Acorn is used.
 };
 
 /**
@@ -95,7 +95,7 @@ Interpreter.PARSE_OPTIONS = {
 Interpreter.READONLY_DESCRIPTOR = {
   configurable: true,
   enumerable: true,
-  writable: false
+  writable: false,
 };
 
 /**
@@ -104,7 +104,7 @@ Interpreter.READONLY_DESCRIPTOR = {
 Interpreter.NONENUMERABLE_DESCRIPTOR = {
   configurable: true,
   enumerable: false,
-  writable: true
+  writable: true,
 };
 
 /**
@@ -113,7 +113,7 @@ Interpreter.NONENUMERABLE_DESCRIPTOR = {
 Interpreter.READONLY_NONENUMERABLE_DESCRIPTOR = {
   configurable: true,
   enumerable: false,
-  writable: false
+  writable: false,
 };
 
 /**
@@ -123,7 +123,7 @@ Interpreter.READONLY_NONENUMERABLE_DESCRIPTOR = {
 Interpreter.NONCONFIGURABLE_READONLY_NONENUMERABLE_DESCRIPTOR = {
   configurable: false,
   enumerable: false,
-  writable: false
+  writable: false,
 };
 
 /**
@@ -132,7 +132,7 @@ Interpreter.NONCONFIGURABLE_READONLY_NONENUMERABLE_DESCRIPTOR = {
 Interpreter.VARIABLE_DESCRIPTOR = {
   configurable: false,
   enumerable: true,
-  writable: true
+  writable: true,
 };
 
 /**
@@ -172,6 +172,13 @@ Interpreter.toStringCycles_ = [];
  * @type {Object}
  */
 Interpreter.vm = null;
+
+/**
+ * Currently executing interpreter.  Needed so Interpreter.Object instances
+ * can know their environment.
+ * @type {Interpreter}
+ */
+Interpreter.currentInterpreter_ = null;
 
 /**
  * The global object (`window` in a browser, `global` in node.js) is usually
@@ -214,12 +221,13 @@ Interpreter.WORKER_CODE = [
         "throw Error('Unknown RegExp operation: ' + data[0]);",
     "}",
     "postMessage(result);",
+    "close();",
   "};"];
 
 /**
  * Is a value a legal integer for an array length?
  * @param {Interpreter.Value} x Value to check.
- * @return {number} Zero, or a positive integer if the value can be
+ * @returns {number} Zero, or a positive integer if the value can be
  *     converted to such.  NaN otherwise.
  */
 Interpreter.legalArrayLength = function(x) {
@@ -231,7 +239,7 @@ Interpreter.legalArrayLength = function(x) {
 /**
  * Is a value a legal integer for an array index?
  * @param {Interpreter.Value} x Value to check.
- * @return {number} Zero, or a positive integer if the value can be
+ * @returns {number} Zero, or a positive integer if the value can be
  *     converted to such.  NaN otherwise.
  */
 Interpreter.legalArrayIndex = function(x) {
@@ -317,17 +325,19 @@ Interpreter.prototype.appendCodeNumber_ = 0;
  * Parse JavaScript code into an AST using Acorn.
  * @param {string} code Raw JavaScript text.
  * @param {string} sourceFile Name of filename (for stack trace).
- * @return {!Object} AST.
+ * @returns {!Object} AST.
  * @private
  */
 Interpreter.prototype.parse_ = function(code, sourceFile) {
    // Create a new options object, since Acorn will modify this object.
+   // Inheritance can't be used since Acorn uses hasOwnProperty.
+   // Object.assign can't be used since that's ES6.
    var options = {};
    for (var name in Interpreter.PARSE_OPTIONS) {
      options[name] = Interpreter.PARSE_OPTIONS[name];
    }
    options['sourceFile'] = sourceFile;
-   return acorn.parse(code, options);
+   return Interpreter.nativeGlobal['acorn'].parse(code, options);
 };
 
 /**
@@ -337,27 +347,27 @@ Interpreter.prototype.parse_ = function(code, sourceFile) {
 Interpreter.prototype.appendCode = function(code) {
   var state = this.stateStack[0];
   if (!state || state.node['type'] !== 'Program') {
-    throw Error('Expecting original AST to start with a Program node.');
+    throw Error('Expecting original AST to start with a Program node');
   }
   if (typeof code === 'string') {
     code = this.parse_(code, 'appendCode' + (this.appendCodeNumber_++));
   }
   if (!code || code['type'] !== 'Program') {
-    throw Error('Expecting new AST to start with a Program node.');
+    throw Error('Expecting new AST to start with a Program node');
   }
   this.populateScope_(code, state.scope);
   // Append the new program to the old one.
   Array.prototype.push.apply(state.node['body'], code['body']);
+  state.node['body'].variableCache_ = null;
   state.done = false;
 };
 
 /**
  * Execute one step of the interpreter.
- * @return {boolean} True if a step was executed, false if no more instructions.
+ * @returns {boolean} True if a step was executed, false if no more instructions.
  */
 Interpreter.prototype.step = function() {
   var stack = this.stateStack;
-  var startTime = Date.now();
   do {
     var state = stack[stack.length - 1];
     if (!state) {
@@ -369,34 +379,53 @@ Interpreter.prototype.step = function() {
     } else if (this.paused_) {
       return true;
     }
+    // Record the interpreter in a global property so calls to toString/valueOf
+    // can execute in the proper context.
+    var oldInterpreterValue = Interpreter.currentInterpreter_;
+    Interpreter.currentInterpreter_ = this;
     try {
       var nextState = this.stepFunctions_[type](stack, state, node);
     } catch (e) {
       // Eat any step errors.  They have been thrown on the stack.
       if (e !== Interpreter.STEP_ERROR) {
-        // Uh oh.  This is a real error in the JS-Interpreter.  Rethrow.
+        // This is a real error, either in the JS-Interpreter, or an uncaught
+        // error in the interpreted code.  Rethrow.
+        if (this.value !== e) {
+          // Uh oh.  Internal error in the JS-Interpreter.
+          this.value = undefined;
+        }
         throw e;
       }
+    } finally {
+      // Restore to previous value (probably null, maybe nested toString calls).
+      Interpreter.currentInterpreter_ = oldInterpreterValue;
     }
     if (nextState) {
       stack.push(nextState);
     }
     if (this.getterStep_) {
       // Getter from this step was not handled.
+      this.value = undefined;
       throw Error('Getter not supported in this context');
     }
     if (this.setterStep_) {
       // Setter from this step was not handled.
+      this.value = undefined;
       throw Error('Setter not supported in this context');
     }
     // This may be polyfill code.  Keep executing until we arrive at user code.
-  } while (!node['end'] && startTime + this['POLYFILL_TIMEOUT'] > Date.now());
+    if (!endTime && !node['end']) {
+      // Ideally this would be defined at the top of the function, but that
+      // wastes time if the step isn't a polyfill.
+      var endTime = Date.now() + this['POLYFILL_TIMEOUT'];
+    }
+  } while (!node['end'] && endTime > Date.now());
   return true;
 };
 
 /**
  * Execute the interpreter to program completion.  Vulnerable to infinite loops.
- * @return {boolean} True if a execution is asynchronously blocked,
+ * @returns {boolean} True if a execution is asynchronously blocked,
  *     false if no more instructions.
  */
 Interpreter.prototype.run = function() {
@@ -501,7 +530,7 @@ Interpreter.prototype.initGlobal = function(globalObject) {
   // Initialize global functions.
   var thisInterpreter = this;
   var func = this.createNativeFunction(
-      function(x) {throw EvalError("Can't happen");}, false);
+      function(_x) {throw EvalError("Can't happen");}, false);
   func.eval = true;
   this.setProperty(globalObject, 'eval', func,
       Interpreter.NONENUMERABLE_DESCRIPTOR);
@@ -608,7 +637,8 @@ Interpreter.prototype.initFunction = function(globalObject) {
     // object created by stepCallExpression and assigned to `this` is discarded.
     // Interestingly, the scope for constructed functions is the global scope,
     // even if they were constructed in some other scope.
-    return thisInterpreter.createFunction(node, thisInterpreter.globalScope, 'anonymous');
+    return thisInterpreter.createFunction(node, thisInterpreter.globalScope,
+       'anonymous');
   };
   this.FUNCTION = this.createNativeFunction(wrapper, true);
 
@@ -1014,435 +1044,457 @@ Interpreter.prototype.initArray = function(globalObject) {
   this.ARRAY_PROTO.class = 'Array';
 
   this.polyfills_.push(
-"Object.defineProperty(Array.prototype, 'pop',",
-    "{configurable: true, writable: true, value:",
-  "function pop() {",
-    "if (!this) throw TypeError();",
-    "var o = Object(this);",
-    "var len = o.length >>> 0;",
-    "if (!len || len < 0) {",
-      "o.length = 0;",
-      "return undefined;",
-    "}",
-    "len--;",
-    "var x = o[len];",
-    "delete o[len];",  // Needed for non-arrays.
-    "o.length = len;",
-    "return x;",
+"(function() {",
+  "function createArrayMethod_(f) {",
+    "Object.defineProperty(Array.prototype, f.name,",
+        "{configurable: true, writable: true, value: f});",
   "}",
-"});",
 
-"Object.defineProperty(Array.prototype, 'push',",
-    "{configurable: true, writable: true, value:",
-  "function push(var_args) {",
-    "if (!this) throw TypeError();",
-    "var o = Object(this);",
-    "var len = o.length >>> 0;",
-    "for (var i = 0; i < arguments.length; i++) {",
-      "o[len] = arguments[i];",
-      "len++;",
-    "}",
-    "o.length = len;",
-    "return len;",
-  "}",
-"});",
-
-"Object.defineProperty(Array.prototype, 'shift',",
-    "{configurable: true, writable: true, value:",
-  "function shift() {",
-    "if (!this) throw TypeError();",
-    "var o = Object(this);",
-    "var len = o.length >>> 0;",
-    "if (!len || len < 0) {",
-      "o.length = 0;",
-      "return undefined;",
-    "}",
-    "var value = o[0];",
-    "for (var i = 0; i < len - 1; i++) {",
-      "o[i] = o[i + 1];",
-    "}",
-    "delete o[i];",  // Needed for non-arrays.
-    "o.length = len - 1;",
-    "return value;",
-  "}",
-"});",
-
-"Object.defineProperty(Array.prototype, 'unshift',",
-    "{configurable: true, writable: true, value:",
-  "function unshift(var_args) {",
-    "if (!this) throw TypeError();",
-    "var o = Object(this);",
-    "var len = o.length >>> 0;",
-    "if (!len || len < 0) {",
-      "len = 0;",
-    "}",
-    "for (var i = len - 1; i >= 0; i--) {",
-      "o[i + arguments.length] = o[i];",
-    "}",
-    "for (var i = 0; i < arguments.length; i++) {",
-      "o[i] = arguments[i];",
-    "}",
-    "return o.length = len + arguments.length;",
-  "}",
-"});",
-
-"Object.defineProperty(Array.prototype, 'reverse',",
-    "{configurable: true, writable: true, value:",
-  "function reverse() {",
-    "if (!this) throw TypeError();",
-    "var o = Object(this);",
-    "var len = o.length >>> 0;",
-    "if (!len || len < 2) {",
-      "return o;",  // Not an array, or too short to reverse.
-    "}",
-    "for (var i = 0; i < len / 2 - 0.5; i++) {",
-      "var x = o[i];",
-      "o[i] = o[len - i - 1];",
-      "o[len - i - 1] = x;",
-    "}",
-    "return o;",
-  "}",
-"});",
-
-"Object.defineProperty(Array.prototype, 'indexOf',",
-    "{configurable: true, writable: true, value:",
-  "function indexOf(searchElement, fromIndex) {",
-    "if (!this) throw TypeError();",
-    "var o = Object(this);",
-    "var len = o.length >>> 0;",
-    "var n = fromIndex | 0;",
-    "if (!len || n >= len) {",
-      "return -1;",
-    "}",
-    "var i = Math.max(n >= 0 ? n : len - Math.abs(n), 0);",
-    "while (i < len) {",
-      "if (i in o && o[i] === searchElement) {",
-        "return i;",
+  "createArrayMethod_(",
+    "function pop() {",
+      "if (!this) throw TypeError();",
+      "var o = Object(this), len = o.length >>> 0;",
+      "if (!len || len < 0) {",
+        "o.length = 0;",
+        "return undefined;",
       "}",
-      "i++;",
+      "len--;",
+      "var x = o[len];",
+      "delete o[len];",  // Needed for non-arrays.
+      "o.length = len;",
+      "return x;",
     "}",
-    "return -1;",
-  "}",
-"});",
+  ");",
 
-"Object.defineProperty(Array.prototype, 'lastIndexOf',",
-    "{configurable: true, writable: true, value:",
-  "function lastIndexOf(searchElement, fromIndex) {",
-    "if (!this) throw TypeError();",
-    "var o = Object(this);",
-    "var len = o.length >>> 0;",
-    "if (!len) {",
-      "return -1;",
-    "}",
-    "var n = len - 1;",
-    "if (arguments.length > 1) {",
-      "n = fromIndex | 0;",
-      "if (n) {",
-        "n = (n > 0 || -1) * Math.floor(Math.abs(n));",
+  "createArrayMethod_(",
+    "function push(var_args) {",
+      "if (!this) throw TypeError();",
+      "var o = Object(this), len = o.length >>> 0;",
+      "for (var i = 0; i < arguments.length; i++) {",
+        "o[len] = arguments[i];",
+        "len++;",
       "}",
+      "o.length = len;",
+      "return len;",
     "}",
-    "var i = n >= 0 ? Math.min(n, len - 1) : len - Math.abs(n);",
-    "while (i >= 0) {",
-      "if (i in o && o[i] === searchElement) {",
-        "return i;",
+  ");",
+
+  "createArrayMethod_(",
+    "function shift() {",
+      "if (!this) throw TypeError();",
+      "var o = Object(this), len = o.length >>> 0;",
+      "if (!len || len < 0) {",
+        "o.length = 0;",
+        "return undefined;",
       "}",
-      "i--;",
-    "}",
-    "return -1;",
-  "}",
-"});",
-
-"Object.defineProperty(Array.prototype, 'slice',",
-    "{configurable: true, writable: true, value:",
-  "function slice(start, end) {",
-    "if (!this) throw TypeError();",
-    "var o = Object(this);",
-    "var len = o.length >>> 0;",
-    // Handle negative value for "start"
-    "start |= 0;",
-    "start = (start >= 0) ? start : Math.max(0, len + start);",
-    // Handle negative value for "end"
-    "if (typeof end !== 'undefined') {",
-      "if (end !== Infinity) {",
-        "end |= 0;",
-      "}",
-      "if (end < 0) {",
-        "end = len + end;",
-      "} else {",
-        "end = Math.min(end, len);",
-      "}",
-    "} else {",
-      "end = len;",
-    "}",
-    "var size = end - start;",
-    "var cloned = [];",
-    "for (var i = 0; i < size; i++) {",
-      "cloned[i] = o[start + i];",
-    "}",
-    "return cloned;",
-  "}",
-"});",
-
-"Object.defineProperty(Array.prototype, 'splice',",
-    "{configurable: true, writable: true, value:",
-  "function splice(start, deleteCount, var_args) {",
-    "if (!this) throw TypeError();",
-    "var o = Object(this);",
-    "var len = o.length >>> 0;",
-    "start |= 0;",
-    "if (start < 0) {",
-      "start = Math.max(len + start, 0);",
-    "} else {",
-      "start = Math.min(start, len);",
-    "}",
-    "if (arguments.length < 1) {",
-      "deleteCount = len - start;",
-    "} else {",
-      "deleteCount |= 0;",
-      "deleteCount = Math.max(0, Math.min(deleteCount, len - start));",
-    "}",
-    "var removed = [];",
-    // Remove specified elements.
-    "for (var i = start; i < start + deleteCount; i++) {",
-      "removed[removed.length++] = o[i];",
-      "o[i] = o[i + deleteCount];",
-    "}",
-    // Move other element to fill the gap.
-    "for (var i = start + deleteCount; i < len - deleteCount; i++) {",
-      "o[i] = o[i + deleteCount];",
-    "}",
-    // Delete superfluous properties.
-    "for (var i = len - deleteCount; i < len; i++) {",
-      "delete o[i];",
-    "}",
-    "len -= deleteCount;",
-    // Insert specified items.
-    "for (var i = len - 1; i >= start; i--) {",
-      "o[i + arguments.length - 2] = o[i];",
-    "}",
-    "len += arguments.length - 2;",
-    "for (var i = 2; i < arguments.length; i++) {",
-      "o[start + i - 2] = arguments[i];",
-    "}",
-    "o.length = len;",
-    "return removed;",
-  "}",
-"});",
-
-"Object.defineProperty(Array.prototype, 'concat',",
-    "{configurable: true, writable: true, value:",
-  "function concat(var_args) {",
-    "if (!this) throw TypeError();",
-    "var o = Object(this);",
-    "var cloned = [];",
-    "for (var i = -1; i < arguments.length; i++) {",
-      "var value = (i === -1) ? o : arguments[i];",
-      "if (Array.isArray(value)) {",
-        "cloned.push.apply(cloned, value);",
-      "} else {",
-        "cloned.push(value);",
-      "}",
-    "}",
-    "return cloned;",
-  "}",
-"});",
-
-"Object.defineProperty(Array.prototype, 'join',",
-    "{configurable: true, writable: true, value:",
-  "function join(opt_separator) {",
-    "if (!this) throw TypeError();",
-    "var o = Object(this);",
-    "var sep = typeof opt_separator === 'undefined' ?",
-        "',' : ('' + opt_separator);",
-    "var str = '';",
-    "for (var i = 0; i < o.length; i++) {",
-      "if (i && sep) {",
-        "str += sep;",
-      "}",
-      "str += o[i];",
-    "}",
-    "return str;",
-  "}",
-"});",
-
-// Polyfill copied from:
-// developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Array/every
-"Object.defineProperty(Array.prototype, 'every',",
-    "{configurable: true, writable: true, value:",
-  "function every(callbackfn, thisArg) {",
-    "if (!this || typeof callbackfn !== 'function') throw TypeError();",
-    "var t, k;",
-    "var o = Object(this);",
-    "var len = o.length >>> 0;",
-    "if (arguments.length > 1) t = thisArg;",
-    "k = 0;",
-    "while (k < len) {",
-      "if (k in o && !callbackfn.call(t, o[k], k, o)) return false;",
-      "k++;",
-    "}",
-    "return true;",
-  "}",
-"});",
-
-// Polyfill copied from:
-// developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Array/filter
-"Object.defineProperty(Array.prototype, 'filter',",
-    "{configurable: true, writable: true, value:",
-  "function filter(fun, var_args) {",
-    "if (this === void 0 || this === null || typeof fun !== 'function') throw TypeError();",
-    "var o = Object(this);",
-    "var len = o.length >>> 0;",
-    "var res = [];",
-    "var thisArg = arguments.length >= 2 ? arguments[1] : void 0;",
-    "for (var i = 0; i < len; i++) {",
-      "if (i in o) {",
-        "var val = o[i];",
-        "if (fun.call(thisArg, val, i, o)) res.push(val);",
-      "}",
-    "}",
-    "return res;",
-  "}",
-"});",
-
-// Polyfill copied from:
-// developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Array/forEach
-"Object.defineProperty(Array.prototype, 'forEach',",
-    "{configurable: true, writable: true, value:",
-  "function forEach(callback, thisArg) {",
-    "if (!this || typeof callback !== 'function') throw TypeError();",
-    "var t, k;",
-    "var o = Object(this);",
-    "var len = o.length >>> 0;",
-    "if (arguments.length > 1) t = thisArg;",
-    "k = 0;",
-    "while (k < len) {",
-      "if (k in o) callback.call(t, o[k], k, o);",
-      "k++;",
-    "}",
-  "}",
-"});",
-
-// Polyfill copied from:
-// developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Array/map
-"Object.defineProperty(Array.prototype, 'map',",
-    "{configurable: true, writable: true, value:",
-  "function map(callback, thisArg) {",
-    "if (!this || typeof callback !== 'function') throw TypeError();",
-    "var t, a, k;",
-    "var o = Object(this);",
-    "var len = o.length >>> 0;",
-    "if (arguments.length > 1) t = thisArg;",
-    "a = new Array(len);",
-    "k = 0;",
-    "while (k < len) {",
-      "if (k in o) a[k] = callback.call(t, o[k], k, o);",
-      "k++;",
-    "}",
-    "return a;",
-  "}",
-"});",
-
-// Polyfill copied from:
-// developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Array/Reduce
-"Object.defineProperty(Array.prototype, 'reduce',",
-    "{configurable: true, writable: true, value:",
-  "function reduce(callback /*, initialValue*/) {",
-    "if (!this || typeof callback !== 'function') throw TypeError();",
-    "var o = Object(this), len = o.length >>> 0, k = 0, value;",
-    "if (arguments.length === 2) {",
-      "value = arguments[1];",
-    "} else {",
-      "while (k < len && !(k in o)) k++;",
-      "if (k >= len) {",
-        "throw TypeError('Reduce of empty array with no initial value');",
-      "}",
-      "value = o[k++];",
-    "}",
-    "for (; k < len; k++) {",
-      "if (k in o) value = callback(value, o[k], k, o);",
-    "}",
-    "return value;",
-  "}",
-"});",
-
-// Polyfill copied from:
-// developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Array/ReduceRight
-"Object.defineProperty(Array.prototype, 'reduceRight',",
-    "{configurable: true, writable: true, value:",
-  "function reduceRight(callback /*, initialValue*/) {",
-    "if (null === this || 'undefined' === typeof this || 'function' !== typeof callback) throw TypeError();",
-    "var o = Object(this), len = o.length >>> 0, k = len - 1, value;",
-    "if (arguments.length >= 2) {",
-      "value = arguments[1];",
-    "} else {",
-      "while (k >= 0 && !(k in o)) k--;",
-      "if (k < 0) {",
-        "throw TypeError('Reduce of empty array with no initial value');",
-      "}",
-      "value = o[k--];",
-    "}",
-    "for (; k >= 0; k--) {",
-      "if (k in o) value = callback(value, o[k], k, o);",
-    "}",
-    "return value;",
-  "}",
-"});",
-
-// Polyfill copied from:
-// developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Array/some
-"Object.defineProperty(Array.prototype, 'some',",
-    "{configurable: true, writable: true, value:",
-  "function some(fun/*, thisArg*/) {",
-    "if (!this || typeof fun !== 'function') throw TypeError();",
-    "var o = Object(this);",
-    "var len = o.length >>> 0;",
-    "var thisArg = arguments.length >= 2 ? arguments[1] : void 0;",
-    "for (var i = 0; i < len; i++) {",
-      "if (i in o && fun.call(thisArg, o[i], i, o)) {",
-        "return true;",
-      "}",
-    "}",
-    "return false;",
-  "}",
-"});",
-
-
-"Object.defineProperty(Array.prototype, 'sort',",
-    "{configurable: true, writable: true, value:",
-  "function sort(opt_comp) {",  // Bubble sort!
-    "if (!this) throw TypeError();",
-    "if (typeof opt_comp !== 'function') {",
-      "opt_comp = undefined;",
-    "}",
-    "for (var i = 0; i < this.length; i++) {",
-      "var changes = 0;",
-      "for (var j = 0; j < this.length - i - 1; j++) {",
-        "if (opt_comp ? (opt_comp(this[j], this[j + 1]) > 0) :",
-            "(String(this[j]) > String(this[j + 1]))) {",
-          "var swap = this[j];",
-          "this[j] = this[j + 1];",
-          "this[j + 1] = swap;",
-          "changes++;",
+      "var value = o[0];",
+      "for (var i = 0; i < len - 1; i++) {",
+        "if ((i + 1) in o) {",
+          "o[i] = o[i + 1];",
+        "} else {",
+          "delete o[i];",
         "}",
       "}",
-      "if (!changes) break;",
+      "delete o[i];",  // Needed for non-arrays.
+      "o.length = len - 1;",
+      "return value;",
     "}",
-    "return this;",
-  "}",
-"});",
+  ");",
 
-"Object.defineProperty(Array.prototype, 'toLocaleString',",
-    "{configurable: true, writable: true, value:",
-  "function toLocaleString() {",
-    "if (!this) throw TypeError();",
-    "var o = Object(this);",
-    "var out = [];",
-    "for (var i = 0; i < o.length; i++) {",
-      "out[i] = (o[i] === null || o[i] === undefined) ? '' : o[i].toLocaleString();",
+  "createArrayMethod_(",
+    "function unshift(var_args) {",
+      "if (!this) throw TypeError();",
+      "var o = Object(this), len = o.length >>> 0;",
+      "if (!len || len < 0) {",
+        "len = 0;",
+      "}",
+      "for (var i = len - 1; i >= 0; i--) {",
+        "if (i in o) {",
+          "o[i + arguments.length] = o[i];",
+        "} else {",
+          "delete o[i + arguments.length];",
+        "}",
+      "}",
+      "for (var i = 0; i < arguments.length; i++) {",
+        "o[i] = arguments[i];",
+      "}",
+      "return (o.length = len + arguments.length);",
     "}",
-    "return out.join(',');",
-  "}",
-"});",
+  ");",
+
+  "createArrayMethod_(",
+    "function reverse() {",
+      "if (!this) throw TypeError();",
+      "var o = Object(this), len = o.length >>> 0;",
+      "if (!len || len < 2) {",
+        "return o;",  // Not an array, or too short to reverse.
+      "}",
+      "for (var i = 0; i < len / 2 - 0.5; i++) {",
+        "var x = o[i];",
+        "var hasX = i in o;",
+        "if ((len - i - 1) in o) {",
+          "o[i] = o[len - i - 1];",
+        "} else {",
+          "delete o[i];",
+        "}",
+        "if (hasX) {",
+          "o[len - i - 1] = x;",
+        "} else {",
+          "delete o[len - i - 1];",
+        "}",
+      "}",
+      "return o;",
+    "}",
+  ");",
+
+  "createArrayMethod_(",
+    "function indexOf(searchElement, fromIndex) {",
+      "if (!this) throw TypeError();",
+      "var o = Object(this), len = o.length >>> 0;",
+      "var n = fromIndex | 0;",
+      "if (!len || n >= len) {",
+        "return -1;",
+      "}",
+      "var i = Math.max(n >= 0 ? n : len - Math.abs(n), 0);",
+      "while (i < len) {",
+        "if (i in o && o[i] === searchElement) {",
+          "return i;",
+        "}",
+        "i++;",
+      "}",
+      "return -1;",
+    "}",
+  ");",
+
+  "createArrayMethod_(",
+    "function lastIndexOf(searchElement, fromIndex) {",
+      "if (!this) throw TypeError();",
+      "var o = Object(this), len = o.length >>> 0;",
+      "if (!len) {",
+        "return -1;",
+      "}",
+      "var n = len - 1;",
+      "if (arguments.length > 1) {",
+        "n = fromIndex | 0;",
+        "if (n) {",
+          "n = (n > 0 || -1) * Math.floor(Math.abs(n));",
+        "}",
+      "}",
+      "var i = n >= 0 ? Math.min(n, len - 1) : len - Math.abs(n);",
+      "while (i >= 0) {",
+        "if (i in o && o[i] === searchElement) {",
+          "return i;",
+        "}",
+        "i--;",
+      "}",
+      "return -1;",
+    "}",
+  ");",
+
+  "createArrayMethod_(",
+    "function slice(start, end) {",
+      "if (!this) throw TypeError();",
+      "var o = Object(this), len = o.length >>> 0;",
+      // Handle negative value for "start"
+      "start |= 0;",
+      "start = (start >= 0) ? start : Math.max(0, len + start);",
+      // Handle negative value for "end"
+      "if (typeof end !== 'undefined') {",
+        "if (end !== Infinity) {",
+          "end |= 0;",
+        "}",
+        "if (end < 0) {",
+          "end = len + end;",
+        "} else {",
+          "end = Math.min(end, len);",
+        "}",
+      "} else {",
+        "end = len;",
+      "}",
+      "var size = end - start;",
+      "var cloned = new Array(size);",
+      "for (var i = 0; i < size; i++) {",
+        "if ((start + i) in o) {",
+          "cloned[i] = o[start + i];",
+        "}",
+      "}",
+      "return cloned;",
+    "}",
+  ");",
+
+  "createArrayMethod_(",
+    "function splice(start, deleteCount, var_args) {",
+      "if (!this) throw TypeError();",
+      "var o = Object(this), len = o.length >>> 0;",
+      "start |= 0;",
+      "if (start < 0) {",
+        "start = Math.max(len + start, 0);",
+      "} else {",
+        "start = Math.min(start, len);",
+      "}",
+      "if (arguments.length < 1) {",
+        "deleteCount = len - start;",
+      "} else {",
+        "deleteCount |= 0;",
+        "deleteCount = Math.max(0, Math.min(deleteCount, len - start));",
+      "}",
+      "var removed = [];",
+      // Remove specified elements.
+      "for (var i = start; i < start + deleteCount; i++) {",
+        "if (i in o) {",
+          "removed.push(o[i]);",
+        "} else {",
+          "removed.length++;",
+        "}",
+        "if ((i + deleteCount) in o) {",
+          "o[i] = o[i + deleteCount];",
+        "} else {",
+          "delete o[i];",
+        "}",
+      "}",
+      // Move other element to fill the gap.
+      "for (var i = start + deleteCount; i < len - deleteCount; i++) {",
+        "if ((i + deleteCount) in o) {",
+          "o[i] = o[i + deleteCount];",
+        "} else {",
+          "delete o[i];",
+        "}",
+      "}",
+      // Delete superfluous properties.
+      "for (var i = len - deleteCount; i < len; i++) {",
+        "delete o[i];",
+      "}",
+      "len -= deleteCount;",
+      // Insert specified items.
+      "var arl = arguments.length - 2;",
+      "for (var i = len - 1; i >= start; i--) {",
+        "if (i in o) {",
+          "o[i + arl] = o[i];",
+        "} else {",
+          "delete o[i + arl];",
+        "}",
+      "}",
+      "len += arl;",
+      "for (var i = 2; i < arguments.length; i++) {",
+        "o[start + i - 2] = arguments[i];",
+      "}",
+      "o.length = len;",
+      "return removed;",
+    "}",
+  ");",
+
+  "createArrayMethod_(",
+    "function concat(var_args) {",
+      "if (!this) throw TypeError();",
+      "var o = Object(this);",
+      "var cloned = [];",
+      "for (var i = -1; i < arguments.length; i++) {",
+        "var value = (i === -1) ? o : arguments[i];",
+        "if (Array.isArray(value)) {",
+          "for (var j = 0, l = value.length; j < l; j++) {",
+            "if (j in value) {",
+              "cloned.push(value[j]);",
+            "} else {",
+              "cloned.length++;",
+            "}",
+          "}",
+        "} else {",
+          "cloned.push(value);",
+        "}",
+      "}",
+      "return cloned;",
+    "}",
+  ");",
+
+  "createArrayMethod_(",
+    "function join(opt_separator) {",
+      "if (!this) throw TypeError();",
+      "var o = Object(this), len = o.length >>> 0;",
+      "var sep = typeof opt_separator === 'undefined' ?",
+          "',' : ('' + opt_separator);",
+      "var str = '';",
+      "for (var i = 0; i < len; i++) {",
+        "if (i && sep) {",
+          "str += sep;",
+        "}",
+        "str += (o[i] === null || o[i] === undefined) ? '' : o[i];",
+      "}",
+      "return str;",
+    "}",
+  ");",
+
+  // Polyfill copied from:
+  // developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Array/every
+  "createArrayMethod_(",
+    "function every(callbackfn, thisArg) {",
+      "if (!this || typeof callbackfn !== 'function') throw TypeError();",
+      "var t, k = 0;",
+      "var o = Object(this), len = o.length >>> 0;",
+      "if (arguments.length > 1) t = thisArg;",
+      "while (k < len) {",
+        "if (k in o && !callbackfn.call(t, o[k], k, o)) return false;",
+        "k++;",
+      "}",
+      "return true;",
+    "}",
+  ");",
+
+  // Polyfill copied from:
+  // developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Array/filter
+  "createArrayMethod_(",
+    "function filter(fun, var_args) {",
+      "if (this === void 0 || this === null || typeof fun !== 'function') throw TypeError();",
+      "var o = Object(this), len = o.length >>> 0;",
+      "var res = [];",
+      "var thisArg = arguments.length >= 2 ? arguments[1] : void 0;",
+      "for (var i = 0; i < len; i++) {",
+        "if (i in o) {",
+          "var val = o[i];",
+          "if (fun.call(thisArg, val, i, o)) res.push(val);",
+        "}",
+      "}",
+      "return res;",
+    "}",
+  ");",
+
+  // Polyfill copied from:
+  // developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Array/forEach
+  "createArrayMethod_(",
+    "function forEach(callback, thisArg) {",
+      "if (!this || typeof callback !== 'function') throw TypeError();",
+      "var t, k = 0;",
+      "var o = Object(this), len = o.length >>> 0;",
+      "if (arguments.length > 1) t = thisArg;",
+      "while (k < len) {",
+        "if (k in o) callback.call(t, o[k], k, o);",
+        "k++;",
+      "}",
+    "}",
+  ");",
+
+  // Polyfill copied from:
+  // developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Array/map
+  "createArrayMethod_(",
+    "function map(callback, thisArg) {",
+      "if (!this || typeof callback !== 'function') throw TypeError();",
+      "var t, k = 0;",
+      "var o = Object(this), len = o.length >>> 0;",
+      "if (arguments.length > 1) t = thisArg;",
+      "var a = new Array(len);",
+      "while (k < len) {",
+        "if (k in o) a[k] = callback.call(t, o[k], k, o);",
+        "k++;",
+      "}",
+      "return a;",
+    "}",
+  ");",
+
+  // Polyfill copied from:
+  // developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Array/Reduce
+  "createArrayMethod_(",
+    "function reduce(callback /*, initialValue*/) {",
+      "if (!this || typeof callback !== 'function') throw TypeError();",
+      "var o = Object(this), len = o.length >>> 0;",
+      "var k = 0, value;",
+      "if (arguments.length === 2) {",
+        "value = arguments[1];",
+      "} else {",
+        "while (k < len && !(k in o)) k++;",
+        "if (k >= len) {",
+          "throw TypeError('Reduce of empty array with no initial value');",
+        "}",
+        "value = o[k++];",
+      "}",
+      "for (; k < len; k++) {",
+        "if (k in o) value = callback(value, o[k], k, o);",
+      "}",
+      "return value;",
+    "}",
+  ");",
+
+  // Polyfill copied from:
+  // developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Array/ReduceRight
+  "createArrayMethod_(",
+    "function reduceRight(callback /*, initialValue*/) {",
+      "if (null === this || 'undefined' === typeof this || 'function' !== typeof callback) throw TypeError();",
+      "var o = Object(this), len = o.length >>> 0;",
+      "var k = len - 1, value;",
+      "if (arguments.length >= 2) {",
+        "value = arguments[1];",
+      "} else {",
+        "while (k >= 0 && !(k in o)) k--;",
+        "if (k < 0) {",
+          "throw TypeError('Reduce of empty array with no initial value');",
+        "}",
+        "value = o[k--];",
+      "}",
+      "for (; k >= 0; k--) {",
+        "if (k in o) value = callback(value, o[k], k, o);",
+      "}",
+      "return value;",
+    "}",
+  ");",
+
+  // Polyfill copied from:
+  // developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Array/some
+  "createArrayMethod_(",
+    "function some(fun/*, thisArg*/) {",
+      "if (!this || typeof fun !== 'function') throw TypeError();",
+      "var o = Object(this), len = o.length >>> 0;",
+      "var thisArg = arguments.length >= 2 ? arguments[1] : void 0;",
+      "for (var i = 0; i < len; i++) {",
+        "if (i in o && fun.call(thisArg, o[i], i, o)) {",
+          "return true;",
+        "}",
+      "}",
+      "return false;",
+    "}",
+  ");",
+
+  "createArrayMethod_(",
+    "function sort(opt_comp) {",  // Bubble sort!
+      "if (!this) throw TypeError();",
+      "if (typeof opt_comp !== 'function') {",
+        "opt_comp = undefined;",
+      "}",
+      "for (var i = 0; i < this.length; i++) {",
+        "var changes = 0;",
+        "for (var j = 0; j < this.length - i - 1; j++) {",
+          "if (opt_comp ? (opt_comp(this[j], this[j + 1]) > 0) :",
+              "(String(this[j]) > String(this[j + 1]))) {",
+            "var swap = this[j];",
+            "var hasSwap = j in this;",
+            "if ((j + 1) in this) {",
+              "this[j] = this[j + 1];",
+            "} else {",
+              "delete this[j];",
+            "}",
+            "if (hasSwap) {",
+              "this[j + 1] = swap;",
+            "} else {",
+              "delete this[j + 1];",
+            "}",
+            "changes++;",
+          "}",
+        "}",
+        "if (!changes) break;",
+      "}",
+      "return this;",
+    "}",
+  ");",
+
+  "createArrayMethod_(",
+    "function toLocaleString() {",
+      "if (!this) throw TypeError();",
+      "var o = Object(this), len = o.length >>> 0;",
+      "var out = [];",
+      "for (var i = 0; i < len; i++) {",
+        "out[i] = (o[i] === null || o[i] === undefined) ? '' : o[i].toLocaleString();",
+      "}",
+      "return out.join(',');",
+    "}",
+  ");",
+"})();",
 "");
 };
 
@@ -1510,7 +1562,7 @@ Interpreter.prototype.initString = function(globalObject) {
           var sandbox = {
             'string': string,
             'separator': separator,
-            'limit': limit
+            'limit': limit,
           };
           var code = 'string.split(separator, limit)';
           var jsList =
@@ -1540,11 +1592,8 @@ Interpreter.prototype.initString = function(globalObject) {
 
   wrapper = function match(regexp, callback) {
     var string = String(this);
-    if (thisInterpreter.isa(regexp, thisInterpreter.REGEXP)) {
-      regexp = regexp.data;
-    } else {
-      regexp = new RegExp(regexp);
-    }
+    regexp = thisInterpreter.isa(regexp, thisInterpreter.REGEXP) ?
+        regexp.data : new RegExp(regexp);
     // Example of catastrophic match RegExp:
     // 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaac'.match(/^(a+)+b/)
     thisInterpreter.maybeThrowRegExp(regexp, callback);
@@ -1553,7 +1602,7 @@ Interpreter.prototype.initString = function(globalObject) {
         // Run match in vm.
         var sandbox = {
           'string': string,
-          'regexp': regexp
+          'regexp': regexp,
         };
         var code = 'string.match(regexp)';
         var m = thisInterpreter.vmCall(code, sandbox, regexp, callback);
@@ -1632,7 +1681,7 @@ Interpreter.prototype.initString = function(globalObject) {
           var sandbox = {
             'string': string,
             'substr': substr,
-            'newSubstr': newSubstr
+            'newSubstr': newSubstr,
           };
           var code = 'string.replace(substr, newSubstr)';
           var str = thisInterpreter.vmCall(code, sandbox, substr, callback);
@@ -1805,13 +1854,13 @@ Interpreter.prototype.initDate = function(globalObject) {
   var thisInterpreter = this;
   var wrapper;
   // Date constructor.
-  wrapper = function Date(value, var_args) {
+  wrapper = function Date(_value, var_args) {
     if (!thisInterpreter.calledWithNew()) {
       // Called as `Date()`.
       // Calling Date() as a function returns a string, no arguments are heeded.
       return Interpreter.nativeGlobal.Date();
     }
-    // Called as `new Date()`.
+    // Called as `new Date(...)`.
     var args = [null].concat(Array.from(arguments));
     this.data = new (Function.prototype.bind.apply(
         Interpreter.nativeGlobal.Date, args));
@@ -1888,8 +1937,18 @@ Interpreter.prototype.initRegExp = function(globalObject) {
     }
     pattern = pattern === undefined ? '' : String(pattern);
     flags = flags ? String(flags) : '';
-    thisInterpreter.populateRegExp(rgx,
-        new Interpreter.nativeGlobal.RegExp(pattern, flags));
+    if (!/^[gmi]*$/.test(flags)) {
+      // Don't allow ES6 flags 'y' and 's' to pass through.
+      thisInterpreter.throwException(thisInterpreter.SYNTAX_ERROR,
+          'Invalid regexp flag');
+    }
+    try {
+      var nativeRegExp = new Interpreter.nativeGlobal.RegExp(pattern, flags)
+    } catch (e) {
+      // Throws if flags are repeated.
+      thisInterpreter.throwException(thisInterpreter.SYNTAX_ERROR, e.message);
+    }
+    thisInterpreter.populateRegExp(rgx, nativeRegExp);
     return rgx;
   };
   this.REGEXP = this.createNativeFunction(wrapper, true);
@@ -1928,7 +1987,7 @@ Interpreter.prototype.initRegExp = function(globalObject) {
         // Run exec in vm.
         var sandbox = {
           'string': string,
-          'regexp': regexp
+          'regexp': regexp,
         };
         var code = 'regexp.exec(string)';
         var match = thisInterpreter.vmCall(code, sandbox, regexp, callback);
@@ -2107,7 +2166,7 @@ Interpreter.prototype.initJSON = function(globalObject) {
  * Is an object of a certain class?
  * @param {Interpreter.Value} child Object to check.
  * @param {Interpreter.Object} constructor Constructor of object.
- * @return {boolean} True if object is the class or inherits from it.
+ * @returns {boolean} True if object is the class or inherits from it.
  *     False otherwise.
  */
 Interpreter.prototype.isa = function(child, constructor) {
@@ -2168,21 +2227,21 @@ Interpreter.prototype.populateError = function(pseudoError, opt_message) {
     if (node['type'] === 'CallExpression') {
       var func = state.func_;
       if (func && tracebackData.length) {
-        tracebackData[tracebackData.length - 1].name =
+        tracebackData[tracebackData.length - 1].datumName =
             this.getProperty(func, 'name');
       }
     }
     if (node['loc'] &&
         (!tracebackData.length || node['type'] === 'CallExpression')) {
-      tracebackData.push({loc: node['loc']});
+      tracebackData.push({datumLoc: node['loc']});
     }
   }
-  var name = String(this.getProperty(pseudoError, 'name'));
-  var message = String(this.getProperty(pseudoError, 'message'));
-  var stackString = name + ': ' + message + '\n';
+  var errorName = String(this.getProperty(pseudoError, 'name'));
+  var errorMessage = String(this.getProperty(pseudoError, 'message'));
+  var stackString = errorName + ': ' + errorMessage + '\n';
   for (var i = 0; i < tracebackData.length; i++) {
-    var loc = tracebackData[i].loc;
-    var name = tracebackData[i].name;
+    var loc = tracebackData[i].datumLoc;
+    var name = tracebackData[i].datumName;
     var locString = loc['source'] + ':' +
         loc['start']['line'] + ':' + loc['start']['column'];
     if (name) {
@@ -2200,7 +2259,7 @@ Interpreter.prototype.populateError = function(pseudoError, opt_message) {
  * Using a separate file fails in Chrome when run locally on a file:// URI.
  * Using a data encoded URI fails in IE and Edge.
  * Using a blob works in IE11 and all other browsers.
- * @return {!Worker} Web Worker with regexp execution code loaded.
+ * @returns {!Worker} Web Worker with regexp execution code loaded.
  */
 Interpreter.prototype.createWorker = function() {
   var blob = this.createWorker.blob_;
@@ -2224,7 +2283,7 @@ Interpreter.prototype.vmCall = function(code, sandbox, nativeRegExp, callback) {
   var options = {'timeout': this['REGEXP_THREAD_TIMEOUT']};
   try {
     return Interpreter.vm['runInNewContext'](code, sandbox, options);
-  } catch (e) {
+  } catch (_e) {
     callback(null);
     this.throwException(this.ERROR, 'RegExp Timeout: ' + nativeRegExp);
   }
@@ -2257,7 +2316,7 @@ Interpreter.prototype.maybeThrowRegExp = function(nativeRegExp, callback) {
       // Try to load Node's vm module.
       try {
         Interpreter.vm = require('vm');
-      } catch (e) {}
+      } catch (_e) {}
       ok = !!Interpreter.vm;
     } else {
       // Fail: Neither Web Workers nor vm available.
@@ -2277,7 +2336,7 @@ Interpreter.prototype.maybeThrowRegExp = function(nativeRegExp, callback) {
  * @param {!RegExp} nativeRegExp Regular expression (used for error message).
  * @param {!Worker} worker Thread to terminate.
  * @param {!Function} callback Async callback function to continue execution.
- * @return {number} PID of timeout.  Used to cancel if thread completes.
+ * @returns {number} PID of timeout.  Used to cancel if thread completes.
  */
 Interpreter.prototype.regExpTimeout = function(nativeRegExp, worker, callback) {
   var thisInterpreter = this;
@@ -2287,7 +2346,7 @@ Interpreter.prototype.regExpTimeout = function(nativeRegExp, worker, callback) {
       try {
         thisInterpreter.throwException(thisInterpreter.ERROR,
             'RegExp Timeout: ' + nativeRegExp);
-      } catch (e) {
+      } catch (_e) {
         // Eat the expected Interpreter.STEP_ERROR.
       }
   }, this['REGEXP_THREAD_TIMEOUT']);
@@ -2297,7 +2356,7 @@ Interpreter.prototype.regExpTimeout = function(nativeRegExp, worker, callback) {
  * Create a new data object based on a constructor's prototype.
  * @param {Interpreter.Object} constructor Parent constructor function,
  *     or null if scope object.
- * @return {!Interpreter.Object} New data object.
+ * @returns {!Interpreter.Object} New data object.
  */
 Interpreter.prototype.createObject = function(constructor) {
   return this.createObjectProto(constructor &&
@@ -2307,7 +2366,7 @@ Interpreter.prototype.createObject = function(constructor) {
 /**
  * Create a new data object based on a prototype.
  * @param {Interpreter.Object} proto Prototype object.
- * @return {!Interpreter.Object} New data object.
+ * @returns {!Interpreter.Object} New data object.
  */
 Interpreter.prototype.createObjectProto = function(proto) {
   if (typeof proto !== 'object') {
@@ -2325,7 +2384,7 @@ Interpreter.prototype.createObjectProto = function(proto) {
 
 /**
  * Create a new array.
- * @return {!Interpreter.Object} New array.
+ * @returns {!Interpreter.Object} New array.
  */
 Interpreter.prototype.createArray = function() {
   var array = this.createObjectProto(this.ARRAY_PROTO);
@@ -2340,7 +2399,7 @@ Interpreter.prototype.createArray = function() {
  * Create a new function object (could become interpreted or native or async).
  * @param {number} argumentLength Number of arguments.
  * @param {boolean} isConstructor True if function can be used with 'new'.
- * @return {!Interpreter.Object} New function.
+ * @returns {!Interpreter.Object} New function.
  * @private
  */
 Interpreter.prototype.createFunctionBase_ = function(argumentLength,
@@ -2368,7 +2427,7 @@ Interpreter.prototype.createFunctionBase_ = function(argumentLength,
  * @param {!Object} node AST node defining the function.
  * @param {!Interpreter.Scope} scope Parent scope.
  * @param {string=} opt_name Optional name for function.
- * @return {!Interpreter.Object} New function.
+ * @returns {!Interpreter.Object} New function.
  */
 Interpreter.prototype.createFunction = function(node, scope, opt_name) {
   var func = this.createFunctionBase_(node['params'].length, true);
@@ -2390,7 +2449,7 @@ Interpreter.prototype.createFunction = function(node, scope, opt_name) {
  * Create a new native function.
  * @param {!Function} nativeFunc JavaScript function.
  * @param {boolean} isConstructor True if function can be used with 'new'.
- * @return {!Interpreter.Object} New function.
+ * @returns {!Interpreter.Object} New function.
  */
 Interpreter.prototype.createNativeFunction = function(nativeFunc,
                                                       isConstructor) {
@@ -2405,7 +2464,7 @@ Interpreter.prototype.createNativeFunction = function(nativeFunc,
 /**
  * Create a new native asynchronous function.
  * @param {!Function} asyncFunc JavaScript function.
- * @return {!Interpreter.Object} New function.
+ * @returns {!Interpreter.Object} New function.
  */
 Interpreter.prototype.createAsyncFunction = function(asyncFunc) {
   var func = this.createFunctionBase_(asyncFunc.length, true);
@@ -2421,7 +2480,7 @@ Interpreter.prototype.createAsyncFunction = function(asyncFunc) {
  * Can handle JSON-style values, regular expressions, dates and functions.
  * Does NOT handle cycles.
  * @param {*} nativeObj The native JavaScript object to be converted.
- * @return {Interpreter.Value} The equivalent JS-Interpreter object.
+ * @returns {Interpreter.Value} The equivalent JS-Interpreter object.
  */
 Interpreter.prototype.nativeToPseudo = function(nativeObj) {
   if (nativeObj instanceof Interpreter.Object) {
@@ -2482,7 +2541,7 @@ Interpreter.prototype.nativeToPseudo = function(nativeObj) {
  * @param {Interpreter.Value} pseudoObj The JS-Interpreter object to be
  * converted.
  * @param {Object=} opt_cycles Cycle detection (used in recursive calls).
- * @return {*} The equivalent native JavaScript object or value.
+ * @returns {*} The equivalent native JavaScript object or value.
  */
 Interpreter.prototype.pseudoToNative = function(pseudoObj, opt_cycles) {
   if ((typeof pseudoObj !== 'object' && typeof pseudoObj !== 'function') ||
@@ -2505,11 +2564,11 @@ Interpreter.prototype.pseudoToNative = function(pseudoObj, opt_cycles) {
 
   var cycles = opt_cycles || {
     pseudo: [],
-    native: []
+    native: [],
   };
-  var i = cycles.pseudo.indexOf(pseudoObj);
-  if (i !== -1) {
-    return cycles.native[i];
+  var index = cycles.pseudo.indexOf(pseudoObj);
+  if (index !== -1) {
+    return cycles.native[index];
   }
   cycles.pseudo.push(pseudoObj);
   var nativeObj;
@@ -2544,7 +2603,7 @@ Interpreter.prototype.pseudoToNative = function(pseudoObj, opt_cycles) {
  * Does handle non-numeric properties (like str.match's index prop).
  * Does NOT recurse into the array's contents.
  * @param {!Array} nativeArray The JavaScript array to be converted.
- * @return {!Interpreter.Object} The equivalent JS-Interpreter array.
+ * @returns {!Interpreter.Object} The equivalent JS-Interpreter array.
  */
 Interpreter.prototype.arrayNativeToPseudo = function(nativeArray) {
   var pseudoArray = this.createArray();
@@ -2561,7 +2620,7 @@ Interpreter.prototype.arrayNativeToPseudo = function(nativeArray) {
  * Does NOT recurse into the array's contents.
  * @param {!Interpreter.Object} pseudoArray The JS-Interpreter array,
  *     or JS-Interpreter object pretending to be an array.
- * @return {!Array} The equivalent native JavaScript array.
+ * @returns {!Array} The equivalent native JavaScript array.
  */
 Interpreter.prototype.arrayPseudoToNative = function(pseudoArray) {
   var nativeArray = [];
@@ -2579,7 +2638,7 @@ Interpreter.prototype.arrayPseudoToNative = function(pseudoArray) {
 /**
  * Look up the prototype for this value.
  * @param {Interpreter.Value} value Data object.
- * @return {Interpreter.Object} Prototype object, null if none.
+ * @returns {Interpreter.Object} Prototype object, null if none.
  */
 Interpreter.prototype.getPrototype = function(value) {
   switch (typeof value) {
@@ -2600,7 +2659,7 @@ Interpreter.prototype.getPrototype = function(value) {
  * Fetch a property value from a data object.
  * @param {Interpreter.Value} obj Data object.
  * @param {Interpreter.Value} name Name of property.
- * @return {Interpreter.Value} Property value (may be undefined).
+ * @returns {Interpreter.Value} Property value (may be undefined).
  */
 Interpreter.prototype.getProperty = function(obj, name) {
   if (this.getterStep_) {
@@ -2648,7 +2707,7 @@ Interpreter.prototype.getProperty = function(obj, name) {
  * Does the named property exist on a data object.
  * @param {!Interpreter.Object} obj Data object.
  * @param {Interpreter.Value} name Name of property.
- * @return {boolean} True if property exists.
+ * @returns {boolean} True if property exists.
  */
 Interpreter.prototype.hasProperty = function(obj, name) {
   if (!(obj instanceof Interpreter.Object)) {
@@ -2680,7 +2739,7 @@ Interpreter.prototype.hasProperty = function(obj, name) {
  *     Use Interpreter.VALUE_IN_DESCRIPTOR if value is handled by
  *     descriptor instead.
  * @param {Object=} opt_descriptor Optional descriptor object.
- * @return {!Interpreter.Object|undefined} Returns a setter function if one
+ * @returns {!Interpreter.Object|undefined} Returns a setter function if one
  *     needs to be called, otherwise undefined.
  */
 Interpreter.prototype.setProperty = function(obj, name, value, opt_descriptor) {
@@ -2802,7 +2861,7 @@ Interpreter.prototype.setProperty = function(obj, name, value, opt_descriptor) {
   } else {
     // Set the property.
     if (value === Interpreter.VALUE_IN_DESCRIPTOR) {
-      throw ReferenceError('Value not specified.');
+      throw ReferenceError('Value not specified');
     }
     // Determine the parent (possibly self) where the property is defined.
     var defObj = obj;
@@ -2827,7 +2886,7 @@ Interpreter.prototype.setProperty = function(obj, name, value, opt_descriptor) {
       // No setter, simple assignment.
       try {
         obj.properties[name] = value;
-      } catch (e) {
+      } catch (_e) {
         if (strict) {
           this.throwException(this.TYPE_ERROR, "Cannot assign to read only " +
               "property '" + name + "' of object '" + obj + "'");
@@ -2837,8 +2896,10 @@ Interpreter.prototype.setProperty = function(obj, name, value, opt_descriptor) {
   }
 };
 
-Interpreter.prototype.setProperty.placeholderGet_ = function() {throw Error('Placeholder getter')};
-Interpreter.prototype.setProperty.placeholderSet_ = function() {throw Error('Placeholder setter')};
+Interpreter.prototype.setProperty.placeholderGet_ =
+    function() {throw Error('Placeholder getter');};
+Interpreter.prototype.setProperty.placeholderSet_ =
+    function() {throw Error('Placeholder setter');};
 
 /**
  * Convenience method for adding a native function as a non-enumerable property
@@ -2870,12 +2931,12 @@ Interpreter.prototype.setAsyncFunctionPrototype =
 
 /**
  * Returns the current scope from the stateStack.
- * @return {!Interpreter.Scope} Current scope.
+ * @returns {!Interpreter.Scope} Current scope.
  */
 Interpreter.prototype.getScope = function() {
   var scope = this.stateStack[this.stateStack.length - 1].scope;
   if (!scope) {
-    throw Error('No scope found.');
+    throw Error('No scope found');
   }
   return scope;
 };
@@ -2885,7 +2946,7 @@ Interpreter.prototype.getScope = function() {
  * @param {!Object} node AST node defining the scope container
  *     (e.g. a function).
  * @param {Interpreter.Scope} parentScope Scope to link to.
- * @return {!Interpreter.Scope} New scope.
+ * @returns {!Interpreter.Scope} New scope.
  */
 Interpreter.prototype.createScope = function(node, parentScope) {
   // Determine if this scope starts with `use strict`.
@@ -2912,11 +2973,12 @@ Interpreter.prototype.createScope = function(node, parentScope) {
 /**
  * Create a new special scope dictionary. Similar to createScope(), but
  * doesn't assume that the scope is for a function body.
- * This is used for 'catch' clauses and 'with' statements.
+ * This is used for 'catch' clauses, 'with' statements,
+ * and named function expressions.
  * @param {!Interpreter.Scope} parentScope Scope to link to.
  * @param {Interpreter.Object=} opt_object Optional object to transform into
  *     scope.
- * @return {!Interpreter.Scope} New scope.
+ * @returns {!Interpreter.Scope} New scope.
  */
 Interpreter.prototype.createSpecialScope = function(parentScope, opt_object) {
   if (!parentScope) {
@@ -2929,7 +2991,7 @@ Interpreter.prototype.createSpecialScope = function(parentScope, opt_object) {
 /**
  * Retrieves a value from the scope chain.
  * @param {string} name Name of variable.
- * @return {Interpreter.Value} Any value.
+ * @returns {Interpreter.Value} Any value.
  *   May be flagged as being a getter and thus needing immediate execution
  *   (rather than being the value of the property).
  */
@@ -2959,7 +3021,7 @@ Interpreter.prototype.getValueFromScope = function(name) {
  * Sets a value to the current scope.
  * @param {string} name Name of variable.
  * @param {Interpreter.Value} value Value.
- * @return {!Interpreter.Object|undefined} Returns a setter function if one
+ * @returns {!Interpreter.Object|undefined} Returns a setter function if one
  *     needs to be called, otherwise undefined.
  */
 Interpreter.prototype.setValueToScope = function(name, value) {
@@ -2967,7 +3029,14 @@ Interpreter.prototype.setValueToScope = function(name, value) {
   var strict = scope.strict;
   while (scope && scope !== this.globalScope) {
     if (name in scope.object.properties) {
-      scope.object.properties[name] = value;
+      try {
+        scope.object.properties[name] = value;
+      } catch (_e) {
+        if (strict) {
+          this.throwException(this.TYPE_ERROR,
+              "Cannot assign to read only variable '" + name + "'");
+        }
+      }
       return undefined;
     }
     scope = scope.parentScope;
@@ -2982,48 +3051,87 @@ Interpreter.prototype.setValueToScope = function(name, value) {
 };
 
 /**
- * Create a new scope for the given node.
- * @param {!Object} node AST node (program or function).
+ * Create a new scope for the given node and populate it with all variables
+ * and named functions.
+ * @param {!Object} node AST node (usually a program or function when initally
+ *   calling this function, though it recurses to scan many child nodes).
  * @param {!Interpreter.Scope} scope Scope dictionary to populate.
+ * @returns {!Object} Map of all variable and function names.
  * @private
  */
 Interpreter.prototype.populateScope_ = function(node, scope) {
-  if (node['type'] === 'VariableDeclaration') {
-    for (var i = 0; i < node['declarations'].length; i++) {
-      this.setProperty(scope.object, node['declarations'][i]['id']['name'],
-          undefined, Interpreter.VARIABLE_DESCRIPTOR);
-    }
-  } else if (node['type'] === 'FunctionDeclaration') {
-    this.setProperty(scope.object, node['id']['name'],
-        this.createFunction(node, scope), Interpreter.VARIABLE_DESCRIPTOR);
-    return;  // Do not recurse into function.
-  } else if (node['type'] === 'FunctionExpression') {
-    return;  // Do not recurse into function.
-  } else if (node['type'] === 'ExpressionStatement') {
-    return;  // Expressions can't contain variable/function declarations.
-  }
-  var nodeClass = node['constructor'];
-  for (var name in node) {
-    var prop = node[name];
-    if (prop && typeof prop === 'object') {
-      if (Array.isArray(prop)) {
-        for (var i = 0; i < prop.length; i++) {
-          if (prop[i] && prop[i].constructor === nodeClass) {
-            this.populateScope_(prop[i], scope);
+  var variableCache;
+  if (!node.variableCache_) {
+    variableCache = Object.create(null);
+    switch (node['type']) {
+      case 'VariableDeclaration':
+        for (var i = 0; i < node['declarations'].length; i++) {
+          variableCache[node['declarations'][i]['id']['name']] = true;
+        }
+        break;
+      case 'FunctionDeclaration':
+        variableCache[node['id']['name']] = node;
+        break;
+      case 'BlockStatement':
+      case 'CatchClause':
+      case 'DoWhileStatement':
+      case 'ForInStatement':
+      case 'ForStatement':
+      case 'IfStatement':
+      case 'LabeledStatement':
+      case 'Program':
+      case 'SwitchCase':
+      case 'SwitchStatement':
+      case 'TryStatement':
+      case 'WithStatement':
+      case 'WhileStatement':
+        // All the structures within which a variable or function could hide.
+        var nodeClass = node['constructor'];
+        for (var name in node) {
+          if (name === 'loc') continue;
+          var prop = node[name];
+          if (prop && typeof prop === 'object') {
+            var childCache;
+            if (Array.isArray(prop)) {
+              for (var i = 0; i < prop.length; i++) {
+                if (prop[i] && prop[i].constructor === nodeClass) {
+                  childCache = this.populateScope_(prop[i], scope);
+                  for (var name in childCache) {
+                    variableCache[name] = childCache[name];
+                  }
+                }
+              }
+            } else {
+              if (prop.constructor === nodeClass) {
+                childCache = this.populateScope_(prop, scope);
+                for (var name in childCache) {
+                  variableCache[name] = childCache[name];
+                }
+              }
+            }
           }
         }
-      } else {
-        if (prop.constructor === nodeClass) {
-          this.populateScope_(prop, scope);
-        }
-      }
+    }
+    node.variableCache_ = variableCache;
+  } else {
+    variableCache = node.variableCache_;
+  }
+  for (var name in variableCache) {
+    if (variableCache[name] === true) {
+      this.setProperty(scope.object, name, undefined,
+          Interpreter.VARIABLE_DESCRIPTOR);
+    } else {
+      this.setProperty(scope.object, name,
+          this.createFunction(variableCache[name], scope),
+          Interpreter.VARIABLE_DESCRIPTOR);
     }
   }
+  return variableCache;
 };
 
 /**
  * Is the current state directly being called with as a construction with 'new'.
- * @return {boolean} True if 'new foo()', false if 'foo()'.
+ * @returns {boolean} True if 'new foo()', false if 'foo()'.
  */
 Interpreter.prototype.calledWithNew = function() {
   return this.stateStack[this.stateStack.length - 1].isConstructor;
@@ -3032,7 +3140,7 @@ Interpreter.prototype.calledWithNew = function() {
 /**
  * Gets a value from the scope chain or from an object property.
  * @param {!Array} ref Name of variable or object/propname tuple.
- * @return {Interpreter.Value} Any value.
+ * @returns {Interpreter.Value} Any value.
  *   May be flagged as being a getter and thus needing immediate execution
  *   (rather than being the value of the property).
  */
@@ -3050,17 +3158,16 @@ Interpreter.prototype.getValue = function(ref) {
  * Sets a value to the scope chain or to an object property.
  * @param {!Array} ref Name of variable or object/propname tuple.
  * @param {Interpreter.Value} value Value.
- * @return {!Interpreter.Object|undefined} Returns a setter function if one
+ * @returns {!Interpreter.Object|undefined} Returns a setter function if one
  *     needs to be called, otherwise undefined.
  */
 Interpreter.prototype.setValue = function(ref, value) {
   if (ref[0] === Interpreter.SCOPE_REFERENCE) {
     // A null/varname variable lookup.
     return this.setValueToScope(ref[1], value);
-  } else {
-    // An obj/prop components tuple (foo.bar).
-    return this.setProperty(ref[0], ref[1], value);
   }
+  // An obj/prop components tuple (foo.bar).
+  return this.setProperty(ref[0], ref[1], value);
 };
 
 /**
@@ -3073,6 +3180,10 @@ Interpreter.prototype.setValue = function(ref, value) {
  * @param {string=} opt_message Message being thrown.
  */
 Interpreter.prototype.throwException = function(errorClass, opt_message) {
+  if (!this.globalScope) {
+    // This is an error being thrown in the initialization, throw a real error.
+    throw (opt_message === undefined) ? errorClass : opt_message;
+  }
   if (opt_message === undefined) {
     var error = errorClass;  // This is a value to throw, not an error class.
   } else {
@@ -3191,7 +3302,7 @@ Interpreter.prototype.unwind = function(type, value, label) {
       'ReferenceError': ReferenceError,
       'SyntaxError': SyntaxError,
       'TypeError': TypeError,
-      'URIError': URIError
+      'URIError': URIError,
     };
     var name = String(this.getProperty(value, 'name'));
     var message = this.getProperty(value, 'message').valueOf();
@@ -3201,6 +3312,9 @@ Interpreter.prototype.unwind = function(type, value, label) {
   } else {
     realError = String(value);
   }
+  // Overwrite the previous (more or less random) interpreter return value.
+  // Replace it with the error.
+  this.value = realError;
   throw realError;
 };
 
@@ -3220,11 +3334,11 @@ Interpreter.prototype.createGetter_ = function(func, left) {
   // Normally `this` will be specified as the object component (o.x).
   // Sometimes `this` is explicitly provided (o).
   var funcThis = Array.isArray(left) ? left[0] : left;
-  var node = new this.nodeConstructor({options:{}});
+  var node = new this.newNode();
   node['type'] = 'CallExpression';
   var state = new Interpreter.State(node,
       this.stateStack[this.stateStack.length - 1].scope);
-  state.doneCallee_ = true;
+  state.doneCallee_ = 2;
   state.funcThis_ = funcThis;
   state.func_ = func;
   state.doneArgs_ = true;
@@ -3249,11 +3363,11 @@ Interpreter.prototype.createSetter_ = function(func, left, value) {
   // Normally `this` will be specified as the object component (o.x).
   // Sometimes `this` is implicitly the global object (x).
   var funcThis = Array.isArray(left) ? left[0] : this.globalObject;
-  var node = new this.nodeConstructor({options:{}});
+  var node = new this.newNode();
   node['type'] = 'CallExpression';
   var state = new Interpreter.State(node,
       this.stateStack[this.stateStack.length - 1].scope);
-  state.doneCallee_ = true;
+  state.doneCallee_ = 2;
   state.funcThis_ = funcThis;
   state.func_ = func;
   state.doneArgs_ = true;
@@ -3265,7 +3379,7 @@ Interpreter.prototype.createSetter_ = function(func, left, value) {
  * In non-strict mode `this` must be an object.
  * Must not be called in strict mode.
  * @param {Interpreter.Value} value Proposed value for `this`.
- * @return {!Interpreter.Object} Final value for `this`.
+ * @returns {!Interpreter.Object} Final value for `this`.
  * @private
  */
 Interpreter.prototype.boxThis_ = function(value) {
@@ -3280,6 +3394,30 @@ Interpreter.prototype.boxThis_ = function(value) {
     return box;
   }
   return value;
+};
+
+/**
+ * Return the global scope object.
+ * @returns {!Interpreter.Scope} Scope object.
+ */
+Interpreter.prototype.getGlobalScope = function() {
+  return this.globalScope;
+};
+
+/**
+ * Return the state stack.
+ * @returns {!Array<!Interpreter.State>} State stack.
+ */
+Interpreter.prototype.getStateStack = function() {
+  return this.stateStack;
+};
+
+/**
+ * Replace the state stack with a new one.
+ * @param {!Array<!Interpreter.State>} newStack New state stack.
+ */
+Interpreter.prototype.setStateStack = function(newStack) {
+  this.stateStack = newStack;
 };
 
 /**
@@ -3434,10 +3572,14 @@ Interpreter.Object.prototype.data = null;
 
 /**
  * Convert this object into a string.
- * @return {string} String value.
+ * @returns {string} String value.
  * @override
  */
 Interpreter.Object.prototype.toString = function() {
+  if (!Interpreter.currentInterpreter_) {
+    // Called from outside an interpreter.
+    return '[object Interpreter.Object]';
+  }
   if (!(this instanceof Interpreter.Object)) {
     // Primitive value.
     return String(this);
@@ -3486,7 +3628,7 @@ Interpreter.Object.prototype.toString = function() {
         break;
       }
     } while ((obj = obj.proto));
-    var obj = this;
+    obj = this;
     do {
       if ('message' in obj.properties) {
         message = obj.properties['message'];
@@ -3513,10 +3655,14 @@ Interpreter.Object.prototype.toString = function() {
 
 /**
  * Return the object's value.
- * @return {Interpreter.Value} Value.
+ * @returns {Interpreter.Value} Value.
  * @override
  */
 Interpreter.Object.prototype.valueOf = function() {
+  if (!Interpreter.currentInterpreter_) {
+    // Called from outside an interpreter.
+    return this;
+  }
   if (this.data === undefined || this.data === null ||
       this.data instanceof RegExp) {
     return this;  // An Object, RegExp, or primitive.
@@ -3702,6 +3848,7 @@ Interpreter.prototype['stepBreakStatement'] = function(stack, state, node) {
 Interpreter.prototype.evalCodeNumber_ = 0;
 
 Interpreter.prototype['stepCallExpression'] = function(stack, state, node) {
+  // Handles both CallExpression and NewExpression.
   if (!state.doneCallee_) {
     state.doneCallee_ = 1;
     // Components needed to determine value of `this`.
@@ -3778,23 +3925,18 @@ Interpreter.prototype['stepCallExpression'] = function(stack, state, node) {
     var funcNode = func.node;
     if (funcNode) {
       var scope = this.createScope(funcNode['body'], func.parentScope);
-      // Add all arguments.
-      for (var i = 0; i < funcNode['params'].length; i++) {
-        var paramName = funcNode['params'][i]['name'];
-        var paramValue = state.arguments_.length > i ? state.arguments_[i] :
-            undefined;
-        this.setProperty(scope.object, paramName, paramValue);
-      }
       // Build arguments variable.
       var argsList = this.createArray();
       for (var i = 0; i < state.arguments_.length; i++) {
         this.setProperty(argsList, i, state.arguments_[i]);
       }
       this.setProperty(scope.object, 'arguments', argsList);
-      // Add the function's name (var x = function foo(){};)
-      var name = funcNode['id'] && funcNode['id']['name'];
-      if (name) {
-        this.setProperty(scope.object, name, func);
+      // Add all arguments (may clobber 'arguments' if a param is named such).
+      for (var i = 0; i < funcNode['params'].length; i++) {
+        var paramName = funcNode['params'][i]['name'];
+        var paramValue = state.arguments_.length > i ? state.arguments_[i] :
+            undefined;
+        this.setProperty(scope.object, paramName, paramValue);
       }
       if (!scope.strict) {
         state.funcThis_ = this.boxThis_(state.funcThis_);
@@ -3817,7 +3959,7 @@ Interpreter.prototype['stepCallExpression'] = function(stack, state, node) {
           // Acorn threw a SyntaxError.  Rethrow as a trappable error.
           this.throwException(this.SYNTAX_ERROR, 'Invalid code: ' + e.message);
         }
-        var evalNode = new this.nodeConstructor({options:{}});
+        var evalNode = new this.newNode();
         evalNode['type'] = 'EvalProgram_';
         evalNode['body'] = ast['body'];
         Interpreter.stripLocations_(evalNode, node['start'], node['end']);
@@ -3886,22 +4028,9 @@ Interpreter.prototype['stepCallExpression'] = function(stack, state, node) {
   }
 };
 
-Interpreter.prototype['stepCatchClause'] = function(stack, state, node) {
-  if (!state.done_) {
-    state.done_ = true;
-    // Create an empty scope.
-    var scope = this.createSpecialScope(state.scope);
-    // Add the argument.
-    this.setProperty(scope.object, node['param']['name'], state.throwValue);
-    // Execute catch clause.
-    return new Interpreter.State(node['body'], scope);
-  } else {
-    stack.pop();
-  }
-};
-
 Interpreter.prototype['stepConditionalExpression'] =
     function(stack, state, node) {
+  // Handles both ConditionalExpression and IfStatement.
   var mode = state.mode_ || 0;
   if (mode === 0) {
     state.mode_ = 1;
@@ -3937,6 +4066,7 @@ Interpreter.prototype['stepDebuggerStatement'] = function(stack, state, node) {
 };
 
 Interpreter.prototype['stepDoWhileStatement'] = function(stack, state, node) {
+  // Handles both DoWhileStatement and WhileStatement.
   if (node['type'] === 'DoWhileStatement' && state.test_ === undefined) {
     // First iteration of do/while executes without checking test.
     state.value = true;
@@ -4019,6 +4149,7 @@ Interpreter.prototype['stepCallExpressionFunc_'] = function(stack, state, node) 
 
 Interpreter.prototype['stepExpressionStatement'] = function(stack, state, node) {
   if (!state.done_) {
+    this.value = undefined;
     state.done_ = true;
     return new Interpreter.State(node['expression'], state.scope);
   }
@@ -4144,38 +4275,42 @@ Interpreter.prototype['stepForInStatement'] = function(stack, state, node) {
   // Reevaluate the variable since it could be a setter on the global object.
   state.doneVariable_ = false;
   state.doneSetter_ = false;
-  // Sixth and finally, execute the body if there was one.  this.
+  // Sixth and finally, execute the body if there was one.
   if (node['body']) {
     return new Interpreter.State(node['body'], state.scope);
   }
 };
 
 Interpreter.prototype['stepForStatement'] = function(stack, state, node) {
-  var mode = state.mode_ || 0;
-  if (mode === 0) {
-    state.mode_ = 1;
-    if (node['init']) {
-      return new Interpreter.State(node['init'], state.scope);
-    }
-  } else if (mode === 1) {
-    state.mode_ = 2;
-    if (node['test']) {
-      return new Interpreter.State(node['test'], state.scope);
-    }
-  } else if (mode === 2) {
-    state.mode_ = 3;
-    if (node['test'] && !state.value) {
-      // Done, exit loop.
-      stack.pop();
-    } else {  // Execute the body.
-      state.isLoop = true;
-      return new Interpreter.State(node['body'], state.scope);
-    }
-  } else if (mode === 3) {
-    state.mode_ = 1;
-    if (node['update']) {
-      return new Interpreter.State(node['update'], state.scope);
-    }
+  switch (state.mode_) {
+    default:
+      state.mode_ = 1;
+      if (node['init']) {
+        return new Interpreter.State(node['init'], state.scope);
+      }
+      break;
+    case 1:
+      state.mode_ = 2;
+      if (node['test']) {
+        return new Interpreter.State(node['test'], state.scope);
+      }
+      break;
+    case 2:
+      state.mode_ = 3;
+      if (node['test'] && !state.value) {
+        // Done, exit loop.
+        stack.pop();
+      } else {  // Execute the body.
+        state.isLoop = true;
+        return new Interpreter.State(node['body'], state.scope);
+      }
+      break;
+    case 3:
+      state.mode_ = 1;
+      if (node['update']) {
+        return new Interpreter.State(node['update'], state.scope);
+      }
+      break;
   }
 };
 
@@ -4188,7 +4323,18 @@ Interpreter.prototype['stepFunctionDeclaration'] =
 Interpreter.prototype['stepFunctionExpression'] = function(stack, state, node) {
   stack.pop();
   state = stack[stack.length - 1];
-  state.value = this.createFunction(node, state.scope, state.destinationName);
+  var parentScope = state.scope;
+  if (node['id']) {
+    // Create a tiny scope to store the function name.
+    // E.g. var x = function foo(){};
+    parentScope = this.createSpecialScope(parentScope);
+  }
+  state.value = this.createFunction(node, parentScope, state.destinationName);
+  if (node['id']) {
+    // Record the function name, read-only.
+    this.setProperty(parentScope.object, node['id']['name'], state.value,
+        Interpreter.READONLY_DESCRIPTOR);
+  }
 };
 
 Interpreter.prototype['stepIdentifier'] = function(stack, state, node) {
@@ -4334,7 +4480,7 @@ Interpreter.prototype['stepObjectExpression'] = function(stack, state, node) {
         configurable: true,
         enumerable: true,
         get: kinds['get'],
-        set: kinds['set']
+        set: kinds['set'],
       };
       this.setProperty(state.object_, key, Interpreter.VALUE_IN_DESCRIPTOR,
                        descriptor);
@@ -4446,6 +4592,8 @@ Interpreter.prototype['stepThrowStatement'] = function(stack, state, node) {
 };
 
 Interpreter.prototype['stepTryStatement'] = function(stack, state, node) {
+  // This step also handles all CatchClause nodes, since these nodes can
+  // only appear inside the `handler` property of a TryStatement node.
   if (!state.doneBlock_) {
     state.doneBlock_ = true;
     return new Interpreter.State(node['block'], state.scope);
@@ -4453,10 +4601,12 @@ Interpreter.prototype['stepTryStatement'] = function(stack, state, node) {
   if (state.cv && state.cv.type === Interpreter.Completion.THROW &&
       !state.doneHandler_ && node['handler']) {
     state.doneHandler_ = true;
-    var nextState = new Interpreter.State(node['handler'], state.scope);
-    nextState.throwValue = state.cv.value;
+    // Create an new scope and add the error variable.
+    var scope = this.createSpecialScope(state.scope);
+    this.setProperty(scope.object, node['handler']['param']['name'], state.cv.value);
     state.cv = undefined;  // This error has been handled, don't rethrow.
-    return nextState;
+    // Execute catch clause.
+    return new Interpreter.State(node['handler']['body'], scope);
   }
   if (!state.doneFinalizer_ && node['finalizer']) {
     state.doneFinalizer_ = true;
@@ -4479,43 +4629,51 @@ Interpreter.prototype['stepUnaryExpression'] = function(stack, state, node) {
   }
   stack.pop();
   var value = state.value;
-  if (node['operator'] === '-') {
-    value = -value;
-  } else if (node['operator'] === '+') {
-    value = +value;
-  } else if (node['operator'] === '!') {
-    value = !value;
-  } else if (node['operator'] === '~') {
-    value = ~value;
-  } else if (node['operator'] === 'delete') {
-    var result = true;
-    // If value is not an array, then it is a primitive, or some other value.
-    // If so, skip the delete and return true.
-    if (Array.isArray(value)) {
-      var obj = value[0];
-      if (obj === Interpreter.SCOPE_REFERENCE) {
-        // `delete foo;` is the same as `delete window.foo;`.
-        obj = state.scope;
-      }
-      var name = String(value[1]);
-      try {
-        delete obj.properties[name];
-      } catch (e) {
-        if (state.scope.strict) {
-          this.throwException(this.TYPE_ERROR, "Cannot delete property '" +
-                              name + "' of '" + obj + "'");
-        } else {
-          result = false;
+  switch (node['operator']) {
+    case '-':
+      value = -value;
+      break;
+    case '+':
+      value = +value;
+      break;
+    case '!':
+      value = !value;
+      break;
+    case '~':
+      value = ~value;
+      break;
+    case 'delete':
+      var result = true;
+      // If value is not an array, then it is a primitive, or some other value.
+      // If so, skip the delete and return true.
+      if (Array.isArray(value)) {
+        var obj = value[0];
+        if (obj === Interpreter.SCOPE_REFERENCE) {
+          // `delete foo;` is the same as `delete window.foo;`.
+          obj = state.scope;
+        }
+        var name = String(value[1]);
+        try {
+          delete obj.properties[name];
+        } catch (_e) {
+          if (state.scope.strict) {
+            this.throwException(this.TYPE_ERROR, "Cannot delete property '" +
+                                name + "' of '" + obj + "'");
+          } else {
+            result = false;
+          }
         }
       }
-    }
-    value = result;
-  } else if (node['operator'] === 'typeof') {
-    value = (value && value.class === 'Function') ? 'function' : typeof value;
-  } else if (node['operator'] === 'void') {
-    value = undefined;
-  } else {
-    throw SyntaxError('Unknown unary operator: ' + node['operator']);
+      value = result;
+      break;
+    case 'typeof':
+      value = (value && value.class === 'Function') ? 'function' : typeof value;
+      break;
+    case 'void':
+      value = undefined;
+      break;
+    default:
+      throw SyntaxError('Unknown unary operator: ' + node['operator']);
   }
   stack[stack.length - 1].value = value;
 };
@@ -4573,6 +4731,8 @@ Interpreter.prototype['stepUpdateExpression'] = function(stack, state, node) {
 };
 
 Interpreter.prototype['stepVariableDeclaration'] = function(stack, state, node) {
+  // This step also handles all VariableDeclarator nodes, since these nodes can
+  // only appear inside the `declarations` array of a VariableDeclaration node.
   var declarations = node['declarations'];
   var n = state.n_ || 0;
   var declarationNode = declarations[n];
@@ -4606,13 +4766,10 @@ Interpreter.prototype['stepWithStatement'] = function(stack, state, node) {
   if (!state.doneObject_) {
     state.doneObject_ = true;
     return new Interpreter.State(node['object'], state.scope);
-  } else if (!state.doneBody_) {
-    state.doneBody_ = true;
-    var scope = this.createSpecialScope(state.scope, state.value);
-    return new Interpreter.State(node['body'], scope);
-  } else {
-    stack.pop();
   }
+  stack.pop();
+  var scope = this.createSpecialScope(state.scope, state.value);
+  return new Interpreter.State(node['body'], scope);
 };
 
 Interpreter.prototype['stepWhileStatement'] =
@@ -4620,8 +4777,7 @@ Interpreter.prototype['stepWhileStatement'] =
 
 // Preserve top-level API functions from being pruned/renamed by JS compilers.
 // Add others as needed.
-// The global object (`window` in a browser, `global` in node.js) is `this`.
-this['Interpreter'] = Interpreter;
+Interpreter.nativeGlobal['Interpreter'] = Interpreter;
 Interpreter.prototype['step'] = Interpreter.prototype.step;
 Interpreter.prototype['run'] = Interpreter.prototype.run;
 Interpreter.prototype['appendCode'] = Interpreter.prototype.appendCode;
@@ -4636,6 +4792,10 @@ Interpreter.prototype['getProperty'] = Interpreter.prototype.getProperty;
 Interpreter.prototype['setProperty'] = Interpreter.prototype.setProperty;
 Interpreter.prototype['nativeToPseudo'] = Interpreter.prototype.nativeToPseudo;
 Interpreter.prototype['pseudoToNative'] = Interpreter.prototype.pseudoToNative;
+Interpreter.prototype['getGlobalScope'] = Interpreter.prototype.getGlobalScope;
+Interpreter.prototype['getStateStack'] = Interpreter.prototype.getStateStack;
+Interpreter.prototype['setStateStack'] = Interpreter.prototype.setStateStack;
+Interpreter['VALUE_IN_DESCRIPTOR'] = Interpreter.VALUE_IN_DESCRIPTOR;
 Interpreter.prototype['callFunction'] = Interpreter.prototype.callFunction;
 Interpreter.prototype['queueFunction'] = Interpreter.prototype.queueFunction;
 Interpreter.prototype['createThrowable'] = Interpreter.prototype.createThrowable;
