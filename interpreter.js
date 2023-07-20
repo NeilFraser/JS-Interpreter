@@ -153,7 +153,9 @@ Interpreter.SCOPE_REFERENCE = {'SCOPE_REFERENCE': true};
  * parameter in calls to setProperty and friends, that the value
  * should be taken from the property descriptor instead.
  */
-Interpreter.VALUE_IN_DESCRIPTOR = {'VALUE_IN_DESCRIPTOR': true};
+Interpreter.VALUE_IN_DESCRIPTOR = /** @type {!Interpreter.Value} */({
+  'VALUE_IN_DESCRIPTOR': true
+});
 
 /**
  * Unique symbol for indicating that a RegExp timeout has occurred in a VM.
@@ -273,7 +275,7 @@ Interpreter.stripLocations_ = function(node, start, end) {
     if (name !== 'loc' && node.hasOwnProperty(name)) {
       var prop = node[name];
       if (prop && typeof prop === 'object') {
-        Interpreter.stripLocations_(prop, start, end);
+        Interpreter.stripLocations_(/** @type {!Object} */(prop), start, end);
       }
     }
   }
@@ -368,6 +370,7 @@ Interpreter.prototype.appendCode = function(code) {
  */
 Interpreter.prototype.step = function() {
   var stack = this.stateStack;
+  var endTime;
   do {
     var state = stack[stack.length - 1];
     if (!state) {
@@ -417,7 +420,7 @@ Interpreter.prototype.step = function() {
     if (!endTime && !node['end']) {
       // Ideally this would be defined at the top of the function, but that
       // wastes time if the step isn't a polyfill.
-      var endTime = Date.now() + this['POLYFILL_TIMEOUT'];
+      endTime = Date.now() + this['POLYFILL_TIMEOUT'];
     }
   } while (!node['end'] && endTime > Date.now());
   return true;
@@ -517,7 +520,7 @@ Interpreter.prototype.initGlobal = function(globalObject) {
         this.createNativeFunction(wrapper, false),
         Interpreter.NONENUMERABLE_DESCRIPTOR);
   }
-  // Preserve publicly properties from being pruned/renamed by JS compilers.
+  // Preserve public properties from being pruned/renamed by JS compilers.
   // Add others as needed.
   this['OBJECT'] = this.OBJECT;     this['OBJECT_PROTO'] = this.OBJECT_PROTO;
   this['FUNCTION'] = this.FUNCTION; this['FUNCTION_PROTO'] = this.FUNCTION_PROTO;
@@ -858,7 +861,7 @@ Interpreter.prototype.initObject = function(globalObject) {
       thisInterpreter.setProperty(pseudoDescriptor, 'set', setter);
     } else {
       thisInterpreter.setProperty(pseudoDescriptor, 'value',
-          descriptor.value);
+          /** @type {!Interpreter.Value} */(descriptor.value));
       thisInterpreter.setProperty(pseudoDescriptor, 'writable',
           descriptor.writable);
     }
@@ -1487,7 +1490,8 @@ Interpreter.prototype.initString = function(globalObject) {
     locales = thisInterpreter.pseudoToNative(locales);
     options = thisInterpreter.pseudoToNative(options);
     try {
-      return String(this).localeCompare(compareString, locales, options);
+      return String(this).localeCompare(compareString,
+          /** @type {?} */(locales), /** @type {?} */(options));
     } catch (e) {
       thisInterpreter.throwException(thisInterpreter.ERROR,
           'localeCompare: ' + e.message);
@@ -1788,7 +1792,13 @@ Interpreter.prototype.initNumber = function(globalObject) {
   wrapper = function toLocaleString(locales, options) {
     locales = locales ? thisInterpreter.pseudoToNative(locales) : undefined;
     options = options ? thisInterpreter.pseudoToNative(options) : undefined;
-    return Number(this).toLocaleString(locales, options);
+    try {
+      return Number(this).toLocaleString(
+          /** @type {?} */(locales), /** @type {?} */(options));
+    } catch (e) {
+      thisInterpreter.throwException(thisInterpreter.ERROR,
+          'toLocaleString: ' + e.message);
+    }
   };
   this.setNativeFunctionPrototype(this.NUMBER, 'toLocaleString', wrapper);
 };
@@ -2064,12 +2074,13 @@ Interpreter.prototype.initMath = function(globalObject) {
  * @param {!Interpreter.Object} globalObject Global object.
  */
 Interpreter.prototype.initJSON = function(globalObject) {
+  var wrapper;
   var thisInterpreter = this;
   var myJSON = thisInterpreter.createObjectProto(this.OBJECT_PROTO);
   this.setProperty(globalObject, 'JSON', myJSON,
       Interpreter.NONENUMERABLE_DESCRIPTOR);
 
-  var wrapper = function parse(text) {
+  wrapper = function parse(text) {
     try {
       var nativeObj = JSON.parse(String(text));
     } catch (e) {
@@ -2433,8 +2444,9 @@ Interpreter.prototype.nativeToPseudo = function(nativeObj) {
   if (nativeObj instanceof Interpreter.Object) {
     throw Error('Object is already pseudo');
   }
-  if ((typeof nativeObj !== 'object' && typeof nativeObj !== 'function') ||
-      nativeObj === null) {
+  if (nativeObj === null || nativeObj === undefined ||
+      nativeObj === true || nativeObj === false ||
+      typeof nativeObj === 'string' || typeof nativeObj === 'number') {
     return nativeObj;
   }
 
@@ -2554,7 +2566,7 @@ Interpreter.prototype.pseudoToNative = function(pseudoObj, opt_cycles) {
  */
 Interpreter.prototype.arrayNativeToPseudo = function(nativeArray) {
   var pseudoArray = this.createArray();
-  var props = Object.getOwnPropertyNames(nativeArray);
+  var props = /** @type {!Array<?>} */(Object.getOwnPropertyNames(nativeArray));
   for (var i = 0; i < props.length; i++) {
     this.setProperty(pseudoArray, props[i], nativeArray[props[i]]);
   }
@@ -2572,7 +2584,7 @@ Interpreter.prototype.arrayNativeToPseudo = function(nativeArray) {
 Interpreter.prototype.arrayPseudoToNative = function(pseudoArray) {
   var nativeArray = [];
   for (var key in pseudoArray.properties) {
-    nativeArray[key] = this.getProperty(pseudoArray, key);
+    nativeArray[/** @type {?} */(key)] = this.getProperty(pseudoArray, key);
   }
   // pseudoArray might be an object pretending to be an array.  In this case
   // it's possible that length is non-existent, invalid, or smaller than the
@@ -2652,7 +2664,7 @@ Interpreter.prototype.getProperty = function(obj, name) {
 
 /**
  * Does the named property exist on a data object.
- * @param {!Interpreter.Object} obj Data object.
+ * @param {Interpreter.Object} obj Data object.
  * @param {Interpreter.Value} name Name of property.
  * @returns {boolean} True if property exists.
  */
@@ -3131,7 +3143,8 @@ Interpreter.prototype.throwException = function(errorClass, opt_message) {
     // This is an error being thrown in the initialization, throw a real error.
     throw (opt_message === undefined) ? errorClass : opt_message;
   }
-  if (opt_message === undefined) {
+  if (opt_message === undefined ||
+      !(errorClass instanceof Interpreter.Object)) {
     var error = errorClass;  // This is a value to throw, not an error class.
   } else {
     var error = this.createObject(errorClass);
@@ -3232,7 +3245,7 @@ Interpreter.prototype.createGetter_ = function(func, left) {
   // Normally `this` will be specified as the object component (o.x).
   // Sometimes `this` is explicitly provided (o).
   var funcThis = Array.isArray(left) ? left[0] : left;
-  var node = new this.newNode();
+  var node = this.newNode();
   node['type'] = 'CallExpression';
   var state = new Interpreter.State(node,
       this.stateStack[this.stateStack.length - 1].scope);
@@ -3261,7 +3274,7 @@ Interpreter.prototype.createSetter_ = function(func, left, value) {
   // Normally `this` will be specified as the object component (o.x).
   // Sometimes `this` is implicitly the global object (x).
   var funcThis = Array.isArray(left) ? left[0] : this.globalObject;
-  var node = new this.newNode();
+  var node = this.newNode();
   node['type'] = 'CallExpression';
   var state = new Interpreter.State(node,
       this.stateStack[this.stateStack.length - 1].scope);
@@ -3754,7 +3767,7 @@ Interpreter.prototype['stepCallExpression'] = function(stack, state, node) {
           // Acorn threw a SyntaxError.  Rethrow as a trappable error.
           this.throwException(this.SYNTAX_ERROR, 'Invalid code: ' + e.message);
         }
-        var evalNode = new this.newNode();
+        var evalNode = this.newNode();
         evalNode['type'] = 'EvalProgram_';
         evalNode['body'] = ast['body'];
         Interpreter.stripLocations_(evalNode, node['start'], node['end']);
