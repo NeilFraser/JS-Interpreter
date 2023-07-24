@@ -31,6 +31,10 @@
   // Plus additional edits marked with 'JS-Interpreter change' comments.
 
   // JS-Interpreter change:
+  // Added JSDoc type definitions.
+  // -- Neil Fraser, July 2023.
+
+  // JS-Interpreter change:
   // No longer exporting defaultOptions, getLineInfo, tokenize, tokTypes,
   // isIdentifierStart, and isIdentifierChar.  Not used by JS-Interpreter.
   // -- Neil Fraser, February 2023.
@@ -43,10 +47,24 @@
   //
   // [api]: https://developer.mozilla.org/en-US/docs/SpiderMonkey/Parser_API
 
-  var options, input, inputLen, sourceFile;
+  /** @type {!Object|undefined} */
+  var options;
 
+  /** @type {string} */
+  var input = '';
+  /** @type {number|undefined} */
+  var inputLen;
+  /** @type {*} */
+  var sourceFile;
+
+  /**
+   * @param {string} inpt
+   * @param {Object=} opts
+   * @returns
+   */
   exports.parse = function(inpt, opts) {
-    input = String(inpt); inputLen = input.length;
+    input = String(inpt);
+    inputLen = input.length;
     setOptions(opts);
     initTokenState();
     return parseTopLevel(options.program);
@@ -115,19 +133,30 @@
     directSourceFile: null
   };
 
+  /**
+   * @param {Object|undefined} opts
+   */
   function setOptions(opts) {
     options = opts || {};
-    for (var opt in defaultOptions) if (!Object.prototype.hasOwnProperty.call(options, opt))
-      options[opt] = defaultOptions[opt];
+    for (var opt in defaultOptions) {
+      if (!Object.prototype.hasOwnProperty.call(options, opt)) {
+        options[opt] = defaultOptions[opt];
+      }
+    }
     sourceFile = options.sourceFile || null;
   }
 
-  // The `getLineInfo` function is mostly useful when the
-  // `locations` option is off (for performance reasons) and you
-  // want to find the line/column position for a given character
-  // offset. `input` should be the code string that the offset refers
-  // into.
-
+  /**
+   * The `getLineInfo` function is mostly useful when the
+   * `locations` option is off (for performance reasons) and you
+   * want to find the line/column position for a given character
+   * offset. `input` should be the code string that the offset refers
+   * into.
+   *
+   * @param {string} input
+   * @param {number} offset
+   * @returns {!Object}
+   */
   var getLineInfo = function(input, offset) {
     for (var line = 1, cur = 0;;) {
       lineBreak.lastIndex = cur;
@@ -147,62 +176,131 @@
   // State is kept in (closure-)global variables. We already saw the
   // `options`, `input`, and `inputLen` variables above.
 
-  // The current position of the tokenizer in the input.
+  /**
+   * The current position of the tokenizer in the input.
+   * @type {number}
+   */
+  var tokPos = 0;
 
-  var tokPos;
+  /**
+   * The start offset of the current token.
+   * @type {number}
+   */
+  var tokStart = 0;
 
-  // The start and end offsets of the current token.
+  /**
+   * The end offset of the current token.
+   * @type {number}
+   */
+  var tokEnd = 0;
 
-  var tokStart, tokEnd;
+  /**
+   * When `options.locations` is true, holds object
+   * containing the token's start line/column pairs.
+   * @type {!line_loc_t|undefined}
+   */
+  var tokStartLoc;
 
-  // When `options.locations` is true, these hold objects
-  // containing the tokens start and end line/column pairs.
+  /**
+   * When `options.locations` is true, holds object
+   * containing the token's end line/column pairs.
+   * @type {!line_loc_t|undefined}
+   */
+  var tokEndLoc;
 
-  var tokStartLoc, tokEndLoc;
+  /**
+   * The type of the current token. Token types are objects,
+   * named by variables against which they can be compared, and
+   * holding properties that describe them (indicating, for example,
+   * the precedence of an infix operator, and the original name of a
+   * keyword token).
+   * @type {!Object|undefined}
+   */
+  var tokType;
 
-  // The type and value of the current token. Token types are objects,
-  // named by variables against which they can be compared, and
-  // holding properties that describe them (indicating, for example,
-  // the precedence of an infix operator, and the original name of a
-  // keyword token). The kind of value that's held in `tokVal` depends
-  // on the type of the token. For literals, it is the literal value,
-  // for operators, the operator name, and so on.
+  /**
+   * The value of the current token. The kind of value that's held in
+   * `tokVal` depends on the type of the token. For literals, it is the
+   * literal value, for operators, the operator name, and so on.
+   * @type {*}
+   */
+  var tokVal;
 
-  var tokType, tokVal;
-
-  // Interal state for the tokenizer. To distinguish between division
-  // operators and regular expressions, it remembers whether the last
-  // token was one that is allowed to be followed by an expression.
-  // (If it is, a slash is probably a regexp, if it isn't it's a
-  // division operator. See the `parseStatement` function for a
-  // caveat.)
-
+  /**
+   * Interal state for the tokenizer. To distinguish between division
+   * operators and regular expressions, it remembers whether the last
+   * token was one that is allowed to be followed by an expression.
+   * (If it is, a slash is probably a regexp, if it isn't it's a
+   * division operator. See the `parseStatement` function for a caveat.)
+   * @type {boolean|undefined}
+   */
   var tokRegexpAllowed;
 
-  // When `options.locations` is true, these are used to keep
-  // track of the current line, and know when a new line has been
-  // entered.
+  /**
+   * When `options.locations` is true, `tokCurLine` is used to keep
+   * track of the current line.
+   * @type {number|undefined}
+   */
+  var tokCurLine;
 
-  var tokCurLine, tokLineStart;
+  /**
+   * When `options.locations` is true, `tokLineStart` is used to know
+   * when a new line has been entered.
+   * @type {number|undefined}
+   */
+  var tokLineStart;
 
-  // These store the position of the previous token, which is useful
-  // when finishing a node and assigning its `end` position.
+  /**
+   * The start of the position of the previous token, which is useful
+   * when finishing a node and assigning its `end` position.
+   * @type {number}
+   */
+  var lastStart = 0;
 
-  var lastStart, lastEnd, lastEndLoc;
+  /**
+   * The end oy the position of the previous token, which is useful
+   * when finishing a node and assigning its `end` position.
+   * @type {number}
+   */
+  var lastEnd = 0;
 
-  // This is the parser's state. `inFunction` is used to reject
-  // `return` statements outside of functions, `labels` to verify that
-  // `break` and `continue` have somewhere to jump to, and `strict`
-  // indicates whether strict mode is on.
+  /**
+   * Stores the position of the previous token, which is useful
+   * when finishing a node and assigning its `end` position.
+   * @type {!line_loc_t|undefined}
+   */
+  var lastEndLoc;
 
-  var inFunction, labels, strict;
+  /**
+   * `inFunction` is used to reject `return` statements outside of functions.
+   * @type {boolean|undefined}
+   */
+  var inFunction;
 
-  // This function is used to raise exceptions on parse errors. It
-  // takes an offset integer (into the current `input`) to indicate
-  // the location of the error, attaches the position to the end
-  // of the error message, and then raises a `SyntaxError` with that
-  // message.
+  /**
+   * `labels` is used to verify that `break` and `continue` have somewhere
+   * to jump to.
+   * @type {!Array<!Object>|undefined}
+   */
+  var labels;
 
+  /**
+   * `strict` indicates whether strict mode is on.
+   * @type {boolean|undefined}
+   */
+  var strict;
+
+  /**
+   * This function is used to raise exceptions on parse errors. It
+   * takes an offset integer (into the current `input`) to indicate
+   * the location of the error, attaches the position to the end
+   * of the error message, and then raises a `SyntaxError` with that
+   * message.
+   *
+   * @param {number} pos
+   * @param {string} message
+   * @throws {SyntaxError}
+   */
   function raise(pos, message) {
     var loc = getLineInfo(input, pos);
     message += " (" + loc.line + ":" + loc.column + ")";
@@ -227,8 +325,11 @@
   // These are the general types. The `type` property is only used to
   // make them recognizeable when debugging.
 
-  var _num = {type: "num"}, _regexp = {type: "regexp"}, _string = {type: "string"};
-  var _name = {type: "name"}, _eof = {type: "eof"};
+  var _num = {type: "num"};
+  var _regexp = {type: "regexp"};
+  var _string = {type: "string"};
+  var _name = {type: "name"};
+  var _eof = {type: "eof"};
 
   // Keyword tokens. The `keyword` property (also used in keyword-like
   // operators) indicates that the token originated from an
@@ -243,18 +344,32 @@
   // to know when parsing a label, in order to allow or disallow
   // continue jumps to that label.
 
-  var _break = {keyword: "break"}, _case = {keyword: "case", beforeExpr: true}, _catch = {keyword: "catch"};
-  var _continue = {keyword: "continue"}, _debugger = {keyword: "debugger"}, _default = {keyword: "default"};
-  var _do = {keyword: "do", isLoop: true}, _else = {keyword: "else", beforeExpr: true};
-  var _finally = {keyword: "finally"}, _for = {keyword: "for", isLoop: true}, _function = {keyword: "function"};
-  var _if = {keyword: "if"}, _return = {keyword: "return", beforeExpr: true}, _switch = {keyword: "switch"};
-  var _throw = {keyword: "throw", beforeExpr: true}, _try = {keyword: "try"}, _var = {keyword: "var"};
-  var _while = {keyword: "while", isLoop: true}, _with = {keyword: "with"}, _new = {keyword: "new", beforeExpr: true};
+  var _break = {keyword: "break"};
+  var _case = {keyword: "case", beforeExpr: true};
+  var _catch = {keyword: "catch"};
+  var _continue = {keyword: "continue"};
+  var _debugger = {keyword: "debugger"};
+  var _default = {keyword: "default"};
+  var _do = {keyword: "do", isLoop: true};
+  var _else = {keyword: "else", beforeExpr: true};
+  var _finally = {keyword: "finally"};
+  var _for = {keyword: "for", isLoop: true};
+  var _function = {keyword: "function"};
+  var _if = {keyword: "if"};
+  var _return = {keyword: "return", beforeExpr: true};
+  var _switch = {keyword: "switch"};
+  var _throw = {keyword: "throw", beforeExpr: true};
+  var _try = {keyword: "try"};
+  var _var = {keyword: "var"};
+  var _while = {keyword: "while", isLoop: true};
+  var _with = {keyword: "with"};
+  var _new = {keyword: "new", beforeExpr: true};
   var _this = {keyword: "this"};
 
   // The keywords that denote values.
 
-  var _null = {keyword: "null", atomValue: null}, _true = {keyword: "true", atomValue: true};
+  var _null = {keyword: "null", atomValue: null};
+  var _true = {keyword: "true", atomValue: true};
   var _false = {keyword: "false", atomValue: false};
 
   // Some keywords are treated as regular operators. `in` sometimes
@@ -265,23 +380,51 @@
 
   // Map keyword names to token types.
 
-  var keywordTypes = {"break": _break, "case": _case, "catch": _catch,
-                      "continue": _continue, "debugger": _debugger, "default": _default,
-                      "do": _do, "else": _else, "finally": _finally, "for": _for,
-                      "function": _function, "if": _if, "return": _return, "switch": _switch,
-                      "throw": _throw, "try": _try, "var": _var, "while": _while, "with": _with,
-                      "null": _null, "true": _true, "false": _false, "new": _new, "in": _in,
-                      "instanceof": {keyword: "instanceof", binop: 7, beforeExpr: true}, "this": _this,
-                      "typeof": {keyword: "typeof", prefix: true, beforeExpr: true},
-                      "void": {keyword: "void", prefix: true, beforeExpr: true},
-                      "delete": {keyword: "delete", prefix: true, beforeExpr: true}};
+  var keywordTypes = {
+    "break": _break,
+    "case": _case,
+    "catch": _catch,
+    "continue": _continue,
+    "debugger": _debugger,
+    "default": _default,
+    "do": _do,
+    "else": _else,
+    "finally": _finally,
+    "for": _for,
+    "function": _function,
+    "if": _if,
+    "return": _return,
+    "switch": _switch,
+    "throw": _throw,
+    "try": _try,
+    "var": _var,
+    "while": _while,
+    "with": _with,
+    "null": _null,
+    "true": _true,
+    "false": _false,
+    "new": _new,
+    "in": _in,
+    "instanceof": {keyword: "instanceof", binop: 7, beforeExpr: true},
+    "this": _this,
+    "typeof": {keyword: "typeof", prefix: true, beforeExpr: true},
+    "void": {keyword: "void", prefix: true, beforeExpr: true},
+    "delete": {keyword: "delete", prefix: true, beforeExpr: true},
+  };
 
   // Punctuation token types. Again, the `type` property is purely for debugging.
 
-  var _bracketL = {type: "[", beforeExpr: true}, _bracketR = {type: "]"}, _braceL = {type: "{", beforeExpr: true};
-  var _braceR = {type: "}"}, _parenL = {type: "(", beforeExpr: true}, _parenR = {type: ")"};
-  var _comma = {type: ",", beforeExpr: true}, _semi = {type: ";", beforeExpr: true};
-  var _colon = {type: ":", beforeExpr: true}, _dot = {type: "."}, _question = {type: "?", beforeExpr: true};
+  var _bracketL = {type: "[", beforeExpr: true};
+  var _bracketR = {type: "]"};
+  var _braceL = {type: "{", beforeExpr: true};
+  var _braceR = {type: "}"};
+  var _parenL = {type: "(", beforeExpr: true};
+  var _parenR = {type: ")"};
+  var _comma = {type: ",", beforeExpr: true};
+  var _semi = {type: ";", beforeExpr: true};
+  var _colon = {type: ":", beforeExpr: true};
+  var _dot = {type: "."};
+  var _question = {type: "?", beforeExpr: true};
 
   // Operators. These carry several kinds of properties to help the
   // parser use them properly (the presence of these properties is
@@ -299,9 +442,11 @@
   // binary operators with a very low precedence, that should result
   // in AssignmentExpression nodes.
 
-  var _slash = {binop: 10, beforeExpr: true}, _eq = {isAssign: true, beforeExpr: true};
+  var _slash = {binop: 10, beforeExpr: true};
+  var _eq = {isAssign: true, beforeExpr: true};
   var _assign = {isAssign: true, beforeExpr: true};
-  var _incDec = {postfix: true, prefix: true, isUpdate: true}, _prefix = {prefix: true, beforeExpr: true};
+  var _incDec = {postfix: true, prefix: true, isUpdate: true};
+  var _prefix = {prefix: true, beforeExpr: true};
   var _logicalOR = {binop: 1, beforeExpr: true};
   var _logicalAND = {binop: 2, beforeExpr: true};
   var _bitwiseOR = {binop: 3, beforeExpr: true};
@@ -322,11 +467,16 @@
   // However, this triggered a CSP unsafe-eval requirement.  Here's a slower, but
   // simpler approach.  -- Neil Fraser, January 2022.
   // https://github.com/NeilFraser/JS-Interpreter/issues/228
+
+  /**
+   * @param {string} words
+   * @returns {function(*): boolean}
+   */
   function makePredicate(words) {
-    words = words.split(" ");
+    var wordList = words.split(" ");
     var set = Object.create(null);
-    for (var i = 0; i < words.length; i++) {
-      set[words[i]] = true;
+    for (var i = 0; i < wordList.length; i++) {
+      set[wordList[i]] = true;
     }
     return function(str) {
       return set[str] || false;
@@ -371,40 +521,51 @@
 
   var lineBreak = /\r\n|[\n\r\u2028\u2029]/g;
 
-  // Test whether a given character code starts an identifier.
-
+  /**
+   * Test whether a given character code starts an identifier.
+   *
+   * @param {number} code
+   * @returns {boolean}
+   */
   var isIdentifierStart = function(code) {
     if (code < 65) return code === 36;
     if (code < 91) return true;
     if (code < 97) return code === 95;
-    if (code < 123)return true;
+    if (code < 123) return true;
     return code >= 0xaa && nonASCIIidentifierStart.test(String.fromCharCode(code));
   };
 
-  // Test whether a given character is part of an identifier.
-
+  /**
+   * Test whether a given character is part of an identifier.
+   *
+   * @param {number} code
+   * @returns {boolean}
+   */
   var isIdentifierChar = function(code) {
     if (code < 48) return code === 36;
     if (code < 58) return true;
     if (code < 65) return false;
     if (code < 91) return true;
     if (code < 97) return code === 95;
-    if (code < 123)return true;
+    if (code < 123) return true;
     return code >= 0xaa && nonASCIIidentifier.test(String.fromCharCode(code));
   };
 
   // ## Tokenizer
 
-  // These are used when `options.locations` is on, for the
-  // `tokStartLoc` and `tokEndLoc` properties.
-
+  /**
+   * These are used when `options.locations` is on, for the
+   * `tokStartLoc` and `tokEndLoc` properties.
+   * @constructor
+   */
   function line_loc_t() {
     this.line = tokCurLine;
     this.column = tokPos - tokLineStart;
   }
 
-  // Reset the token state. Used at the start of a parse.
-
+  /**
+   * Reset the token state. Used at the start of a parse.
+   */
   function initTokenState() {
     tokCurLine = 1;
     tokPos = tokLineStart = 0;
@@ -412,13 +573,17 @@
     skipSpace();
   }
 
-  // Called at the end of every token. Sets `tokEnd`, `tokVal`, and
-  // `tokRegexpAllowed`, and skips the space after the token, so that
-  // the next one's `tokStart` will point at the right position.
-
+  /**
+   * Called at the end of every token. Sets `tokEnd`, `tokVal`, and
+   * `tokRegexpAllowed`, and skips the space after the token, so that
+   * the next one's `tokStart` will point at the right position.
+   *
+   * @param {!Object} type
+   * @param {*=} val
+   */
   function finishToken(type, val) {
     tokEnd = tokPos;
-    if (options.locations) tokEndLoc = new line_loc_t;
+    if (options.locations) tokEndLoc = new line_loc_t();
     tokType = type;
     skipSpace();
     tokVal = val;
@@ -426,7 +591,7 @@
   }
 
   function skipBlockComment() {
-    var startLoc = options.onComment && options.locations && new line_loc_t;
+    var startLoc = options.onComment && options.locations && new line_loc_t();
     var start = tokPos, end = input.indexOf("*/", tokPos += 2);
     if (end === -1) raise(tokPos - 2, "Unterminated comment");
     tokPos = end + 2;
@@ -440,12 +605,12 @@
     }
     if (options.onComment)
       options.onComment(true, input.slice(start + 2, end), start, tokPos,
-                        startLoc, options.locations && new line_loc_t);
+                        startLoc, options.locations && new line_loc_t());
   }
 
   function skipLineComment() {
     var start = tokPos;
-    var startLoc = options.onComment && options.locations && new line_loc_t;
+    var startLoc = options.onComment && options.locations && new line_loc_t();
     var ch = input.charCodeAt(tokPos+=2);
     while (tokPos < inputLen && ch !== 10 && ch !== 13 && ch !== 8232 && ch !== 8233) {
       ++tokPos;
@@ -453,7 +618,7 @@
     }
     if (options.onComment)
       options.onComment(false, input.slice(start + 2, tokPos), start, tokPos,
-                        startLoc, options.locations && new line_loc_t);
+                        startLoc, options.locations && new line_loc_t());
   }
 
   // Called at the start of the parse and after every token. Skips
@@ -513,38 +678,62 @@
 
   function readToken_dot() {
     var next = input.charCodeAt(tokPos + 1);
-    if (next >= 48 && next <= 57) return readNumber(true);
-    ++tokPos;
-    return finishToken(_dot);
+    if (next >= 48 && next <= 57) {
+      readNumber(true);
+    } else {
+      ++tokPos;
+      finishToken(_dot);
+    }
   }
 
-  function readToken_slash() { // '/'
+  function readToken_slash() {  // '/'
     var next = input.charCodeAt(tokPos + 1);
-    if (tokRegexpAllowed) {++tokPos; return readRegexp();}
-    if (next === 61) return finishOp(_assign, 2);
-    return finishOp(_slash, 1);
+    if (tokRegexpAllowed) {
+      ++tokPos;
+      readRegexp();
+    } else if (next === 61) {
+      finishOp(_assign, 2);
+    } else {
+      finishOp(_slash, 1);
+    }
   }
 
-  function readToken_mult_modulo() { // '%*'
+  function readToken_mult_modulo() {  // '%*'
     var next = input.charCodeAt(tokPos + 1);
-    if (next === 61) return finishOp(_assign, 2);
-    return finishOp(_multiplyModulo, 1);
+    if (next === 61) {
+      finishOp(_assign, 2);
+    } else {
+      finishOp(_multiplyModulo, 1);
+    }
   }
 
-  function readToken_pipe_amp(code) { // '|&'
+  /**
+   * @param {number} code
+   */
+  function readToken_pipe_amp(code) {  // '|&'
     var next = input.charCodeAt(tokPos + 1);
-    if (next === code) return finishOp(code === 124 ? _logicalOR : _logicalAND, 2);
-    if (next === 61) return finishOp(_assign, 2);
-    return finishOp(code === 124 ? _bitwiseOR : _bitwiseAND, 1);
+    if (next === code) {
+      finishOp(code === 124 ? _logicalOR : _logicalAND, 2);
+    } else if (next === 61) {
+      finishOp(_assign, 2);
+    } else {
+      finishOp(code === 124 ? _bitwiseOR : _bitwiseAND, 1);
+    }
   }
 
-  function readToken_caret() { // '^'
+  function readToken_caret() {  // '^'
     var next = input.charCodeAt(tokPos + 1);
-    if (next === 61) return finishOp(_assign, 2);
-    return finishOp(_bitwiseXOR, 1);
+    if (next === 61) {
+      finishOp(_assign, 2);
+    } else {
+      finishOp(_bitwiseXOR, 1);
+    }
   }
 
-  function readToken_plus_min(code) { // '+-'
+  /**
+   * @param {number} code
+   */
+  function readToken_plus_min(code) {  // '+-'
     var next = input.charCodeAt(tokPos + 1);
     if (next === code) {
       if (next == 45 && input.charCodeAt(tokPos + 2) == 62 &&
@@ -553,21 +742,31 @@
         tokPos += 3;
         skipLineComment();
         skipSpace();
-        return readToken();
+        readToken();
+        return;
       }
-      return finishOp(_incDec, 2);
+      finishOp(_incDec, 2);
+    } else if (next === 61) {
+      finishOp(_assign, 2);
+    } else {
+      finishOp(_plusMin, 1);
     }
-    if (next === 61) return finishOp(_assign, 2);
-    return finishOp(_plusMin, 1);
   }
 
-  function readToken_lt_gt(code) { // '<>'
+  /**
+   * @param {number} code
+   */
+  function readToken_lt_gt(code) {  // '<>'
     var next = input.charCodeAt(tokPos + 1);
     var size = 1;
     if (next === code) {
       size = code === 62 && input.charCodeAt(tokPos + 2) === 62 ? 3 : 2;
-      if (input.charCodeAt(tokPos + size) === 61) return finishOp(_assign, size + 1);
-      return finishOp(_bitShift, size);
+      if (input.charCodeAt(tokPos + size) === 61) {
+        finishOp(_assign, size + 1);
+      } else {
+        finishOp(_bitShift, size);
+      }
+      return;
     }
     if (next == 33 && code == 60 && input.charCodeAt(tokPos + 2) == 45 &&
         input.charCodeAt(tokPos + 3) == 45) {
@@ -575,88 +774,103 @@
       tokPos += 4;
       skipLineComment();
       skipSpace();
-      return readToken();
+      readToken();
+      return;
     }
-    if (next === 61)
+    if (next === 61) {
       size = input.charCodeAt(tokPos + 2) === 61 ? 3 : 2;
-    return finishOp(_relational, size);
+    }
+    finishOp(_relational, size);
   }
 
-  function readToken_eq_excl(code) { // '=!'
+  /**
+   * @param {number} code
+   */
+  function readToken_eq_excl(code) {  // '=!'
     var next = input.charCodeAt(tokPos + 1);
-    if (next === 61) return finishOp(_equality, input.charCodeAt(tokPos + 2) === 61 ? 3 : 2);
-    return finishOp(code === 61 ? _eq : _prefix, 1);
+    if (next === 61) {
+      finishOp(_equality, input.charCodeAt(tokPos + 2) === 61 ? 3 : 2);
+    } else {
+      finishOp(code === 61 ? _eq : _prefix, 1);
+    }
   }
 
+  /**
+   * @param {number} code
+   * @returns {boolean|undefined}
+   */
   function getTokenFromCode(code) {
     switch(code) {
       // The interpretation of a dot depends on whether it is followed
       // by a digit.
-    case 46: // '.'
-      return readToken_dot();
+      case 46: // '.'
+        return readToken_dot();
 
-      // Punctuation tokens.
-    case 40: ++tokPos; return finishToken(_parenL);
-    case 41: ++tokPos; return finishToken(_parenR);
-    case 59: ++tokPos; return finishToken(_semi);
-    case 44: ++tokPos; return finishToken(_comma);
-    case 91: ++tokPos; return finishToken(_bracketL);
-    case 93: ++tokPos; return finishToken(_bracketR);
-    case 123: ++tokPos; return finishToken(_braceL);
-    case 125: ++tokPos; return finishToken(_braceR);
-    case 58: ++tokPos; return finishToken(_colon);
-    case 63: ++tokPos; return finishToken(_question);
+        // Punctuation tokens.
+      case 40: ++tokPos; return finishToken(_parenL);
+      case 41: ++tokPos; return finishToken(_parenR);
+      case 59: ++tokPos; return finishToken(_semi);
+      case 44: ++tokPos; return finishToken(_comma);
+      case 91: ++tokPos; return finishToken(_bracketL);
+      case 93: ++tokPos; return finishToken(_bracketR);
+      case 123: ++tokPos; return finishToken(_braceL);
+      case 125: ++tokPos; return finishToken(_braceR);
+      case 58: ++tokPos; return finishToken(_colon);
+      case 63: ++tokPos; return finishToken(_question);
 
-      // '0x' is a hexadecimal number.
-    case 48: // '0'
-      var next = input.charCodeAt(tokPos + 1);
-      if (next === 120 || next === 88) return readHexNumber();
-      // Anything else beginning with a digit is an integer, octal
-      // number, or float.
-    case 49: case 50: case 51: case 52: case 53: case 54: case 55: case 56: case 57: // 1-9
-      return readNumber(false);
+        // '0x' is a hexadecimal number.
+      case 48: // '0'
+        var next = input.charCodeAt(tokPos + 1);
+        if (next === 120 || next === 88) return readHexNumber();
+        // Anything else beginning with a digit is an integer, octal
+        // number, or float.
+      case 49: case 50: case 51: case 52: case 53: case 54: case 55: case 56: case 57: // 1-9
+        return readNumber(false);
 
-      // Quotes produce strings.
-    case 34: case 39: // '"', "'"
-      return readString(code);
+        // Quotes produce strings.
+      case 34: case 39: // '"', "'"
+        return readString(code);
 
-    // Operators are parsed inline in tiny state machines. '=' (61) is
-    // often referred to. `finishOp` simply skips the amount of
-    // characters it is given as second argument, and returns a token
-    // of the type given by its first argument.
+      // Operators are parsed inline in tiny state machines. '=' (61) is
+      // often referred to. `finishOp` simply skips the amount of
+      // characters it is given as second argument, and returns a token
+      // of the type given by its first argument.
 
-    case 47: // '/'
-      return readToken_slash(code);
+      case 47: // '/'
+        return readToken_slash();
 
-    case 37: case 42: // '%*'
-      return readToken_mult_modulo();
+      case 37: case 42: // '%*'
+        return readToken_mult_modulo();
 
-    case 124: case 38: // '|&'
-      return readToken_pipe_amp(code);
+      case 124: case 38: // '|&'
+        return readToken_pipe_amp(code);
 
-    case 94: // '^'
-      return readToken_caret();
+      case 94: // '^'
+        return readToken_caret();
 
-    case 43: case 45: // '+-'
-      return readToken_plus_min(code);
+      case 43: case 45: // '+-'
+        return readToken_plus_min(code);
 
-    case 60: case 62: // '<>'
-      return readToken_lt_gt(code);
+      case 60: case 62: // '<>'
+        return readToken_lt_gt(code);
 
-    case 61: case 33: // '=!'
-      return readToken_eq_excl(code);
+      case 61: case 33: // '=!'
+        return readToken_eq_excl(code);
 
-    case 126: // '~'
-      return finishOp(_prefix, 1);
+      case 126: // '~'
+        return finishOp(_prefix, 1);
     }
 
     return false;
   }
 
+  /**
+   * @param {boolean=} forceRegexp
+   */
   function readToken(forceRegexp) {
     if (!forceRegexp) tokStart = tokPos;
     else tokPos = tokStart + 1;
-    if (options.locations) tokStartLoc = new line_loc_t;
+    if (options.locations) tokStartLoc = new line_loc_t();
     if (forceRegexp) return readRegexp();
     if (tokPos >= inputLen) return finishToken(_eof);
 
@@ -674,18 +888,22 @@
       if (ch === "\\" || nonASCIIidentifierStart.test(ch)) return readWord();
       raise(tokPos, "Unexpected character '" + ch + "'");
     }
-    return tok;
   }
 
+  /**
+   * @param {!Object} type
+   * @param {number} size
+   */
   function finishOp(type, size) {
     var str = input.slice(tokPos, tokPos + size);
     tokPos += size;
     finishToken(type, str);
   }
 
-  // Parse a regular expression. Some context-awareness is necessary,
-  // since a '/' inside a '[]' set does not end the expression.
-
+  /**
+   * Parse a regular expression. Some context-awareness is necessary,
+   * since a '/' inside a '[]' set does not end the expression.
+   */
   function readRegexp() {
     // JS-Interpreter change:
     // Removed redundant declaration of 'content' here.  Caused lint errors.
@@ -696,9 +914,13 @@
       var ch = input.charAt(tokPos);
       if (newline.test(ch)) raise(start, "Unterminated regular expression");
       if (!escaped) {
-        if (ch === "[") inClass = true;
-        else if (ch === "]" && inClass) inClass = false;
-        else if (ch === "/" && !inClass) break;
+        if (ch === "[") {
+          inClass = true;
+        } else if (ch === "]" && inClass) {
+          inClass = false;
+        } else if (ch === "/" && !inClass) {
+          break;
+        }
         escaped = ch === "\\";
       } else escaped = false;
       ++tokPos;
@@ -717,15 +939,22 @@
       var value = new RegExp(content, mods);
     } catch (e) {
       if (e instanceof SyntaxError) raise(start, e.message);
-      raise(e);
+      // JS-Interpreter change:
+      // Acorn used to use raise(e) here which is incorrect.
+      // -- Neil Fraser, July 2023.
+      throw(e);
     }
-    return finishToken(_regexp, value);
+    finishToken(_regexp, value);
   }
 
-  // Read an integer in the given radix. Return null if zero digits
-  // were read, the integer value otherwise. When `len` is given, this
-  // will return `null` unless the integer has exactly `len` digits.
-
+  /**
+   * Read an integer in the given radix. Return null if zero digits
+   * were read, the integer value otherwise. When `len` is given, this
+   * will return `null` unless the integer has exactly `len` digits.
+   * @param {number} radix
+   * @param {number=} len
+   * @returns {?number}
+   */
   function readInt(radix, len) {
     var start = tokPos, total = 0;
     for (var i = 0, e = len == null ? Infinity : len; i < e; ++i) {
@@ -738,7 +967,7 @@
       ++tokPos;
       total = total * radix + val;
     }
-    if (tokPos === start || len != null && tokPos - start !== len) return null;
+    if (tokPos === start || len !== null && tokPos - start !== len) return null;
 
     return total;
   }
@@ -746,13 +975,18 @@
   function readHexNumber() {
     tokPos += 2; // 0x
     var val = readInt(16);
-    if (val == null) raise(tokStart + 2, "Expected hexadecimal number");
-    if (isIdentifierStart(input.charCodeAt(tokPos))) raise(tokPos, "Identifier directly after number");
-    return finishToken(_num, val);
+    if (val === null) raise(tokStart + 2, "Expected hexadecimal number");
+    if (isIdentifierStart(input.charCodeAt(tokPos))) {
+      raise(tokPos, "Identifier directly after number");
+    }
+    finishToken(_num, val);
   }
 
-  // Read an integer, octal integer, or floating-point number.
-
+  /**
+   * Read an integer, octal integer, or floating-point number.
+   *
+   * @param {boolean} startsWithDot
+   */
   function readNumber(startsWithDot) {
     var start = tokPos, isFloat = false, octal = input.charCodeAt(tokPos) === 48;
     if (!startsWithDot && readInt(10) === null) raise(start, "Invalid number");
@@ -775,11 +1009,14 @@
     else if (!octal || str.length === 1) val = parseInt(str, 10);
     else if (/[89]/.test(str) || strict) raise(start, "Invalid number");
     else val = parseInt(str, 8);
-    return finishToken(_num, val);
+    finishToken(_num, val);
   }
 
-  // Read a string value, interpreting backslash-escapes.
-
+  /**
+   * Read a string value, interpreting backslash-escapes.
+   *
+   * @param {number} quote
+   */
   function readString(quote) {
     tokPos++;
     var out = "";
@@ -788,7 +1025,8 @@
       var ch = input.charCodeAt(tokPos);
       if (ch === quote) {
         ++tokPos;
-        return finishToken(_string, out);
+        finishToken(_string, out);
+        return;
       }
       if (ch === 92) { // '\'
         ch = input.charCodeAt(++tokPos);
@@ -803,21 +1041,21 @@
           tokPos += octal.length - 1;
         } else {
           switch (ch) {
-          case 110: out += "\n"; break; // 'n' -> '\n'
-          case 114: out += "\r"; break; // 'r' -> '\r'
-          case 120: out += String.fromCharCode(readHexChar(2)); break; // 'x'
-          case 117: out += String.fromCharCode(readHexChar(4)); break; // 'u'
-          case 85: out += String.fromCharCode(readHexChar(8)); break; // 'U'
-          case 116: out += "\t"; break; // 't' -> '\t'
-          case 98: out += "\b"; break; // 'b' -> '\b'
-          case 118: out += "\u000b"; break; // 'v' -> '\u000b'
-          case 102: out += "\f"; break; // 'f' -> '\f'
-          case 48: out += "\0"; break; // 0 -> '\0'
-          case 13: if (input.charCodeAt(tokPos) === 10) ++tokPos; // '\r\n'
-          case 10: // ' \n'
-            if (options.locations) { tokLineStart = tokPos; ++tokCurLine; }
-            break;
-          default: out += String.fromCharCode(ch); break;
+            case 110: out += "\n"; break; // 'n' -> '\n'
+            case 114: out += "\r"; break; // 'r' -> '\r'
+            case 120: out += String.fromCharCode(readHexChar(2)); break; // 'x'
+            case 117: out += String.fromCharCode(readHexChar(4)); break; // 'u'
+            case 85: out += String.fromCharCode(readHexChar(8)); break; // 'U'
+            case 116: out += "\t"; break; // 't' -> '\t'
+            case 98: out += "\b"; break; // 'b' -> '\b'
+            case 118: out += "\u000b"; break; // 'v' -> '\u000b'
+            case 102: out += "\f"; break; // 'f' -> '\f'
+            case 48: out += "\0"; break; // 0 -> '\0'
+            case 13: if (input.charCodeAt(tokPos) === 10) ++tokPos; // '\r\n'
+            case 10: // ' \n'
+              if (options.locations) { tokLineStart = tokPos; ++tokCurLine; }
+              break;
+            default: out += String.fromCharCode(ch); break;
           }
         }
       } else {
@@ -828,26 +1066,34 @@
     }
   }
 
-  // Used to read character escape sequences ('\x', '\u', '\U').
-
+  /**
+   * Used to read character escape sequences ('\x', '\u', '\U').
+   *
+   * @param {number} len
+   * @returns {number}
+   */
   function readHexChar(len) {
     var n = readInt(16, len);
     if (n === null) raise(tokStart, "Bad character escape sequence");
-    return n;
+    return /** @type {number} */(n);
   }
 
   // Used to signal to callers of `readWord1` whether the word
   // contained any escape sequences. This is needed because words with
   // escape sequences must not be interpreted as keywords.
 
+  /** @type {boolean|undefined} */
   var containsEsc;
 
-  // Read an identifier, and return it as a string. Sets `containsEsc`
-  // to whether the word contained a '\u' escape.
-  //
-  // Only builds up the word character-by-character when it actually
-  // containeds an escape, as a micro-optimization.
-
+  /**
+   * Read an identifier, and return it as a string. Sets `containsEsc`
+   * to whether the word contained a '\u' escape.
+   *
+   * Only builds up the word character-by-character when it actually
+   * containeds an escape, as a micro-optimization.
+   *
+   * @returns {string|undefined}
+   */
   function readWord1() {
     containsEsc = false;
     var word, first = true, start = tokPos;
@@ -876,15 +1122,17 @@
     return containsEsc ? word : input.slice(start, tokPos);
   }
 
-  // Read an identifier or keyword token. Will check for reserved
-  // words when necessary.
-
+  /**
+   * Read an identifier or keyword token. Will check for reserved
+   * words when necessary.
+   */
   function readWord() {
     var word = readWord1();
     var type = _name;
-    if (!containsEsc && isKeyword(word))
+    if (!containsEsc && isKeyword(word)) {
       type = keywordTypes[word];
-    return finishToken(type, word);
+    }
+    finishToken(type, word);
   }
 
   // ## Parser
@@ -909,8 +1157,9 @@
 
   // ### Parser utilities
 
-  // Continue to the next token.
-
+  /**
+   * Continue to the next token.
+   */
   function next() {
     lastStart = tokStart;
     lastEnd = tokEnd;
@@ -918,9 +1167,12 @@
     readToken();
   }
 
-  // Enter strict mode. Re-reads the next token to please pedantic
-  // tests ("use strict"; 010; -- should fail).
-
+  /**
+   * Enter strict mode. Re-reads the next token to please pedantic
+   * tests ("use strict"; 010; -- should fail).
+   *
+   * @param {boolean} strct
+   */
   function setStrict(strct) {
     strict = strct;
     tokPos = tokStart;
@@ -936,18 +1188,27 @@
 
   // Start an AST node, attaching a start offset.
 
+  /**
+   * @constructor
+   */
   function node_t() {
     this.type = null;
     this.start = tokStart;
     this.end = null;
   }
 
+  /**
+   * @constructor
+   */
   function node_loc_t() {
     this.start = tokStartLoc;
     this.end = null;
     if (sourceFile !== null) this.source = sourceFile;
   }
 
+  /**
+   * @returns {!node_t}
+   */
   function startNode() {
     var node = new node_t();
     if (options.locations)
@@ -959,10 +1220,14 @@
     return node;
   }
 
-  // Start a node whose start offset information should be based on
-  // the start of another node. For example, a binary operator node is
-  // only started after its left-hand side has already been parsed.
-
+  /**
+   * Start a node whose start offset information should be based on
+   * the start of another node. For example, a binary operator node is
+   * only started after its left-hand side has already been parsed.
+   *
+   * @param {!node_t} other
+   * @returns {!node_t}
+   */
   function startNodeFrom(other) {
     var node = new node_t();
     node.start = other.start;
@@ -970,14 +1235,19 @@
       node.loc = new node_loc_t();
       node.loc.start = other.loc.start;
     }
-    if (options.ranges)
+    if (options.ranges) {
       node.range = [other.range[0], 0];
-
+    }
     return node;
   }
 
-  // Finish an AST node, adding `type` and `end` properties.
-
+  /**
+   * Finish an AST node, adding `type` and `end` properties.
+   *
+   * @param {!node_t} node
+   * @param {string} type
+   * @returns {!node_t}
+   */
   function finishNode(node, type) {
     node.type = type;
     node.end = lastEnd;
@@ -988,54 +1258,76 @@
     return node;
   }
 
-  // Test whether a statement node is the string literal `"use strict"`.
-
+  /**
+   * Test whether a statement node is the string literal `"use strict"`.
+   *
+   * @param {!node_t} stmt
+   * @returns {boolean}
+   */
   function isUseStrict(stmt) {
     return stmt.type === "ExpressionStatement" &&
       stmt.expression.type === "Literal" && stmt.expression.value === "use strict";
   }
 
-  // Predicate that tests whether the next token is of the given
-  // type, and if yes, consumes it as a side effect.
-
+  /**
+   * Predicate that tests whether the next token is of the given
+   * type, and if yes, consumes it as a side effect.
+   * @param {!Object} type
+   * @returns {boolean}
+   */
   function eat(type) {
     if (tokType === type) {
       next();
       return true;
     }
+    return false;
   }
 
-  // Test whether a semicolon can be inserted at the current position.
-
+  /**
+   * Test whether a semicolon can be inserted at the current position.
+   *
+   * @returns {boolean}
+   */
   function canInsertSemicolon() {
     return !options.strictSemicolons &&
       (tokType === _eof || tokType === _braceR || newline.test(input.slice(lastEnd, tokStart)));
   }
 
-  // Consume a semicolon, or, failing that, see if we are allowed to
-  // pretend that there is a semicolon at this position.
-
+  /**
+   * Consume a semicolon, or, failing that, see if we are allowed to
+   * pretend that there is a semicolon at this position.
+   */
   function semicolon() {
     if (!eat(_semi) && !canInsertSemicolon()) unexpected();
   }
 
-  // Expect a token of a given type. If found, consume it, otherwise,
-  // raise an unexpected token error.
-
+  /**
+   * Expect a token of a given type.  If found, consume it, otherwise,
+   * raise an unexpected token error.
+   *
+   * @param {!Object} type
+   */
   function expect(type) {
-    if (tokType === type) next();
-    else unexpected();
+    if (tokType === type) {
+      next();
+    } else {
+      unexpected();
+    }
   }
 
-  // Raise an unexpected token error.
-
+  /**
+   * Raise an unexpected token error.
+   * @throws {SyntaxError}
+   */
   function unexpected() {
     raise(tokStart, "Unexpected token");
   }
 
-  // Verify that a node is an lval — something that can be assigned
-  // to.
-
+  /**
+   * Verify that a node is an lval — something that can be assigned to.
+   *
+   * @param {!node_t} expr
+   */
   function checkLVal(expr) {
     if (expr.type !== "Identifier" && expr.type !== "MemberExpression")
       raise(expr.start, "Assigning to rvalue");
@@ -1045,15 +1337,19 @@
 
   // ### Statement parsing
 
-  // Parse a program. Initializes the parser, reads any number of
-  // statements, and wraps them in a Program node.  Optionally takes a
-  // `program` argument.  If present, the statements will be appended
-  // to its body instead of creating a new node.
-
+  /**
+   * Parse a program. Initializes the parser, reads any number of
+   * statements, and wraps them in a Program node.  Optionally takes a
+   * `program` argument.  If present, the statements will be appended
+   * to its body instead of creating a new node.
+   *
+   * @param {node_t} program
+   * @returns {!node_t}
+   */
   function parseTopLevel(program) {
     lastStart = lastEnd = tokPos;
-    if (options.locations) lastEndLoc = new line_loc_t;
-    inFunction = strict = null;
+    if (options.locations) lastEndLoc = new line_loc_t();
+    inFunction = strict = false;
     labels = [];
     readToken();
 
@@ -1070,13 +1366,16 @@
 
   var loopLabel = {kind: "loop"}, switchLabel = {kind: "switch"};
 
-  // Parse a single statement.
-  //
-  // If expecting a statement and finding a slash operator, parse a
-  // regular expression literal. This is to handle cases like
-  // `if (foo) /blah/.exec(foo);`, where looking at the previous token
-  // does not help.
-
+  /**
+   * Parse a single statement.
+   *
+   * If expecting a statement and finding a slash operator, parse a
+   * regular expression literal. This is to handle cases like
+   * `if (foo) /blah/.exec(foo);`, where looking at the previous token
+   * does not help.
+   *
+   * @returns {!node_t}
+   */
   function parseStatement() {
     if (tokType === _slash || tokType === _assign && tokVal == "/=")
       readToken(true);
@@ -1088,219 +1387,222 @@
     // complexity.
 
     switch (starttype) {
-    case _break: case _continue:
-      next();
-      var isBreak = starttype === _break;
-      if (eat(_semi) || canInsertSemicolon()) node.label = null;
-      else if (tokType !== _name) unexpected();
-      else {
-        node.label = parseIdent();
-        semicolon();
-      }
-
-      // Verify that there is an actual destination to break or
-      // continue to.
-      for (var i = 0; i < labels.length; ++i) {
-        var lab = labels[i];
-        if (node.label == null || lab.name === node.label.name) {
-          if (lab.kind != null && (isBreak || lab.kind === "loop")) break;
-          if (node.label && isBreak) break;
-        }
-      }
-      if (i === labels.length) raise(node.start, "Unsyntactic " + starttype.keyword);
-      return finishNode(node, isBreak ? "BreakStatement" : "ContinueStatement");
-
-    case _debugger:
-      next();
-      semicolon();
-      return finishNode(node, "DebuggerStatement");
-
-    case _do:
-      next();
-      labels.push(loopLabel);
-      node.body = parseStatement();
-      labels.pop();
-      expect(_while);
-      node.test = parseParenExpression();
-      semicolon();
-      return finishNode(node, "DoWhileStatement");
-
-      // Disambiguating between a `for` and a `for`/`in` loop is
-      // non-trivial. Basically, we have to parse the init `var`
-      // statement or expression, disallowing the `in` operator (see
-      // the second parameter to `parseExpression`), and then check
-      // whether the next token is `in`. When there is no init part
-      // (semicolon immediately after the opening parenthesis), it is
-      // a regular `for` loop.
-
-    case _for:
-      next();
-      labels.push(loopLabel);
-      expect(_parenL);
-      if (tokType === _semi) return parseFor(node, null);
-      if (tokType === _var) {
-        var init = startNode();
+      case _break: case _continue:
         next();
-        parseVar(init, true);
-        finishNode(init, "VariableDeclaration");
-        if (init.declarations.length === 1 && eat(_in))
-          return parseForIn(node, init);
-        return parseFor(node, init);
-      }
-      var init = parseExpression(false, true);
-      if (eat(_in)) {checkLVal(init); return parseForIn(node, init);}
-      return parseFor(node, init);
+        var isBreak = starttype === _break;
+        if (eat(_semi) || canInsertSemicolon()) node.label = null;
+        else if (tokType !== _name) unexpected();
+        else {
+          node.label = parseIdent();
+          semicolon();
+        }
 
-    case _function:
-      next();
-      return parseFunction(node, true);
-
-    case _if:
-      next();
-      node.test = parseParenExpression();
-      node.consequent = parseStatement();
-      node.alternate = eat(_else) ? parseStatement() : null;
-      return finishNode(node, "IfStatement");
-
-    case _return:
-      if (!inFunction && !options.allowReturnOutsideFunction)
-        raise(tokStart, "'return' outside of function");
-      next();
-
-      // In `return` (and `break`/`continue`), the keywords with
-      // optional arguments, we eagerly look for a semicolon or the
-      // possibility to insert one.
-
-      if (eat(_semi) || canInsertSemicolon()) node.argument = null;
-      else { node.argument = parseExpression(); semicolon(); }
-      return finishNode(node, "ReturnStatement");
-
-    case _switch:
-      next();
-      node.discriminant = parseParenExpression();
-      node.cases = [];
-      expect(_braceL);
-      labels.push(switchLabel);
-
-      // Statements under must be grouped (by label) in SwitchCase
-      // nodes. `cur` is used to keep the node that we are currently
-      // adding statements to.
-
-      for (var cur, sawDefault; tokType != _braceR;) {
-        if (tokType === _case || tokType === _default) {
-          var isCase = tokType === _case;
-          if (cur) finishNode(cur, "SwitchCase");
-          node.cases.push(cur = startNode());
-          cur.consequent = [];
-          next();
-          if (isCase) cur.test = parseExpression();
-          else {
-            if (sawDefault) raise(lastStart, "Multiple default clauses"); sawDefault = true;
-            cur.test = null;
+        // Verify that there is an actual destination to break or
+        // continue to.
+        for (var i = 0; i < labels.length; ++i) {
+          var lab = labels[i];
+          if (node.label == null || lab.name === node.label.name) {
+            if (lab.kind != null && (isBreak || lab.kind === "loop")) break;
+            if (node.label && isBreak) break;
           }
-          expect(_colon);
-        } else {
-          if (!cur) unexpected();
-          cur.consequent.push(parseStatement());
         }
-      }
-      if (cur) finishNode(cur, "SwitchCase");
-      next(); // Closing brace
-      labels.pop();
-      return finishNode(node, "SwitchStatement");
+        if (i === labels.length) raise(node.start, "Unsyntactic " + starttype.keyword);
+        return finishNode(node, isBreak ? "BreakStatement" : "ContinueStatement");
 
-    case _throw:
-      next();
-      if (newline.test(input.slice(lastEnd, tokStart)))
-        raise(lastEnd, "Illegal newline after throw");
-      node.argument = parseExpression();
-      semicolon();
-      return finishNode(node, "ThrowStatement");
-
-    case _try:
-      next();
-      node.block = parseBlock();
-      node.handler = null;
-      if (tokType === _catch) {
-        var clause = startNode();
+      case _debugger:
         next();
+        semicolon();
+        return finishNode(node, "DebuggerStatement");
+
+      case _do:
+        next();
+        labels.push(loopLabel);
+        node.body = parseStatement();
+        labels.pop();
+        expect(_while);
+        node.test = parseParenExpression();
+        semicolon();
+        return finishNode(node, "DoWhileStatement");
+
+        // Disambiguating between a `for` and a `for`/`in` loop is
+        // non-trivial. Basically, we have to parse the init `var`
+        // statement or expression, disallowing the `in` operator (see
+        // the second parameter to `parseExpression`), and then check
+        // whether the next token is `in`. When there is no init part
+        // (semicolon immediately after the opening parenthesis), it is
+        // a regular `for` loop.
+
+      case _for:
+        next();
+        labels.push(loopLabel);
         expect(_parenL);
-        clause.param = parseIdent();
-        if (strict && isStrictBadIdWord(clause.param.name))
-          raise(clause.param.start, "Binding " + clause.param.name + " in strict mode");
-        expect(_parenR);
+        if (tokType === _semi) return parseFor(node, null);
+        if (tokType === _var) {
+          var init = startNode();
+          next();
+          parseVar(init, true);
+          finishNode(init, "VariableDeclaration");
+          if (init.declarations.length === 1 && eat(_in))
+            return parseForIn(node, init);
+          return parseFor(node, init);
+        }
+        var init = parseExpression(false, true);
+        if (eat(_in)) {checkLVal(init); return parseForIn(node, init);}
+        return parseFor(node, init);
+
+      case _function:
+        next();
+        return parseFunction(node, true);
+
+      case _if:
+        next();
+        node.test = parseParenExpression();
+        node.consequent = parseStatement();
+        node.alternate = eat(_else) ? parseStatement() : null;
+        return finishNode(node, "IfStatement");
+
+      case _return:
+        if (!inFunction && !options.allowReturnOutsideFunction)
+          raise(tokStart, "'return' outside of function");
+        next();
+
+        // In `return` (and `break`/`continue`), the keywords with
+        // optional arguments, we eagerly look for a semicolon or the
+        // possibility to insert one.
+
+        if (eat(_semi) || canInsertSemicolon()) node.argument = null;
+        else { node.argument = parseExpression(); semicolon(); }
+        return finishNode(node, "ReturnStatement");
+
+      case _switch:
+        next();
+        node.discriminant = parseParenExpression();
+        node.cases = [];
+        expect(_braceL);
+        labels.push(switchLabel);
+
+        // Statements under must be grouped (by label) in SwitchCase
+        // nodes. `cur` is used to keep the node that we are currently
+        // adding statements to.
+
+        for (var cur, sawDefault; tokType != _braceR;) {
+          if (tokType === _case || tokType === _default) {
+            var isCase = tokType === _case;
+            if (cur) finishNode(cur, "SwitchCase");
+            node.cases.push(cur = startNode());
+            cur.consequent = [];
+            next();
+            if (isCase) cur.test = parseExpression();
+            else {
+              if (sawDefault) raise(lastStart, "Multiple default clauses"); sawDefault = true;
+              cur.test = null;
+            }
+            expect(_colon);
+          } else {
+            if (!cur) unexpected();
+            cur.consequent.push(parseStatement());
+          }
+        }
+        if (cur) finishNode(cur, "SwitchCase");
+        next(); // Closing brace
+        labels.pop();
+        return finishNode(node, "SwitchStatement");
+
+      case _throw:
+        next();
+        if (newline.test(input.slice(lastEnd, tokStart)))
+          raise(lastEnd, "Illegal newline after throw");
+        node.argument = parseExpression();
+        semicolon();
+        return finishNode(node, "ThrowStatement");
+
+      case _try:
+        next();
+        node.block = parseBlock();
+        node.handler = null;
+        if (tokType === _catch) {
+          var clause = startNode();
+          next();
+          expect(_parenL);
+          clause.param = parseIdent();
+          if (strict && isStrictBadIdWord(clause.param.name))
+            raise(clause.param.start, "Binding " + clause.param.name + " in strict mode");
+          expect(_parenR);
+          // JS-Interpreter change:
+          // Obsolete unused property; commenting out.
+          // -- Neil Fraser, January 2023.
+          // clause.guard = null;
+          clause.body = parseBlock();
+          node.handler = finishNode(clause, "CatchClause");
+        }
         // JS-Interpreter change:
         // Obsolete unused property; commenting out.
         // -- Neil Fraser, January 2023.
-        // clause.guard = null;
-        clause.body = parseBlock();
-        node.handler = finishNode(clause, "CatchClause");
-      }
-      // JS-Interpreter change:
-      // Obsolete unused property; commenting out.
-      // -- Neil Fraser, January 2023.
-      // node.guardedHandlers = empty;
-      node.finalizer = eat(_finally) ? parseBlock() : null;
-      if (!node.handler && !node.finalizer)
-        raise(node.start, "Missing catch or finally clause");
-      return finishNode(node, "TryStatement");
+        // node.guardedHandlers = empty;
+        node.finalizer = eat(_finally) ? parseBlock() : null;
+        if (!node.handler && !node.finalizer)
+          raise(node.start, "Missing catch or finally clause");
+        return finishNode(node, "TryStatement");
 
-    case _var:
-      next();
-      parseVar(node);
-      semicolon();
-      return finishNode(node, "VariableDeclaration");
+      case _var:
+        next();
+        parseVar(node);
+        semicolon();
+        return finishNode(node, "VariableDeclaration");
 
-    case _while:
-      next();
-      node.test = parseParenExpression();
-      labels.push(loopLabel);
-      node.body = parseStatement();
-      labels.pop();
-      return finishNode(node, "WhileStatement");
-
-    case _with:
-      if (strict) raise(tokStart, "'with' in strict mode");
-      next();
-      node.object = parseParenExpression();
-      node.body = parseStatement();
-      return finishNode(node, "WithStatement");
-
-    case _braceL:
-      return parseBlock();
-
-    case _semi:
-      next();
-      return finishNode(node, "EmptyStatement");
-
-      // If the statement does not start with a statement keyword or a
-      // brace, it's an ExpressionStatement or LabeledStatement. We
-      // simply start parsing an expression, and afterwards, if the
-      // next token is a colon and the expression was a simple
-      // Identifier node, we switch to interpreting it as a label.
-
-    default:
-      var maybeName = tokVal, expr = parseExpression();
-      if (starttype === _name && expr.type === "Identifier" && eat(_colon)) {
-        for (var i = 0; i < labels.length; ++i)
-          if (labels[i].name === maybeName) raise(expr.start, "Label '" + maybeName + "' is already declared");
-        var kind = tokType.isLoop ? "loop" : tokType === _switch ? "switch" : null;
-        labels.push({name: maybeName, kind: kind});
+      case _while:
+        next();
+        node.test = parseParenExpression();
+        labels.push(loopLabel);
         node.body = parseStatement();
         labels.pop();
-        node.label = expr;
-        return finishNode(node, "LabeledStatement");
-      } else {
-        node.expression = expr;
-        semicolon();
-        return finishNode(node, "ExpressionStatement");
-      }
+        return finishNode(node, "WhileStatement");
+
+      case _with:
+        if (strict) raise(tokStart, "'with' in strict mode");
+        next();
+        node.object = parseParenExpression();
+        node.body = parseStatement();
+        return finishNode(node, "WithStatement");
+
+      case _braceL:
+        return parseBlock();
+
+      case _semi:
+        next();
+        return finishNode(node, "EmptyStatement");
+
+        // If the statement does not start with a statement keyword or a
+        // brace, it's an ExpressionStatement or LabeledStatement. We
+        // simply start parsing an expression, and afterwards, if the
+        // next token is a colon and the expression was a simple
+        // Identifier node, we switch to interpreting it as a label.
+
+      default:
+        var maybeName = tokVal, expr = parseExpression();
+        if (starttype === _name && expr.type === "Identifier" && eat(_colon)) {
+          for (var i = 0; i < labels.length; ++i)
+            if (labels[i].name === maybeName) raise(expr.start, "Label '" + maybeName + "' is already declared");
+          var kind = tokType.isLoop ? "loop" : tokType === _switch ? "switch" : null;
+          labels.push({name: maybeName, kind: kind});
+          node.body = parseStatement();
+          labels.pop();
+          node.label = expr;
+          return finishNode(node, "LabeledStatement");
+        } else {
+          node.expression = expr;
+          semicolon();
+          return finishNode(node, "ExpressionStatement");
+        }
     }
   }
 
-  // Used for constructs like `switch` and `if` that insist on
-  // parentheses around their expression.
-
+  /**
+   * Used for constructs like `switch` and `if` that insist on
+   * parentheses around their expression.
+   *
+   * @returns {!node_t}
+   */
   function parseParenExpression() {
     expect(_parenL);
     var val = parseExpression();
@@ -1308,10 +1610,14 @@
     return val;
   }
 
-  // Parse a semicolon-enclosed block of statements, handling `"use
-  // strict"` declarations when `allowStrict` is true (used for
-  // function bodies).
-
+  /**
+   * Parse a semicolon-enclosed block of statements, handling `"use
+   * strict"` declarations when `allowStrict` is true (used for
+   * function bodies).
+   *
+   * @param {boolean=} allowStrict
+   * @returns {!node_t}
+   */
   function parseBlock(allowStrict) {
     var node = startNode(), first = true, strict = false, oldStrict;
     node.body = [];
@@ -1329,10 +1635,15 @@
     return finishNode(node, "BlockStatement");
   }
 
-  // Parse a regular `for` loop. The disambiguation code in
-  // `parseStatement` will already have parsed the init statement or
-  // expression.
-
+  /**
+   * Parse a regular `for` loop. The disambiguation code in
+   * `parseStatement` will already have parsed the init statement or
+   * expression.
+   *
+   * @param {!node_t} node
+   * @param {node_t} init
+   * @returns {!node_t}
+   */
   function parseFor(node, init) {
     node.init = init;
     expect(_semi);
@@ -1345,8 +1656,13 @@
     return finishNode(node, "ForStatement");
   }
 
-  // Parse a `for`/`in` loop.
-
+  /**
+   * Parse a `for`/`in` loop.
+   *
+   * @param {!node_t} node
+   * @param {!node_t} init
+   * @returns {!node_t}
+   */
   function parseForIn(node, init) {
     node.left = init;
     node.right = parseExpression();
@@ -1356,8 +1672,12 @@
     return finishNode(node, "ForInStatement");
   }
 
-  // Parse a list of variable declarations.
-
+  /**
+   * Parse a list of variable declarations.
+   *
+   * @param {!node_t} node
+   * @param {boolean=} noIn
+   */
   function parseVar(node, noIn) {
     node.declarations = [];
     node.kind = "var";
@@ -1370,7 +1690,6 @@
       node.declarations.push(finishNode(decl, "VariableDeclarator"));
       if (!eat(_comma)) break;
     }
-    return node;
   }
 
   // ### Expression parsing
@@ -1381,10 +1700,15 @@
   // and, *if* the syntactic construct they handle is present, wrap
   // the AST node that the inner parser gave them in another node.
 
-  // Parse a full expression. The arguments are used to forbid comma
-  // sequences (in argument lists, array literals, or object literals)
-  // or the `in` operator (in for loops initalization expressions).
-
+  /**
+   * Parse a full expression. The arguments are used to forbid comma
+   * sequences (in argument lists, array literals, or object literals)
+   * or the `in` operator (in for loops initalization expressions).
+   *
+   * @param {boolean=} noComma
+   * @param {boolean=} noIn
+   * @returns {!node_t}
+   */
   function parseExpression(noComma, noIn) {
     var expr = parseMaybeAssign(noIn);
     if (!noComma && tokType === _comma) {
@@ -1396,9 +1720,13 @@
     return expr;
   }
 
-  // Parse an assignment expression. This includes applications of
-  // operators like `+=`.
-
+  /**
+   * Parse an assignment expression. This includes applications of
+   * operators like `+=`.
+   *
+   * @param {boolean|undefined} noIn
+   * @returns {!node_t}
+   */
   function parseMaybeAssign(noIn) {
     var left = parseMaybeConditional(noIn);
     if (tokType.isAssign) {
@@ -1413,8 +1741,12 @@
     return left;
   }
 
-  // Parse a ternary conditional (`?:`) operator.
-
+  /**
+   * Parse a ternary conditional (`?:`) operator.
+   *
+   * @param {boolean|undefined} noIn
+   * @returns {!node_t}
+   */
   function parseMaybeConditional(noIn) {
     var expr = parseExprOps(noIn);
     if (eat(_question)) {
@@ -1428,18 +1760,28 @@
     return expr;
   }
 
-  // Start the precedence parser.
-
+  /**
+   * Start the precedence parser.
+   *
+   * @param {boolean|undefined} noIn
+   * @returns {!node_t}
+   */
   function parseExprOps(noIn) {
     return parseExprOp(parseMaybeUnary(), -1, noIn);
   }
 
-  // Parse binary operators with the operator precedence parsing
-  // algorithm. `left` is the left-hand side of the operator.
-  // `minPrec` provides context that allows the function to stop and
-  // defer further parser to one of its callers when it encounters an
-  // operator that has a lower precedence than the set it is parsing.
-
+  /**
+   * Parse binary operators with the operator precedence parsing
+   * algorithm. `left` is the left-hand side of the operator.
+   * `minPrec` provides context that allows the function to stop and
+   * defer further parser to one of its callers when it encounters an
+   * operator that has a lower precedence than the set it is parsing.
+   *
+   * @param {!node_t} left
+   * @param {number} minPrec
+   * @param {boolean|undefined} noIn
+   * @returns {!node_t}
+   */
   function parseExprOp(left, minPrec, noIn) {
     var prec = tokType.binop;
     if (prec != null && (!noIn || tokType !== _in)) {
@@ -1457,8 +1799,11 @@
     return left;
   }
 
-  // Parse unary operators, both prefix and postfix.
-
+  /**
+   * Parse unary operators, both prefix and postfix.
+   *
+   * @returns {!node_t}
+   */
   function parseMaybeUnary() {
     if (tokType.prefix) {
       var node = startNode(), update = tokType.isUpdate;
@@ -1486,12 +1831,20 @@
     return expr;
   }
 
-  // Parse call, dot, and `[]`-subscript expressions.
-
+  /**
+   * Parse call, dot, and `[]`-subscript expressions.
+   *
+   * @returns {!node_t}
+   */
   function parseExprSubscripts() {
     return parseSubscripts(parseExprAtom());
   }
 
+  /**
+   * @param {!node_t} base
+   * @param {boolean=} noCalls
+   * @returns {!node_t}
+   */
   function parseSubscripts(base, noCalls) {
     if (eat(_dot)) {
       var node = startNodeFrom(base);
@@ -1499,89 +1852,99 @@
       node.property = parseIdent(true);
       node.computed = false;
       return parseSubscripts(finishNode(node, "MemberExpression"), noCalls);
-    } else if (eat(_bracketL)) {
+    }
+    if (eat(_bracketL)) {
       var node = startNodeFrom(base);
       node.object = base;
       node.property = parseExpression();
       node.computed = true;
       expect(_bracketR);
       return parseSubscripts(finishNode(node, "MemberExpression"), noCalls);
-    } else if (!noCalls && eat(_parenL)) {
+    }
+    if (!noCalls && eat(_parenL)) {
       var node = startNodeFrom(base);
       node.callee = base;
       node.arguments = parseExprList(_parenR, false);
       return parseSubscripts(finishNode(node, "CallExpression"), noCalls);
-    } else return base;
+    }
+    return base;
   }
 
-  // Parse an atomic expression — either a single token that is an
-  // expression, an expression started by a keyword like `function` or
-  // `new`, or an expression wrapped in punctuation like `()`, `[]`,
-  // or `{}`.
-
+  /**
+   * Parse an atomic expression — either a single token that is an
+   * expression, an expression started by a keyword like `function` or
+   * `new`, or an expression wrapped in punctuation like `()`, `[]`,
+   * or `{}`.
+   *
+   * @returns {!node_t}
+   * @suppress {missingReturn}
+   */
   function parseExprAtom() {
     switch (tokType) {
-    case _this:
-      var node = startNode();
-      next();
-      return finishNode(node, "ThisExpression");
-    case _name:
-      return parseIdent();
-    case _num: case _string: case _regexp:
-      var node = startNode();
-      node.value = tokVal;
-      node.raw = input.slice(tokStart, tokEnd);
-      next();
-      return finishNode(node, "Literal");
+      case _this:
+        var node = startNode();
+        next();
+        return finishNode(node, "ThisExpression");
+      case _name:
+        return parseIdent();
+      case _num: case _string: case _regexp:
+        var node = startNode();
+        node.value = tokVal;
+        node.raw = input.slice(tokStart, tokEnd);
+        next();
+        return finishNode(node, "Literal");
 
-    case _null: case _true: case _false:
-      var node = startNode();
-      node.value = tokType.atomValue;
-      node.raw = tokType.keyword;
-      next();
-      return finishNode(node, "Literal");
+      case _null: case _true: case _false:
+        var node = startNode();
+        node.value = tokType.atomValue;
+        node.raw = tokType.keyword;
+        next();
+        return finishNode(node, "Literal");
 
-    case _parenL:
-      var tokStartLoc1 = tokStartLoc, tokStart1 = tokStart;
-      next();
-      var val = parseExpression();
-      val.start = tokStart1;
-      val.end = tokEnd;
-      if (options.locations) {
-        val.loc.start = tokStartLoc1;
-        val.loc.end = tokEndLoc;
-      }
-      if (options.ranges)
-        val.range = [tokStart1, tokEnd];
-      expect(_parenR);
-      return val;
+      case _parenL:
+        var tokStartLoc1 = tokStartLoc, tokStart1 = tokStart;
+        next();
+        var val = parseExpression();
+        val.start = tokStart1;
+        val.end = tokEnd;
+        if (options.locations) {
+          val.loc.start = tokStartLoc1;
+          val.loc.end = tokEndLoc;
+        }
+        if (options.ranges)
+          val.range = [tokStart1, tokEnd];
+        expect(_parenR);
+        return val;
 
-    case _bracketL:
-      var node = startNode();
-      next();
-      node.elements = parseExprList(_bracketR, true, true);
-      return finishNode(node, "ArrayExpression");
+      case _bracketL:
+        var node = startNode();
+        next();
+        node.elements = parseExprList(_bracketR, true, true);
+        return finishNode(node, "ArrayExpression");
 
-    case _braceL:
-      return parseObj();
+      case _braceL:
+        return parseObj();
 
-    case _function:
-      var node = startNode();
-      next();
-      return parseFunction(node, false);
+      case _function:
+        var node = startNode();
+        next();
+        return parseFunction(node, false);
 
-    case _new:
-      return parseNew();
-
-    default:
-      unexpected();
+      case _new:
+        return parseNew();
     }
+    unexpected();
   }
 
-  // New's precedence is slightly tricky. It must allow its argument
-  // to be a `[]` or dot subscript expression, but not a call — at
-  // least, not without wrapping it in parentheses. Thus, it uses the
-
+  /**
+   * New's precedence is slightly tricky. It must allow its argument
+   * to be a `[]` or dot subscript expression, but not a call — at
+   * least, not without wrapping it in parentheses. Thus, it uses the
+   * noCalls argument to parseSubscripts to prevent it from consuming the
+   * argument list.
+   *
+   * @returns {!node_t}
+   */
   function parseNew() {
     var node = startNode();
     next();
@@ -1591,8 +1954,11 @@
     return finishNode(node, "NewExpression");
   }
 
-  // Parse an object literal.
-
+  /**
+   * Parse an object literal.
+   *
+   * @returns {!node_t}
+   */
   function parseObj() {
     var node = startNode(), first = true, sawGetSet = false;
     node.properties = [];
@@ -1614,7 +1980,9 @@
         prop.key = parsePropertyName();
         if (tokType !== _parenL) unexpected();
         prop.value = parseFunction(startNode(), false);
-      } else unexpected();
+      } else {
+        unexpected();
+      }
 
       // getters and setters are not allowed to clash — either with
       // each other or with an init property — and in strict mode,
@@ -1636,18 +2004,30 @@
     return finishNode(node, "ObjectExpression");
   }
 
+  /**
+   * @returns {!node_t}
+   */
   function parsePropertyName() {
     if (tokType === _num || tokType === _string) return parseExprAtom();
     return parseIdent(true);
   }
 
-  // Parse a function declaration or literal (depending on the
-  // `isStatement` parameter).
-
+  /**
+   * Parse a function declaration or literal (depending on the
+   * `isStatement` parameter).
+   *
+   * @param {!node_t} node
+   * @param {boolean} isStatement
+   * @returns {!node_t}
+   */
   function parseFunction(node, isStatement) {
-    if (tokType === _name) node.id = parseIdent();
-    else if (isStatement) unexpected();
-    else node.id = null;
+    if (tokType === _name) {
+      node.id = parseIdent();
+    } else if (isStatement) {
+      unexpected();
+    } else {
+      node.id = null;
+    }
     node.params = [];
     var first = true;
     expect(_parenL);
@@ -1679,12 +2059,18 @@
     return finishNode(node, isStatement ? "FunctionDeclaration" : "FunctionExpression");
   }
 
-  // Parses a comma-separated list of expressions, and returns them as
-  // an array. `close` is the token type that ends the list, and
-  // `allowEmpty` can be turned on to allow subsequent commas with
-  // nothing in between them to be parsed as `null` (which is needed
-  // for array literals).
-
+  /**
+   * Parses a comma-separated list of expressions, and returns them as
+   * an array. `close` is the token type that ends the list, and
+   * `allowEmpty` can be turned on to allow subsequent commas with
+   * nothing in between them to be parsed as `null` (which is needed
+   * for array literals).
+   *
+   * @param {!Object} close
+   * @param {boolean} allowTrailingComma
+   * @param {boolean=} allowEmpty
+   * @returns {!Array<!node_t>}
+   */
   function parseExprList(close, allowTrailingComma, allowEmpty) {
     var elts = [], first = true;
     while (!eat(close)) {
@@ -1699,10 +2085,14 @@
     return elts;
   }
 
-  // Parse the next token as an identifier. If `liberal` is true (used
-  // when parsing properties), it will also convert keywords into
-  // identifiers.
-
+  /**
+   * Parse the next token as an identifier. If `liberal` is true (used
+   * when parsing properties), it will also convert keywords into
+   * identifiers.
+   *
+   * @param {boolean=} liberal
+   * @returns {!node_t}
+   */
   function parseIdent(liberal) {
     var node = startNode();
     if (liberal && options.forbidReserved == "everywhere") liberal = false;
