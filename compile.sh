@@ -16,11 +16,11 @@ fi
 
 # Compile Acorn (using simple optimizations so AST property names don't rename).
 echo "Compiling Acorn..."
-java -jar ./compiler.jar --compilation_level SIMPLE_OPTIMIZATIONS --language_in=ECMASCRIPT5 --language_out=ECMASCRIPT5 --js='acorn.js' --js_output_file acorn_compressed.js
+java -jar ./compiler.jar --compilation_level SIMPLE_OPTIMIZATIONS --language_in=ECMASCRIPT5 --language_out=ECMASCRIPT5 --warning_level VERBOSE --js='acorn.js' --js_output_file acorn_compressed.js
 
 # Compile JS-Interpreter (using advanced optimizations).
 echo "Compiling JS-Interpreter..."
-java -jar ./compiler.jar --compilation_level ADVANCED_OPTIMIZATIONS --language_in=ECMASCRIPT5 --language_out=ECMASCRIPT5 --js='interpreter.js' --js_output_file interpreter_compressed.js
+java -jar ./compiler.jar --compilation_level ADVANCED_OPTIMIZATIONS --language_in=ECMASCRIPT5 --language_out=ECMASCRIPT5 --warning_level VERBOSE --js='interpreter.js' --js_output_file interpreter_compressed.js
 
 # Assemble the pieces, along with shortened copyright statements.
 echo "// Acorn: Copyright 2012 Marijn Haverbeke, MIT License" > acorn_interpreter.js
