@@ -67,7 +67,7 @@
     inputLen = input.length;
     setOptions(opts);
     initTokenState();
-    return parseTopLevel(options.program);
+    return parseTopLevel(options['program']);
   };
 
   // A second optional argument can be given to further configure
@@ -82,23 +82,23 @@
 
     // Turn on `strictSemicolons` to prevent the parser from doing
     // automatic semicolon insertion.
-    strictSemicolons: false,
+    'strictSemicolons': false,
     // When `allowTrailingCommas` is false, the parser will not allow
     // trailing commas in array and object literals.
-    allowTrailingCommas: true,
+    'allowTrailingCommas': true,
     // By default, reserved words are not enforced. Enable
     // `forbidReserved` to enforce them. When this option has the
     // value "everywhere", reserved words and keywords can also not be
     // used as property names.
-    forbidReserved: false,
+    'forbidReserved': false,
     // When enabled, a return at the top level is not considered an
     // error.
-    allowReturnOutsideFunction: false,
+    'allowReturnOutsideFunction': false,
     // When `locations` is on, `loc` properties holding objects with
     // `start` and `end` properties in `{line, column}` form (with
     // line being 1-based and column 0-based) will be attached to the
     // nodes.
-    locations: false,
+    'locations': false,
     // A function can be passed as `onComment` option, which will
     // cause Acorn to call that function with `(block, text, start,
     // end)` parameters whenever a comment is skipped. `block` is a
@@ -109,7 +109,7 @@
     // passed, the full `{line, column}` locations of the start and
     // end of the comments. Note that you are not allowed to call the
     // parser from the callback—that will corrupt its internal state.
-    onComment: null,
+    'onComment': null,
     // Nodes have their start and end characters offsets recorded in
     // `start` and `end` properties (directly on the node, rather than
     // the `loc` object, which holds line/column data. To also add a
@@ -118,19 +118,19 @@
     // `true`.
     //
     // [range]: https://bugzilla.mozilla.org/show_bug.cgi?id=745678
-    ranges: false,
+    'ranges': false,
     // It is possible to parse multiple files into a single AST by
     // passing the tree produced by parsing the first file as
     // `program` option in subsequent parses. This will add the
     // toplevel forms of the parsed file to the `Program` (top) node
     // of an existing parse tree.
-    program: null,
+    'program': null,
     // When `locations` is on, you can pass this to record the source
     // file in every node's `loc` object.
-    sourceFile: null,
+    'sourceFile': null,
     // This value, if given, is stored in every node, whether
     // `locations` is on or off.
-    directSourceFile: null,
+    'directSourceFile': null,
   };
 
   /**
@@ -143,7 +143,7 @@
         options[opt] = defaultOptions[opt];
       }
     }
-    sourceFile = options.sourceFile || null;
+    sourceFile = options['sourceFile'] || null;
   }
 
   /**
@@ -197,14 +197,14 @@
   var tokEnd = 0;
 
   /**
-   * When `options.locations` is true, holds object
+   * When `options['locations']` is true, holds object
    * containing the token's start line/column pairs.
    * @type {!line_loc_t|undefined}
    */
   var tokStartLoc;
 
   /**
-   * When `options.locations` is true, holds object
+   * When `options['locations']` is true, holds object
    * containing the token's end line/column pairs.
    * @type {!line_loc_t|undefined}
    */
@@ -239,14 +239,14 @@
   var tokRegexpAllowed;
 
   /**
-   * When `options.locations` is true, `tokCurLine` is used to keep
+   * When `options['locations']` is true, `tokCurLine` is used to keep
    * track of the current line.
    * @type {number|undefined}
    */
   var tokCurLine;
 
   /**
-   * When `options.locations` is true, `tokLineStart` is used to know
+   * When `options['locations']` is true, `tokLineStart` is used to know
    * when a new line has been entered.
    * @type {number|undefined}
    */
@@ -558,7 +558,7 @@
   // ## Tokenizer
 
   /**
-   * These are used when `options.locations` is on, for the
+   * These are used when `options['locations']` is on, for the
    * `tokStartLoc` and `tokEndLoc` properties.
    * @constructor
    */
@@ -587,7 +587,7 @@
    */
   function finishToken(type, val) {
     tokEnd = tokPos;
-    if (options.locations) {
+    if (options['locations']) {
       tokEndLoc = new line_loc_t();
     }
     tokType = type;
@@ -597,14 +597,14 @@
   }
 
   function skipBlockComment() {
-    var startLoc = options.onComment && options.locations && new line_loc_t();
+    var startLoc = options['onComment'] && options['locations'] && new line_loc_t();
     var start = tokPos;
     var end = input.indexOf("*/", tokPos += 2);
     if (end === -1) {
       raise(tokPos - 2, "Unterminated comment");
     }
     tokPos = end + 2;
-    if (options.locations) {
+    if (options['locations']) {
       lineBreak.lastIndex = start;
       var match;
       while ((match = lineBreak.exec(input)) && match.index < tokPos) {
@@ -612,23 +612,24 @@
         tokLineStart = match.index + match[0].length;
       }
     }
-    if (options.onComment) {
-      options.onComment(true, input.slice(start + 2, end), start, tokPos,
-                        startLoc, options.locations && new line_loc_t());
+    if (options['onComment']) {
+      options['onComment'](true, input.slice(start + 2, end), start, tokPos,
+                        startLoc, options['locations'] && new line_loc_t());
     }
   }
 
   function skipLineComment() {
     var start = tokPos;
-    var startLoc = options.onComment && options.locations && new line_loc_t();
+    var startLoc = options['onComment'] && options['locations'] && new line_loc_t();
     var ch = input.charCodeAt(tokPos += 2);
     while (tokPos < inputLen && ch !== 10 && ch !== 13 && ch !== 8232 && ch !== 8233) {
       ++tokPos;
       ch = input.charCodeAt(tokPos);
     }
-    if (options.onComment)
-      options.onComment(false, input.slice(start + 2, tokPos), start, tokPos,
-                        startLoc, options.locations && new line_loc_t());
+    if (options['onComment']) {
+      options['onComment'](false, input.slice(start + 2, tokPos), start, tokPos,
+                        startLoc, options['locations'] && new line_loc_t());
+    }
   }
 
   // Called at the start of the parse and after every token. Skips
@@ -645,13 +646,13 @@
         if (next === 10) {
           ++tokPos;
         }
-        if (options.locations) {
+        if (options['locations']) {
           ++tokCurLine;
           tokLineStart = tokPos;
         }
       } else if (ch === 10 || ch === 8232 || ch === 8233) {
         ++tokPos;
-        if (options.locations) {
+        if (options['locations']) {
           ++tokCurLine;
           tokLineStart = tokPos;
         }
@@ -883,7 +884,7 @@
     } else {
       tokPos = tokStart + 1;
     }
-    if (options.locations) {
+    if (options['locations']) {
       tokStartLoc = new line_loc_t();
     }
     if (forceRegexp) return readRegexp();
@@ -955,7 +956,9 @@
     // Acorn used to use 'gmsiy' to check for flags.  But 's' and 'y' are ES6.
     // -- Neil Fraser, December 2022.
     // https://github.com/acornjs/acorn/issues/1163
-    if (mods && !/^[gmi]*$/.test(mods)) raise(start, "Invalid regexp flag");
+    if (mods && !/^[gmi]*$/.test(mods)) {
+      raise(start, "Invalid regexp flag");
+    }
     try {
       var value = new RegExp(content, mods);
     } catch (e) {
@@ -982,10 +985,15 @@
     var e = (len === undefined) ? Infinity : len;
     for (var i = 0; i < e; ++i) {
       var code = input.charCodeAt(tokPos), val;
-      if (code >= 97) val = code - 97 + 10; // a
-      else if (code >= 65) val = code - 65 + 10; // A
-      else if (code >= 48 && code <= 57) val = code - 48; // 0-9
-      else val = Infinity;
+      if (code >= 97) {
+        val = code - 97 + 10; // a
+      } else if (code >= 65) {
+        val = code - 65 + 10; // A
+      } else if (code >= 48 && code <= 57) {
+        val = code - 48; // 0-9
+      } else {
+        val = Infinity;
+      }
       if (val >= radix) break;
       ++tokPos;
       total = total * radix + val;
@@ -1028,8 +1036,12 @@
     var next = input.charCodeAt(tokPos);
     if (next === 69 || next === 101) { // 'eE'
       next = input.charCodeAt(++tokPos);
-      if (next === 43 || next === 45) ++tokPos; // '+-'
-      if (readInt(10) === null) raise(start, "Invalid number");
+      if (next === 43 || next === 45) {
+        ++tokPos; // '+-'
+      }
+      if (readInt(10) === null) {
+        raise(start, "Invalid number");
+      }
       isFloat = true;
     }
     if (isIdentifierStart(input.charCodeAt(tokPos))) {
@@ -1100,7 +1112,7 @@
                 ++tokPos; // '\r\n'
               }
             case 10: // ' \n'
-              if (options.locations) {
+              if (options['locations']) {
                 tokLineStart = tokPos;
                 ++tokCurLine;
               }
@@ -1236,7 +1248,7 @@
   function setStrict(strct) {
     strict = strct;
     tokPos = tokStart;
-    if (options.locations) {
+    if (options['locations']) {
       while (tokPos < tokLineStart) {
         tokLineStart = input.lastIndexOf("\n", tokLineStart - 2) + 1;
         --tokCurLine;
@@ -1273,13 +1285,13 @@
    */
   function startNode() {
     var node = new node_t();
-    if (options.locations) {
+    if (options['locations']) {
       node.loc = new node_loc_t();
     }
-    if (options.directSourceFile) {
-      node.sourceFile = options.directSourceFile;
+    if (options['directSourceFile']) {
+      node['sourceFile'] = options['directSourceFile'];
     }
-    if (options.ranges) {
+    if (options['ranges']) {
       node.range = [tokStart, 0];
     }
     return node;
@@ -1296,11 +1308,11 @@
   function startNodeFrom(other) {
     var node = new node_t();
     node.start = other.start;
-    if (options.locations) {
+    if (options['locations']) {
       node.loc = new node_loc_t();
       node.loc.start = other.loc.start;
     }
-    if (options.ranges) {
+    if (options['ranges']) {
       node.range = [other.range[0], 0];
     }
     return node;
@@ -1316,10 +1328,10 @@
   function finishNode(node, type) {
     node.type = type;
     node.end = lastEnd;
-    if (options.locations) {
+    if (options['locations']) {
       node.loc.end = lastEndLoc;
     }
-    if (options.ranges) {
+    if (options['ranges']) {
       node.range[1] = lastEnd;
     }
     return node;
@@ -1357,7 +1369,7 @@
    * @returns {boolean}
    */
   function canInsertSemicolon() {
-    return !options.strictSemicolons &&
+    return !options['strictSemicolons'] &&
         (tokType === _eof || tokType === _braceR ||
          newline.test(input.slice(lastEnd, tokStart)));
   }
@@ -1421,7 +1433,7 @@
    */
   function parseTopLevel(program) {
     lastStart = lastEnd = tokPos;
-    if (options.locations) {
+    if (options['locations']) {
       lastEndLoc = new line_loc_t();
     }
     inFunction = strict = false;
@@ -1552,8 +1564,9 @@
         return finishNode(node, "IfStatement");
 
       case _return:
-        if (!inFunction && !options.allowReturnOutsideFunction)
+        if (!inFunction && !options['allowReturnOutsideFunction']) {
           raise(tokStart, "'return' outside of function");
+        }
         next();
 
         // In `return` (and `break`/`continue`), the keywords with
@@ -2016,11 +2029,11 @@
         var val = parseExpression();
         val.start = tokStart1;
         val.end = tokEnd;
-        if (options.locations) {
+        if (options['locations']) {
           val.loc.start = tokStartLoc1;
           val.loc.end = tokEndLoc;
         }
-        if (options.ranges) {
+        if (options['ranges']) {
           val.range = [tokStart1, tokEnd];
         }
         expect(_parenR);
@@ -2076,7 +2089,9 @@
     while (!eat(_braceR)) {
       if (!first) {
         expect(_comma);
-        if (options.allowTrailingCommas && eat(_braceR)) break;
+        if (options['allowTrailingCommas'] && eat(_braceR)) {
+          break;
+        }
       } else {
         first = false;
       }
@@ -2107,9 +2122,13 @@
           var other = node.properties[i];
           if (other.key.name === prop.key.name) {
             var conflict = kind === other.kind || isGetSet && other.kind === "init" ||
-              kind === "init" && (other.kind === "get" || other.kind === "set");
-            if (conflict && !strict && kind === "init" && other.kind === "init") conflict = false;
-            if (conflict) raise(prop.key.start, "Redefinition of property");
+                kind === "init" && (other.kind === "get" || other.kind === "set");
+            if (conflict && !strict && kind === "init" && other.kind === "init") {
+              conflict = false;
+            }
+            if (conflict) {
+              raise(prop.key.start, "Redefinition of property");
+            }
           }
         }
       }
@@ -2122,7 +2141,9 @@
    * @returns {!node_t}
    */
   function parsePropertyName() {
-    if (tokType === _num || tokType === _string) return parseExprAtom();
+    if (tokType === _num || tokType === _string) {
+      return parseExprAtom();
+    }
     return parseIdent(true);
   }
 
@@ -2204,7 +2225,9 @@
     while (!eat(close)) {
       if (!first) {
         expect(_comma);
-        if (allowTrailingComma && options.allowTrailingCommas && eat(close)) break;
+        if (allowTrailingComma && options['allowTrailingCommas'] && eat(close)) {
+          break;
+        }
       } else {
         first = false;
       }
@@ -2225,13 +2248,16 @@
    */
   function parseIdent(liberal) {
     var node = startNode();
-    if (liberal && options.forbidReserved === "everywhere") liberal = false;
+    if (liberal && options['forbidReserved'] === "everywhere") {
+      liberal = false;
+    }
     if (tokType === _name) {
       if (!liberal &&
-          (options.forbidReserved && isReservedWord5(tokVal) ||
+          (options['forbidReserved'] && isReservedWord5(tokVal) ||
            strict && isStrictReservedWord(tokVal)) &&
-          input.slice(tokStart, tokEnd).indexOf("\\") === -1)
+          input.slice(tokStart, tokEnd).indexOf("\\") === -1) {
         raise(tokStart, "The keyword '" + tokVal + "' is reserved");
+      }
       node.name = tokVal;
     } else if (liberal && tokType.keyword) {
       node.name = tokType.keyword;
