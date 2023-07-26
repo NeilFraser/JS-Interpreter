@@ -580,7 +580,7 @@ Interpreter.prototype.initFunction = function(globalObject) {
     if (ast.body.length !== 1) {
       // Function('a', 'return a + 6;}; {alert(1);');
       thisInterpreter.throwException(thisInterpreter.SYNTAX_ERROR,
-          'Invalid code in function body.');
+          'Invalid code in function body');
     }
     var node = ast.body[0].expression;
     // Note that if this constructor is called as `new Function()` the function
@@ -769,7 +769,7 @@ Interpreter.prototype.initObject = function(globalObject) {
     }
     if (!(proto instanceof Interpreter.Object)) {
       thisInterpreter.throwException(thisInterpreter.TYPE_ERROR,
-          'Object prototype may only be an Object or null');
+          'Object prototype may only be an Object or null, not ' + proto);
     }
     return thisInterpreter.createObjectProto(proto);
   };
@@ -793,7 +793,7 @@ Interpreter.prototype.initObject = function(globalObject) {
     prop = String(prop);
     if (!(obj instanceof Interpreter.Object)) {
       thisInterpreter.throwException(thisInterpreter.TYPE_ERROR,
-          'Object.defineProperty called on non-object');
+          'Object.defineProperty called on non-object: ' + obj);
     }
     if (!(descriptor instanceof Interpreter.Object)) {
       thisInterpreter.throwException(thisInterpreter.TYPE_ERROR,
@@ -844,7 +844,7 @@ Interpreter.prototype.initObject = function(globalObject) {
   wrapper = function getOwnPropertyDescriptor(obj, prop) {
     if (!(obj instanceof Interpreter.Object)) {
       thisInterpreter.throwException(thisInterpreter.TYPE_ERROR,
-          'Object.getOwnPropertyDescriptor called on non-object');
+          'Object.getOwnPropertyDescriptor called on non-object: ' + obj);
     }
     prop = String(prop);
     if (!(prop in obj.properties)) {
@@ -964,7 +964,7 @@ Interpreter.prototype.initArray = function(globalObject) {
     if (arguments.length === 1 && typeof first === 'number') {
       if (isNaN(Interpreter.legalArrayLength(first))) {
         thisInterpreter.throwException(thisInterpreter.RANGE_ERROR,
-                                       'Invalid array length');
+                                       'Invalid array length: ' + first);
       }
       newArray.properties.length = first;
     } else {
@@ -1897,7 +1897,7 @@ Interpreter.prototype.initRegExp = function(globalObject) {
     if (!/^[gmi]*$/.test(flags)) {
       // Don't allow ES6 flags 'y' and 's' to pass through.
       thisInterpreter.throwException(thisInterpreter.SYNTAX_ERROR,
-          'Invalid regexp flag');
+          'Invalid regexp flag: ' + flags);
     }
     try {
       var nativeRegExp = new Interpreter.nativeGlobal.RegExp(pattern, flags)
@@ -2499,7 +2499,7 @@ Interpreter.prototype.nativeToPseudo = function(nativeObj) {
  * Does handle cycles.
  * @param {Interpreter.Value} pseudoObj The JS-Interpreter object to be
  * converted.
- * @param {Object=} opt_cycles Cycle detection (used in recursive calls).
+ * @param {Object=} opt_cycles Cycle detection object (used by recursive calls).
  * @returns {*} The equivalent native JavaScript object or value.
  */
 Interpreter.prototype.pseudoToNative = function(pseudoObj, opt_cycles) {
@@ -3231,6 +3231,50 @@ Interpreter.prototype.unwind = function(type, value, label) {
 };
 
 /**
+ * AST to code.  Summarizes the expression at the given node.  Currently
+ * not guaranteed to be correct or complete.  Used for error messages.
+ * E.g. `escape('hello') + 42` -> 'escape(...) + 42'
+ * @param {!Object} node AST node.
+ * @returns {string} Code string.
+ */
+Interpreter.prototype.nodeSummary = function(node) {
+  switch (node.type) {
+    case 'ArrayExpression':
+      return '[...]';
+    case 'BinaryExpression':
+    case 'LogicalExpression':
+      return this.nodeSummary(node.left) + ' ' + node.operator + ' ' +
+          this.nodeSummary(node.right);
+    case 'CallExpression':
+      return this.nodeSummary(node.callee) + '(...)';
+    case 'ConditionalExpression':
+      return this.nodeSummary(node.test) + ' ? ' +
+          this.nodeSummary(node.consequent) + ' : ' +
+          this.nodeSummary(node.alternate);
+    case 'Identifier':
+      return node.name;
+    case 'Literal':
+      return node.raw;
+    case 'MemberExpression':
+      var obj = this.nodeSummary(node.object);
+      var prop = this.nodeSummary(node.property);
+      return node.computed ? (obj + '[' + prop + ']') : (obj + '.' + prop);
+    case 'NewExpression':
+      return 'new ' + this.nodeSummary(node.callee) + '(...)';
+    case 'ObjectExpression':
+      return '{...}';
+    case 'ThisExpression':
+      return 'this';
+    case 'UnaryExpression':
+      return node.operator + ' ' + this.nodeSummary(node.argument);
+    case 'UpdateExpression':
+      var argument = this.nodeSummary(node.argument);
+      return node.prefix ? node.operator + argument : argument + node.operator;
+  }
+  return '???';
+};
+
+/**
  * Create a call to a getter function.
  * @param {!Interpreter.Object} func Function to execute.
  * @param {!Interpreter.Object|!Array} left
@@ -3629,7 +3673,7 @@ Interpreter.prototype['stepBinaryExpression'] = function(stack, state, node) {
     case 'instanceof':
       if (!this.isa(rightValue, this.FUNCTION)) {
         this.throwException(this.TYPE_ERROR,
-            'Right-hand side of instanceof is not an object');
+            "'instanceof' expects an object, not '" + rightValue + "'");
       }
       value = (leftValue instanceof Interpreter.Object) ?
           this.isa(leftValue, rightValue) : false;
@@ -3709,7 +3753,8 @@ Interpreter.prototype['stepCallExpression'] = function(stack, state, node) {
     if (node.type === 'NewExpression') {
       if (!(func instanceof Interpreter.Object) || func.illegalConstructor) {
         // Illegal: new escape();
-        this.throwException(this.TYPE_ERROR, func + ' is not a constructor');
+        this.throwException(this.TYPE_ERROR,
+            this.nodeSummary(node.callee) + ' is not a constructor');
       }
       // Constructor, `this` is new object.
       if (func === this.ARRAY) {
@@ -3729,7 +3774,8 @@ Interpreter.prototype['stepCallExpression'] = function(stack, state, node) {
   if (!state.doneExec_) {
     state.doneExec_ = true;
     if (!(func instanceof Interpreter.Object)) {
-      this.throwException(this.TYPE_ERROR, func + ' is not a function');
+      this.throwException(this.TYPE_ERROR,
+          this.nodeSummary(node.callee) + ' is not a function');
     }
     var funcNode = func.node;
     if (funcNode) {
@@ -3813,7 +3859,8 @@ Interpreter.prototype['stepCallExpression'] = function(stack, state, node) {
       var f = new F();
       f();
       */
-      this.throwException(this.TYPE_ERROR, func.class + ' is not callable');
+      this.throwException(this.TYPE_ERROR,
+          this.nodeSummary(node.callee) + ' is not callable');
     }
   } else {
     // Execution complete.  Put the return value on the stack.
@@ -3921,7 +3968,7 @@ Interpreter.prototype['stepForInStatement'] = function(stack, state, node) {
         node.left.declarations[0].init) {
       if (state.scope.strict) {
         this.throwException(this.SYNTAX_ERROR,
-            'for-in loop variable declaration may not have an initializer.');
+            'for-in loop variable declaration may not have an initializer');
       }
       // Variable initialization: for (var x = 4 in y)
       return new Interpreter.State(node.left, state.scope);
@@ -4316,8 +4363,7 @@ Interpreter.prototype['stepSwitchStatement'] = function(stack, state, node) {
         if (switchCase.consequent[n]) {
           state.isSwitch = true;
           state.n_ = n + 1;
-          return new Interpreter.State(switchCase.consequent[n],
-                                       state.scope);
+          return new Interpreter.State(switchCase.consequent[n], state.scope);
         }
       }
       // Move on to next case.
