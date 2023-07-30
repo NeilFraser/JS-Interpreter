@@ -33,10 +33,10 @@ var Interpreter = function(code, opt_initFunc) {
     ast[prop] = (prop === 'body') ? code[prop].slice() : code[prop];
   }
   this.ast = ast;
+  this.tasks = [];
   this.initFunc_ = opt_initFunc;
   this.paused_ = false;
   this.polyfills_ = [];
-  this.tasks_ = [];
   // Unique identifier for native functions.  Used in serialization.
   this.functionCounter_ = 0;
   // Map node types to our step function names; a property lookup is faster
@@ -384,7 +384,7 @@ Interpreter.prototype.step = function() {
       // Blocked by an asynchonous function.
       return true;
     } else if (!state || (state.node.type === 'Program' && state.done)) {
-      if (!this.tasks_.length) {
+      if (!this.tasks.length) {
         // Main program complete and no queued tasks.  We're done!
         return false;
       }
@@ -3346,10 +3346,11 @@ Interpreter.prototype.createTask_ = function(isInterval, args) {
     }
     node.type = 'EvalProgram_';
     node.body = ast.body;
+    // Change highlighting to encompas the string.
     var execNode = parentState.node.arguments[0];
-    if (execNode) {
-      Interpreter.stripLocations_(node, execNode.start, execNode.end);
-    }
+    var execStart = execNode ? execNode.start : undefined;
+    var execEnd = execNode ? execNode.end : undefined;
+    Interpreter.stripLocations_(node, execStart, execEnd);
     scope = this.globalScope;
     argsArray.length = 0;
   }
@@ -3370,8 +3371,8 @@ Interpreter.prototype.scheduleTask_ = function(task, delay) {
   task.time = Date.now() + delay;
   // For optimum efficiency we could do a binary search and inject the task
   // at the right spot.  But 'push' & 'sort' is just two lines of code.
-  this.tasks_.push(task);
-  this.tasks_.sort(function(a, b) {return a.time - b.time});
+  this.tasks.push(task);
+  this.tasks.sort(function(a, b) {return a.time - b.time});
 };
 
 /**
@@ -3380,9 +3381,9 @@ Interpreter.prototype.scheduleTask_ = function(task, delay) {
  * @private
  */
 Interpreter.prototype.deleteTask_ = function(pid) {
-  for (var i = 0; i < this.tasks_.length; i++) {
-    if (this.tasks_[i].pid == pid) {
-      this.tasks_.splice(i, 1);
+  for (var i = 0; i < this.tasks.length; i++) {
+    if (this.tasks[i].pid == pid) {
+      this.tasks.splice(i, 1);
       break;
     }
   }
@@ -3394,12 +3395,12 @@ Interpreter.prototype.deleteTask_ = function(pid) {
  * @private
  */
 Interpreter.prototype.nextTask_ = function() {
-  var task = this.tasks_[0];
+  var task = this.tasks[0];
   if (!task || task.time > Date.now()) {
     return null;
   }
   // Found a task that's due to run.
-  this.tasks_.shift();
+  this.tasks.shift();
   if (task.interval >= 0) {
     this.scheduleTask_(task, task.interval);
   }

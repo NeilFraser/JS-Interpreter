@@ -136,6 +136,8 @@ function deserialize(json, interpreter) {
       return new Interpreter.Scope(undefined, undefined, undefined);
     case 'State':
       return new Interpreter.State(undefined, undefined);
+    case 'Task':
+      return new Interpreter.Task(undefined, [], null, null, -1);
     case 'Node':
       var obj = new NODE_CONSTRUCTOR();
       delete obj.start;
@@ -291,7 +293,8 @@ function serialize(interpreter) {
     'URI_ERROR',
     'globalScope',
     'globalObject',
-    'stateStack'
+    'stateStack',
+    'tasks',
   ];
   var root = Object.create(null);
   for (var i = 0; i < properties.length; i++) {
@@ -353,6 +356,9 @@ function serialize(interpreter) {
         break;
       case Interpreter.State.prototype:
         jsonObj['type'] = 'State';
+        break;
+      case Interpreter.Task.prototype:
+        jsonObj['type'] = 'Task';
         break;
       case NODE_CONSTRUCTOR.prototype:
         jsonObj['type'] = 'Node';
