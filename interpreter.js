@@ -36,6 +36,7 @@ var Interpreter = function(code, opt_initFunc) {
   this.initFunc_ = opt_initFunc;
   this.paused_ = false;
   this.polyfills_ = [];
+  this.tasks_ = [];
   // Unique identifier for native functions.  Used in serialization.
   this.functionCounter_ = 0;
   // Map node types to our step function names; a property lookup is faster
@@ -324,6 +325,12 @@ Interpreter.prototype.setterStep_ = false;
 Interpreter.prototype.appendCodeNumber_ = 0;
 
 /**
+ * Number of parsed tasks.
+ * @private
+ */
+Interpreter.prototype.taskCodeNumber_ = 0;
+
+/**
  * Parse JavaScript code into an AST using Acorn.
  * @param {string} code Raw JavaScript text.
  * @param {string} sourceFile Name of filename (for stack trace).
@@ -373,21 +380,28 @@ Interpreter.prototype.step = function() {
   var endTime;
   do {
     var state = stack[stack.length - 1];
-    if (!state) {
-      return false;
-    }
-    var node = state.node, type = node.type;
-    if (type === 'Program' && state.done) {
-      return false;
-    } else if (this.paused_) {
+    if (this.paused_) {
+      // Blocked by an asynchonous function.
       return true;
+    } else if (!state || (state.node.type === 'Program' && state.done)) {
+      if (!this.tasks_.length) {
+        // Main program complete and no queued tasks.  We're done!
+        return false;
+      }
+      state = this.nextTask_();
+      if (!state) {
+        // Main program complete, queued tasks, but nothing to run right now.
+        return true;
+      }
+      // Found a queued task, execute it.
     }
+    var node = state.node;
     // Record the interpreter in a global property so calls to toString/valueOf
     // can execute in the proper context.
     var oldInterpreterValue = Interpreter.currentInterpreter_;
     Interpreter.currentInterpreter_ = this;
     try {
-      var nextState = this.stepFunctions_[type](stack, state, node);
+      var nextState = this.stepFunctions_[node.type](stack, state, node);
     } catch (e) {
       // Eat any step errors.  They have been thrown on the stack.
       if (e !== Interpreter.STEP_ERROR) {
@@ -479,6 +493,7 @@ Interpreter.prototype.initGlobal = function(globalObject) {
 
   // Initialize global functions.
   var thisInterpreter = this;
+  var wrapper;
   var func = this.createNativeFunction(
       function(_x) {throw EvalError("Can't happen");}, false);
   func.eval = true;
@@ -506,7 +521,7 @@ Interpreter.prototype.initGlobal = function(globalObject) {
     [encodeURI, 'encodeURI'], [encodeURIComponent, 'encodeURIComponent']
   ];
   for (var i = 0; i < strFunctions.length; i++) {
-    var wrapper = (function(nativeFunc) {
+    wrapper = (function(nativeFunc) {
       return function(str) {
         try {
           return nativeFunc(str);
@@ -520,6 +535,35 @@ Interpreter.prototype.initGlobal = function(globalObject) {
         this.createNativeFunction(wrapper, false),
         Interpreter.NONENUMERABLE_DESCRIPTOR);
   }
+
+  wrapper = function setTimeout(var_args) {
+    return thisInterpreter.createTask_(false, arguments);
+  };
+  this.setProperty(globalObject, 'setTimeout',
+      this.createNativeFunction(wrapper, false),
+      Interpreter.NONENUMERABLE_DESCRIPTOR);
+
+  wrapper = function setInterval(var_args) {
+    return thisInterpreter.createTask_(true, arguments);
+  };
+  this.setProperty(globalObject, 'setInterval',
+      this.createNativeFunction(wrapper, false),
+      Interpreter.NONENUMERABLE_DESCRIPTOR);
+
+  wrapper = function clearTimeout(pid) {
+    thisInterpreter.deleteTask_(pid);
+  };
+  this.setProperty(globalObject, 'clearTimeout',
+      this.createNativeFunction(wrapper, false),
+      Interpreter.NONENUMERABLE_DESCRIPTOR);
+
+  wrapper = function clearInterval(pid) {
+    thisInterpreter.deleteTask_(pid);
+  };
+  this.setProperty(globalObject, 'clearInterval',
+      this.createNativeFunction(wrapper, false),
+      Interpreter.NONENUMERABLE_DESCRIPTOR);
+
   // Preserve public properties from being pruned/renamed by JS compilers.
   // Add others as needed.
   this['OBJECT'] = this.OBJECT;     this['OBJECT_PROTO'] = this.OBJECT_PROTO;
@@ -1264,9 +1308,7 @@ Interpreter.prototype.initArray = function(globalObject) {
           "',' : ('' + opt_separator);",
       "var str = '';",
       "for (var i = 0; i < len; i++) {",
-        "if (i && sep) {",
-          "str += sep;",
-        "}",
+        "if (i && sep) str += sep;",
         "str += (o[i] === null || o[i] === undefined) ? '' : o[i];",
       "}",
       "return str;",
@@ -1393,9 +1435,7 @@ Interpreter.prototype.initArray = function(globalObject) {
       "var o = Object(this), len = o.length >>> 0;",
       "var thisArg = arguments.length >= 2 ? arguments[1] : void 0;",
       "for (var i = 0; i < len; i++) {",
-        "if (i in o && fun.call(thisArg, o[i], i, o)) {",
-          "return true;",
-        "}",
+        "if (i in o && fun.call(thisArg, o[i], i, o)) return true;",
       "}",
       "return false;",
     "}",
@@ -3275,6 +3315,107 @@ Interpreter.prototype.nodeSummary = function(node) {
 };
 
 /**
+ * Create a new queued task.
+ * @param {boolean} isInterval True if setInterval, false if setTimeout.
+ * @param {!Arguments} args Arguments from setInterval and setTimeout.
+ *     [code, delay]
+ *     [functionRef, delay, param1, param2, param3, ...]
+ * @returns {number} PID of new task.
+ * @private
+ */
+Interpreter.prototype.createTask_ = function(isInterval, args) {
+  var parentState = this.stateStack[this.stateStack.length - 1];
+  var argsArray = Array.from(args);
+  var exec = argsArray.shift();
+  var delay = Math.max(Number(argsArray.shift() || 0), 0);
+  var node = this.newNode();
+  var scope, functionRef, ast;
+
+  if ((exec instanceof Interpreter.Object) && exec.class === 'Function') {
+    // setTimeout/setInterval with a function reference.
+    functionRef = exec;
+    node.type = 'CallExpression';
+    scope = parentState.scope;
+  } else {
+    // setTimeout/setInterval with code string.
+    try {
+      ast = this.parse_(String(exec), 'taskCode' + (this.taskCodeNumber_++));
+    } catch (e) {
+      // Acorn threw a SyntaxError.  Rethrow as a trappable error.
+      this.throwException(this.SYNTAX_ERROR, 'Invalid code: ' + e.message);
+    }
+    node.type = 'EvalProgram_';
+    node.body = ast.body;
+    var execNode = parentState.node.arguments[0];
+    if (execNode) {
+      Interpreter.stripLocations_(node, execNode.start, execNode.end);
+    }
+    scope = this.globalScope;
+    argsArray.length = 0;
+  }
+
+  var task = new Interpreter.Task(functionRef, argsArray, scope, node,
+      isInterval ? delay : -1);
+  this.scheduleTask_(task, delay);
+  return task.pid;
+};
+
+/**
+ * Schedule a task to execute at some time in the future.
+ * @param {!Interpreter.Task} task Task to schedule.
+ * @param {number} delay Number of ms before the task should execute.
+ * @private
+ */
+Interpreter.prototype.scheduleTask_ = function(task, delay) {
+  task.time = Date.now() + delay;
+  // For optimum efficiency we could do a binary search and inject the task
+  // at the right spot.  But 'push' & 'sort' is just two lines of code.
+  this.tasks_.push(task);
+  this.tasks_.sort(function(a, b) {return a.time - b.time});
+};
+
+/**
+ * Delete a queued task.
+ * @param {number} pid PID of task to delete.
+ * @private
+ */
+Interpreter.prototype.deleteTask_ = function(pid) {
+  for (var i = 0; i < this.tasks_.length; i++) {
+    if (this.tasks_[i].pid == pid) {
+      this.tasks_.splice(i, 1);
+      break;
+    }
+  }
+};
+
+/**
+ * Find the next queued task that's due to run.
+ * @returns {Interpreter.State} Starting state of next task.  Null if no task.
+ * @private
+ */
+Interpreter.prototype.nextTask_ = function() {
+  var task = this.tasks_[0];
+  if (!task || task.time > Date.now()) {
+    return null;
+  }
+  // Found a task that's due to run.
+  this.tasks_.shift();
+  if (task.interval >= 0) {
+    this.scheduleTask_(task, task.interval);
+  }
+  var state = new Interpreter.State(task.node, task.scope);
+  if (task.functionRef) {
+    // setTimeout/setInterval with a function reference.
+    state.doneCallee_ = 2;
+    state.funcThis_ = this.globalObject;
+    state.func_ = task.functionRef;
+    state.doneArgs_ = true;
+    state.arguments_ = task.argsArray;
+  }
+  return state;
+};
+
+/**
  * Create a call to a getter function.
  * @param {!Interpreter.Object} func Function to execute.
  * @param {!Interpreter.Object|!Array} left
@@ -3530,6 +3671,29 @@ Interpreter.Object.prototype.valueOf = function() {
   }
   return /** @type {(boolean|number|string)} */ (this.data);  // Boxed primitive.
 };
+
+/**
+ * Class for a task.
+ * @param {!Interpreter.Object|undefined} functionRef Function to call.
+ * @param {!Array<Interpreter.Value>} argsArray Array of arguments.
+ * @param {!Interpreter.Scope} scope Scope for this task.
+ * @param {!Object} node AST node to execute.
+ * @param {number} interval Number of ms this task repeats.  -1 for no repeats.
+ * @struct
+ * @constructor
+ */
+Interpreter.Task = function(functionRef, argsArray, scope, node, interval) {
+  this.functionRef = functionRef;
+  this.argsArray = argsArray;
+  this.scope = scope;
+  this.node = node;
+
+  this.interval = interval;
+  this.pid = ++Interpreter.Task.pid;
+  this.time = 0;
+};
+
+Interpreter.Task.pid = 0;
 
 ///////////////////////////////////////////////////////////////////////////////
 // Functions to handle each node type.
