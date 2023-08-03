@@ -188,7 +188,7 @@ Interpreter.currentInterpreter_ = null;
  * `globalThis`, but older systems use `this`.
  */
 Interpreter.nativeGlobal =
-    (typeof globalThis === 'undefined') ? this : globalThis;
+    (typeof globalThis === 'undefined') ? window : globalThis;
 
 /**
  * Code for executing regular expressions in a thread.
