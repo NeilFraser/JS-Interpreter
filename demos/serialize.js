@@ -12,22 +12,22 @@
 
 
 // Constructors for objects within Acorn.
-var NODE_CONSTRUCTOR;
-var NODE_LOC_CONSTRUCTOR;
-var LINE_LOC_CONSTRUCTOR;
+let NODE_CONSTRUCTOR;
+let NODE_LOC_CONSTRUCTOR;
+let LINE_LOC_CONSTRUCTOR;
 
 /**
  * All non-primitives in the interpreter as an Array.
  * @type {!Array<!Object>}
  */
-var objectList = [];
+let objectList = [];
 
 /**
  * A Map mapping non-primitves their corresponding indices in objectList.
  * Doubles the speed of serialisation if ES6's Map is available.
  * @type {Map|undefined}
  */
-var objectMap;
+let objectMap;
 if (typeof Map === 'function') {
   objectMap = new Map();
 }
@@ -58,7 +58,7 @@ function recordAcornConstructors_(interpreter) {
  * @param {!Interpreter} interpreter JS-Interpreter instance to restore to.
  */
 function deserialize(json, interpreter) {
-  var stack = interpreter.getStateStack();
+  let stack = interpreter.getStateStack();
   if (!Array.isArray(json)) {
     throw TypeError('Top-level JSON is not a list.');
   }
@@ -71,25 +71,25 @@ function deserialize(json, interpreter) {
   objectList = [];
   objectMap && objectMap.clear();
   objectHunt_(stack);
-  var functionMap = Object.create(null);
-  for (var i = 0; i < objectList.length; i++) {
-    var obj = objectList[i];
+  let functionMap = Object.create(null);
+  for (let i = 0; i < objectList.length; i++) {
+    let obj = objectList[i];
     if (typeof obj === 'function') {
       functionMap[obj.id] = obj;
     }
   }
   // First pass: Create object stubs for every object.
   objectList = new Array(json.length);
-  for (var i = 0; i < json.length; i++) {
+  for (let i = 0; i < json.length; i++) {
     objectList[i] = createObjectStub_(json[i], functionMap);
   }
   // Second pass: Populate properties for every object.
-  for (var i = 0; i < json.length; i++) {
+  for (let i = 0; i < json.length; i++) {
     populateObject_(json[i], objectList[i]);
   }
   // First object is the interpreter.
-  var root = objectList[0];
-  for (var prop in root) {
+  let root = objectList[0];
+  for (let prop in root) {
     interpreter[prop] = root[prop];
   }
   // Garbage collect.
