@@ -54,14 +54,14 @@
   // [api]: https://developer.mozilla.org/en-US/docs/SpiderMonkey/Parser_API
 
   /** @type {!Object|undefined} */
-  var options;
+  let options;
 
   /** @type {string} */
-  var input = '';
+  let input = '';
   /** @type {number|undefined} */
-  var inputLen;
+  let inputLen;
   /** @type {*} */
-  var sourceFile;
+  let sourceFile;
 
   /**
    * @param {string} inpt
@@ -79,7 +79,7 @@
   // A second optional argument can be given to further configure
   // the parser process. These options are recognized:
 
-  var defaultOptions = {
+  let defaultOptions = {
     // JS-Interpreter change:
     // `ecmaVersion` option has been removed along with all cases where
     // it is checked.  In this version of Acorn it was limited to 3 or 5,
@@ -144,7 +144,7 @@
    */
   function setOptions(opts) {
     options = opts || {};
-    for (var opt in defaultOptions) {
+    for (let opt in defaultOptions) {
       if (!Object.prototype.hasOwnProperty.call(options, opt)) {
         options[opt] = defaultOptions[opt];
       }
@@ -163,10 +163,10 @@
    * @param {number} offset
    * @returns {!Object}
    */
-  var getLineInfo = function(input, offset) {
-    for (var line = 1, cur = 0;;) {
+  let getLineInfo = function(input, offset) {
+    for (let line = 1, cur = 0;;) {
       lineBreak.lastIndex = cur;
-      var match = lineBreak.exec(input);
+      let match = lineBreak.exec(input);
       if (match && match.index < offset) {
         ++line;
         cur = match.index + match[0].length;
@@ -188,33 +188,33 @@
    * The current position of the tokenizer in the input.
    * @type {number}
    */
-  var tokPos = 0;
+  let tokPos = 0;
 
   /**
    * The start offset of the current token.
    * @type {number}
    */
-  var tokStart = 0;
+  let tokStart = 0;
 
   /**
    * The end offset of the current token.
    * @type {number}
    */
-  var tokEnd = 0;
+  let tokEnd = 0;
 
   /**
    * When `options.locations` is true, holds object
    * containing the token's start line/column pairs.
    * @type {!line_loc_t|undefined}
    */
-  var tokStartLoc;
+  let tokStartLoc;
 
   /**
    * When `options.locations` is true, holds object
    * containing the token's end line/column pairs.
    * @type {!line_loc_t|undefined}
    */
-  var tokEndLoc;
+  let tokEndLoc;
 
   /**
    * The type of the current token. Token types are objects,
@@ -224,7 +224,7 @@
    * keyword token).
    * @type {!Object|undefined}
    */
-  var tokType;
+  let tokType;
 
   /**
    * The value of the current token. The kind of value that's held in
@@ -232,7 +232,7 @@
    * literal value, for operators, the operator name, and so on.
    * @type {*}
    */
-  var tokVal;
+  let tokVal;
 
   /**
    * Interal state for the tokenizer. To distinguish between division
@@ -242,61 +242,61 @@
    * division operator. See the `parseStatement` function for a caveat.)
    * @type {boolean|undefined}
    */
-  var tokRegexpAllowed;
+  let tokRegexpAllowed;
 
   /**
    * When `options.locations` is true, `tokCurLine` is used to keep
    * track of the current line.
    * @type {number|undefined}
    */
-  var tokCurLine;
+  let tokCurLine;
 
   /**
    * When `options.locations` is true, `tokLineStart` is used to know
    * when a new line has been entered.
    * @type {number|undefined}
    */
-  var tokLineStart;
+  let tokLineStart;
 
   /**
    * The start of the position of the previous token, which is useful
    * when finishing a node and assigning its `end` position.
    * @type {number}
    */
-  var lastStart = 0;
+  let lastStart = 0;
 
   /**
    * The end oy the position of the previous token, which is useful
    * when finishing a node and assigning its `end` position.
    * @type {number}
    */
-  var lastEnd = 0;
+  let lastEnd = 0;
 
   /**
    * Stores the position of the previous token, which is useful
    * when finishing a node and assigning its `end` position.
    * @type {!line_loc_t|undefined}
    */
-  var lastEndLoc;
+  let lastEndLoc;
 
   /**
    * `inFunction` is used to reject `return` statements outside of functions.
    * @type {boolean|undefined}
    */
-  var inFunction;
+  let inFunction;
 
   /**
    * `labels` is used to verify that `break` and `continue` have somewhere
    * to jump to.
    * @type {!Array<!Object>|undefined}
    */
-  var labels;
+  let labels;
 
   /**
    * `strict` indicates whether strict mode is on.
    * @type {boolean|undefined}
    */
-  var strict;
+  let strict;
 
   /**
    * This function is used to raise exceptions on parse errors. It
@@ -310,9 +310,9 @@
    * @throws {SyntaxError}
    */
   function raise(pos, message) {
-    var loc = getLineInfo(input, pos);
+    let loc = getLineInfo(input, pos);
     message += " (" + loc.line + ":" + loc.column + ")";
-    var err = new SyntaxError(message);
+    let err = new SyntaxError(message);
     err.pos = pos;
     err.loc = loc;
     err.raisedAt = tokPos;
@@ -321,7 +321,7 @@
 
   // Reused empty array added for node fields that are always empty.
 
-  var empty = [];
+  let empty = [];
 
   // ## Token types
 
@@ -335,11 +335,11 @@
   // These are the general types. The `type` property is only used to
   // make them recognizeable when debugging.
 
-  var _num = {type: "num"};
-  var _regexp = {type: "regexp"};
-  var _string = {type: "string"};
-  var _name = {type: "name"};
-  var _eof = {type: "eof"};
+  let _num = {type: "num"};
+  let _regexp = {type: "regexp"};
+  let _string = {type: "string"};
+  let _name = {type: "name"};
+  let _eof = {type: "eof"};
 
   // Keyword tokens. The `keyword` property (also used in keyword-like
   // operators) indicates that the token originated from an
@@ -354,43 +354,43 @@
   // to know when parsing a label, in order to allow or disallow
   // continue jumps to that label.
 
-  var _break = {keyword: "break"};
-  var _case = {keyword: "case", beforeExpr: true};
-  var _catch = {keyword: "catch"};
-  var _continue = {keyword: "continue"};
-  var _debugger = {keyword: "debugger"};
-  var _default = {keyword: "default"};
-  var _do = {keyword: "do", isLoop: true};
-  var _else = {keyword: "else", beforeExpr: true};
-  var _finally = {keyword: "finally"};
-  var _for = {keyword: "for", isLoop: true};
-  var _function = {keyword: "function"};
-  var _if = {keyword: "if"};
-  var _return = {keyword: "return", beforeExpr: true};
-  var _switch = {keyword: "switch"};
-  var _throw = {keyword: "throw", beforeExpr: true};
-  var _try = {keyword: "try"};
-  var _var = {keyword: "var"};
-  var _while = {keyword: "while", isLoop: true};
-  var _with = {keyword: "with"};
-  var _new = {keyword: "new", beforeExpr: true};
-  var _this = {keyword: "this"};
+  let _break = {keyword: "break"};
+  let _case = {keyword: "case", beforeExpr: true};
+  let _catch = {keyword: "catch"};
+  let _continue = {keyword: "continue"};
+  let _debugger = {keyword: "debugger"};
+  let _default = {keyword: "default"};
+  let _do = {keyword: "do", isLoop: true};
+  let _else = {keyword: "else", beforeExpr: true};
+  let _finally = {keyword: "finally"};
+  let _for = {keyword: "for", isLoop: true};
+  let _function = {keyword: "function"};
+  let _if = {keyword: "if"};
+  let _return = {keyword: "return", beforeExpr: true};
+  let _switch = {keyword: "switch"};
+  let _throw = {keyword: "throw", beforeExpr: true};
+  let _try = {keyword: "try"};
+  let _var = {keyword: "var"};
+  let _while = {keyword: "while", isLoop: true};
+  let _with = {keyword: "with"};
+  let _new = {keyword: "new", beforeExpr: true};
+  let _this = {keyword: "this"};
 
   // The keywords that denote values.
 
-  var _null = {keyword: "null", atomValue: null};
-  var _true = {keyword: "true", atomValue: true};
-  var _false = {keyword: "false", atomValue: false};
+  let _null = {keyword: "null", atomValue: null};
+  let _true = {keyword: "true", atomValue: true};
+  let _false = {keyword: "false", atomValue: false};
 
   // Some keywords are treated as regular operators. `in` sometimes
   // (when parsing `for`) needs to be tested against specifically, so
   // we assign a variable name to it for quick comparing.
 
-  var _in = {keyword: "in", binop: 7, beforeExpr: true};
+  let _in = {keyword: "in", binop: 7, beforeExpr: true};
 
   // Map keyword names to token types.
 
-  var keywordTypes = {
+  let keywordTypes = {
     "break": _break,
     "case": _case,
     "catch": _catch,
