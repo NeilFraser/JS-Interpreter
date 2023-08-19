@@ -30,7 +30,7 @@
   if (typeof exports === "object" && typeof module === "object") return mod(exports); // CommonJS
   if (typeof define === "function" && define.amd) return define(["exports"], mod); // AMD
   mod(root.acorn || (root.acorn = {})); // Plain browser env
-})(this, function(exports) {
+})(this || globalThis, function(exports) {
   "use strict";
 
   exports.version = "0.5.0";
