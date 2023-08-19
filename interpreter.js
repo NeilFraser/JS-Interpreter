@@ -381,7 +381,7 @@ Interpreter.prototype.step = function() {
   do {
     var state = stack[stack.length - 1];
     if (this.paused_) {
-      // Blocked by an asynchonous function.
+      // Blocked by an asynchronous function.
       return true;
     } else if (!state || (state.node.type === 'Program' && state.done)) {
       if (!this.tasks.length) {
