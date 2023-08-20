@@ -208,6 +208,28 @@
   <p>For a working example, see the
   <a href="demos/thread.html">thread demo</a>.</p>
 
+  <h2>Status</h2>
+
+  <p>A JS-Intepreter instance has a <code>getStatus</code> function that returns
+  information about what the interpreter is doing.  The return values are one of:</p>
+  <dl>
+    <dt><code>Interpreter.Status.DONE</code></dt>
+    <dd>The interpreter has finished executing all code.
+    Unless <code>appendCode</code> is used, it's done.</dd>
+    <dt><code>Interpreter.Status.STEP</code></dt>
+    <dd>The interpreter has code to be executed and is ready to take another step.</dd>
+    <dt><code>Interpreter.Status.TASK</code></dt>
+    <dd>The interpreter doesn't have any code to be executed at the moment, but there's
+    a pending setTimeout/setInterval task which will provide code at some future
+    time.</dd>
+    <dt><code>Interpreter.Status.ASYNC</code></dt>
+    <dd>The interpreter's execution is blocked by an asynchonous function call
+    (created with <code>createAsyncFunction</code>) which is currently executing.</dd>
+  </dl>
+
+  <p>This status information might be used to determine whether to take another
+  step immediately, or call setTimeout and step later, or stop.</p>
+
   <h2>Security</h2>
 
   <p>A common use-case of the JS-Interpreter is to sandbox potentially hostile

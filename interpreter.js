@@ -33,8 +33,14 @@ var Interpreter = function(code, opt_initFunc) {
     ast[prop] = (prop === 'body') ? code[prop].slice() : code[prop];
   }
   this.ast = ast;
+  /**
+   * Sorted array of setTimeout/setInterval tasks waiting to execute.
+   */
   this.tasks = [];
   this.initFunc_ = opt_initFunc;
+  /**
+   * True if the interpreter is paused while waiting for an async function.
+   */
   this.paused_ = false;
   this.polyfills_ = [];
   // Unique identifier for native functions.  Used in serialization.
@@ -80,6 +86,17 @@ Interpreter.Completion = {
   CONTINUE: 2,
   RETURN: 3,
   THROW: 4,
+};
+
+/**
+ * Interpreter status values.
+ * @enum {number}
+ */
+Interpreter.Status = {
+  'DONE': 0,
+  'STEP': 1,
+  'TASK': 2,
+  'ASYNC': 3,
 };
 
 /**
@@ -448,6 +465,32 @@ Interpreter.prototype.step = function() {
 Interpreter.prototype.run = function() {
   while (!this.paused_ && this.step()) {}
   return this.paused_;
+};
+
+/**
+ * Current status of the interpreter.
+ * @returns {Interpreter.Status} One of DONE, STEP, TASK, or ASYNC.
+ */
+Interpreter.prototype.getStatus = function() {
+  if (this.paused_) {
+    return Interpreter.Status['ASYNC'];
+  }
+  var stack = this.stateStack;
+  var state = stack[stack.length - 1];
+  if (state && (state.node.type !== 'Program' || !state.done)) {
+    // There's a step ready to execute.
+    return Interpreter.Status['STEP'];
+  }
+  var task = this.tasks[0];
+  if (task) {
+    if (task.time > Date.now()) {
+      // There's a pending task, but it's not ready.
+      return Interpreter.Status['TASK'];
+    }
+    // There's a task ready to execute.
+    return Interpreter.Status['STEP'];
+  }
+  return Interpreter.Status['DONE'];
 };
 
 /**
@@ -4755,9 +4798,11 @@ Interpreter.prototype['createNativeFunction'] =
     Interpreter.prototype.createNativeFunction;
 Interpreter.prototype['getProperty'] = Interpreter.prototype.getProperty;
 Interpreter.prototype['setProperty'] = Interpreter.prototype.setProperty;
+Interpreter.prototype['getStatus'] = Interpreter.prototype.getStatus;
 Interpreter.prototype['nativeToPseudo'] = Interpreter.prototype.nativeToPseudo;
 Interpreter.prototype['pseudoToNative'] = Interpreter.prototype.pseudoToNative;
 Interpreter.prototype['getGlobalScope'] = Interpreter.prototype.getGlobalScope;
 Interpreter.prototype['getStateStack'] = Interpreter.prototype.getStateStack;
 Interpreter.prototype['setStateStack'] = Interpreter.prototype.setStateStack;
 Interpreter['VALUE_IN_DESCRIPTOR'] = Interpreter.VALUE_IN_DESCRIPTOR;
+Interpreter['Status'] = Interpreter.Status;
