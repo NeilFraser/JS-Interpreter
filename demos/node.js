@@ -1,6 +1,6 @@
 // Minimal test of JS-Interpreter in Node.
 global.acorn = require('../acorn');
-const JSInterpreter = require('../interpreter');
+require('../interpreter');
 
 const myCode = `
 var result = [];
@@ -26,7 +26,7 @@ const initFunc = function(interpreter, globalObject) {
       interpreter.createNativeFunction(wrapper));
 };
 
-const myInterpreter = new JSInterpreter.Interpreter(myCode, initFunc);
+const myInterpreter = new Interpreter(myCode, initFunc);
 
 const runToCompletion = function() {
   if (myInterpreter.run()) {
