@@ -494,7 +494,7 @@ Interpreter.prototype.getStatus = function() {
 };
 
 /**
- * Initialize the global object with buitin properties and functions.
+ * Initialize the global object with built-in properties and functions.
  * @param {!Interpreter.Object} globalObject Global object.
  */
 Interpreter.prototype.initGlobal = function(globalObject) {
