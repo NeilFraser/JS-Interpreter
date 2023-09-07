@@ -10,7 +10,7 @@
   <h1>JS-Interpreter Documentation</h1>
 
   <p>JS-Interpreter is a sandboxed JavaScript interpreter written in JavaScript.
-  It allows for execution of arbitrary JavaScript code line by line.  Execution
+  It allows for execution of arbitrary ES5 JavaScript code line by line.  Execution
   is completely isolated from the main JavaScript environment.  Multiple
   instances of the JS-Interpreter allow for multi-threaded concurrent JavaScript
   without the use of Web Workers.</p>
@@ -264,16 +264,20 @@
 
   <dl>
     <dt>API</dt>
-    <dd>None of the DOM APIs are exposed.  That's kind of the point of a
-    sandbox.  If you need these, write your own interfaces.  For a working
-    example, see the <a href="demos/dom.html">DOM demo</a>.</dd>
+    <dd>None of the DOM APIs are exposed.  That's the point of a sandbox.
+    If you need these, write your own interfaces.  For a working example,
+    see the <a href="demos/dom.html">DOM demo</a>.</dd>
+
     <dt>ES6</dt>
     <dd>More recent additions to JavaScript such as <code>let</code> or
     <code>Set</code> aren't implemented.  Babel is a good method of transpiling
     newer versions of JavaScript to ES5.  For a working example, see the
     <a href="demos/babel.html">Babel demo</a>.</dd>
+
     <dt>toString &amp; valueOf</dt>
-    <dd>User-created functions are not called when casting objects to primitives.</dd>
+    <dd>User-created functions are not called when casting objects to
+    primitives.</dd>
+
     <dt>Performance</dt>
     <dd>The interpreter is not particularly efficient.  It currently runs about
     200 times slower than native JavaScript.</dd>
@@ -287,8 +291,13 @@
   <h2>Dependency</h2>
 
   <p>The only dependency is <a href="https://github.com/acornjs/acorn">Acorn</a>,
-  a beautifully written JavaScript parser by Marijn Haverbeke.  It is included
-  in the JS-Interpreter package.</p>
+  a beautifully written JavaScript parser by Marijn Haverbeke.  A minimal
+  version of Acorn for ES5 is included in the JS-Interpreter package.</p>
+
+  <p>Alternatively, one could use latest version from the Acorn repo.  However,
+  it's three times the size due to features (such as ES6+) which JS-Interpreter
+  doesn't use.  There's no benefit in doing so unless your project already uses
+  Acorn for something else.</p>
 
   <h2>Compatibility</h2>
 
@@ -305,7 +314,8 @@
     <li>Opera 11.6</li>
     <li>Safari 5</li>
     <li>Node.js (all versions)</li>
-    <li>JS-Interpreter (<a href="demos/self-interpreter.html">self-interpreter demo</a>)</li>
+    <li>JS-Interpreter
+      (<a href="demos/self-interpreter.html">self-interpreter demo</a>)</li>
   </ul>
 
   <p>Additionally, if safely executing regular expressions is required, then
