@@ -1932,9 +1932,8 @@ Interpreter.prototype.initDate = function(globalObject) {
       'setMinutes', 'setMonth', 'setSeconds', 'setTime', 'setUTCDate',
       'setUTCFullYear', 'setUTCHours', 'setUTCMilliseconds', 'setUTCMinutes',
       'setUTCMonth', 'setUTCSeconds', 'setYear',
-      'toDateString', 'toISOString', 'toJSON', 'toGMTString',
-      'toLocaleDateString', 'toLocaleString', 'toLocaleTimeString',
-      'toTimeString', 'toUTCString'];
+      'toDateString', 'toJSON', 'toGMTString', 'toLocaleDateString',
+      'toLocaleString', 'toLocaleTimeString', 'toTimeString', 'toUTCString'];
   for (var i = 0; i < functions.length; i++) {
     wrapper = (function(nativeFunc) {
       return function(var_args) {
@@ -1952,6 +1951,17 @@ Interpreter.prototype.initDate = function(globalObject) {
     })(functions[i]);
     this.setNativeFunctionPrototype(this.DATE, functions[i], wrapper);
   }
+
+  // Unlike the previous instance methods, toISOString may throw.
+  wrapper = function toISOString() {
+    try {
+      return this.data.toISOString();
+    } catch (e) {
+      thisInterpreter.throwException(thisInterpreter.RANGE_ERROR,
+          'toISOString: ' + e.message);
+    }
+  };
+  this.setNativeFunctionPrototype(this.DATE, 'toISOString', wrapper);
 };
 
 /**
