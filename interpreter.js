@@ -2073,6 +2073,7 @@ Interpreter.prototype.initRegExp = function(globalObject) {
         // match has additional properties.
         thisInterpreter.setProperty(result, 'index', match.index);
         thisInterpreter.setProperty(result, 'input', match.input);
+        thisInterpreter.setProperty(result, 'groups', thisInterpreter.nativeToPseudo(match.groups));
         return result;
       }
       return null;
