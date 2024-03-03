@@ -1641,7 +1641,7 @@ Interpreter.prototype.initString = function(globalObject) {
         var code = 'string.match(regexp)';
         var m = thisInterpreter.vmCall(code, sandbox, regexp, callback);
         if (m !== Interpreter.REGEXP_TIMEOUT) {
-          callback(m && thisInterpreter.arrayNativeToPseudo(m));
+          callback(m && thisInterpreter.matchToPseudo_(m));
         }
       } else {
         // Run match in separate thread.
@@ -1649,7 +1649,7 @@ Interpreter.prototype.initString = function(globalObject) {
         var pid = thisInterpreter.regExpTimeout(regexp, matchWorker, callback);
         matchWorker.onmessage = function(e) {
           clearTimeout(pid);
-          callback(e.data && thisInterpreter.arrayNativeToPseudo(e.data));
+          callback(e.data && thisInterpreter.matchToPseudo_(e.data));
         };
         matchWorker.postMessage(['match', string, regexp]);
       }
@@ -1657,7 +1657,7 @@ Interpreter.prototype.initString = function(globalObject) {
     }
     // Run match natively.
     var m = string.match(regexp);
-    callback(m && thisInterpreter.arrayNativeToPseudo(m));
+    callback(m && thisInterpreter.matchToPseudo_(m));
   };
   this.setAsyncFunctionPrototype(this.STRING, 'match', wrapper);
 
@@ -2043,7 +2043,7 @@ Interpreter.prototype.initRegExp = function(globalObject) {
         var match = thisInterpreter.vmCall(code, sandbox, regexp, callback);
         if (match !== Interpreter.REGEXP_TIMEOUT) {
           thisInterpreter.setProperty(this, 'lastIndex', regexp.lastIndex);
-          callback(matchToPseudo(match));
+          callback(thisInterpreter.matchToPseudo_(match));
         }
       } else {
         // Run exec in separate thread.
@@ -2056,7 +2056,7 @@ Interpreter.prototype.initRegExp = function(globalObject) {
           clearTimeout(pid);
           // Return tuple: [result, lastIndex]
           thisInterpreter.setProperty(thisPseudoRegExp, 'lastIndex', e.data[1]);
-          callback(matchToPseudo(e.data[0]));
+          callback(thisInterpreter.matchToPseudo_(e.data[0]));
         };
         execWorker.postMessage(['exec', regexp, regexp.lastIndex, string]);
       }
@@ -2065,20 +2065,39 @@ Interpreter.prototype.initRegExp = function(globalObject) {
     // Run exec natively.
     var match = regexp.exec(string);
     thisInterpreter.setProperty(this, 'lastIndex', regexp.lastIndex);
-    callback(matchToPseudo(match));
-
-    function matchToPseudo(match) {
-      if (match) {
-        var result = thisInterpreter.arrayNativeToPseudo(match);
-        // match has additional properties.
-        thisInterpreter.setProperty(result, 'index', match.index);
-        thisInterpreter.setProperty(result, 'input', match.input);
-        return result;
-      }
-      return null;
-    }
+    callback(thisInterpreter.matchToPseudo_(match));
   };
   this.setAsyncFunctionPrototype(this.REGEXP, 'exec', wrapper);
+};
+
+/**
+ * Regexp.prototype.exec and String.prototype.match both return an array
+ * of matches.  This array has two extra properties, 'input' and 'index'.
+ * Convert this native JavaScript data structure into an JS-Interpreter object.
+ * @param {!Array} match The native JavaScript match array to be converted.
+ * @returns {Interpreter.Object} The equivalent JS-Interpreter array or null.
+ * @private
+ */
+Interpreter.prototype.matchToPseudo_ = function(match) {
+  if (match) {
+    // ES9 adds a 'groups' property.  This isn't part of ES5.  Delete it.
+    // ES13 adds an 'indices' property though Acorn should forbid the
+    // regex 'd' flag that creates it.
+    // Future ES versions may add more properties.
+    // Delete all properties not compatible with ES5.
+    var props = /** @type {!Array<?>} */(Object.getOwnPropertyNames(match));
+    for (var i = 0; i < props.length; i++) {
+      var prop = props[i];
+      if (isNaN(Number(prop)) && prop !== 'length' &&
+          prop !== 'input' && prop !== 'index') {
+        delete match[prop];
+      }
+    }
+    // Convert from a native data structure to JS-Iterpreter objects.
+    var result = this.arrayNativeToPseudo(match);
+    return result;
+  }
+  return null;
 };
 
 /**
@@ -2653,7 +2672,7 @@ Interpreter.prototype.pseudoToNative = function(pseudoObj, opt_cycles) {
 
 /**
  * Converts from a native JavaScript array to a JS-Interpreter array.
- * Does handle non-numeric properties (like str.match's index prop).
+ * Does handle non-numeric property names (like str.match's `index` prop).
  * Does NOT recurse into the array's contents.
  * @param {!Array} nativeArray The JavaScript array to be converted.
  * @returns {!Interpreter.Object} The equivalent JS-Interpreter array.
@@ -2669,7 +2688,7 @@ Interpreter.prototype.arrayNativeToPseudo = function(nativeArray) {
 
 /**
  * Converts from a JS-Interpreter array to native JavaScript array.
- * Does handle non-numeric properties (like str.match's index prop).
+ * Does handle non-numeric property names (like str.match's `index` prop).
  * Does NOT recurse into the array's contents.
  * @param {!Interpreter.Object} pseudoArray The JS-Interpreter array,
  *     or JS-Interpreter object pretending to be an array.
