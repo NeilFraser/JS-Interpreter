@@ -695,18 +695,21 @@ Interpreter.prototype.initFunction = function(globalObject) {
       Interpreter.READONLY_NONENUMERABLE_DESCRIPTOR);
   this.FUNCTION_PROTO.class = 'Function';
 
-  wrapper = function apply(thisArg, args) {
+  wrapper = function apply_(func, thisArg, args) {
     var state =
         thisInterpreter.stateStack[thisInterpreter.stateStack.length - 1];
     // Rewrite the current CallExpression state to apply a different function.
-    state.func_ = this;
+    // Note: 'func' is provided by the polyfill as a non-standard argument.
+    state.func_ = func;
     // Assign the `this` object.
     state.funcThis_ = thisArg;
     // Bind any provided arguments.
     state.arguments_ = [];
     if (args !== null && args !== undefined) {
       if (args instanceof Interpreter.Object) {
-        state.arguments_ = thisInterpreter.arrayPseudoToNative_(args);
+        // Convert the pseudo array of args into a native array.
+        // The pseudo array's properties object happens to be array-like.
+        state.arguments_ = Array.from(args.properties);
       } else {
         thisInterpreter.throwException(thisInterpreter.TYPE_ERROR,
             'CreateListFromArrayLike called on non-object');
@@ -715,6 +718,19 @@ Interpreter.prototype.initFunction = function(globalObject) {
     state.doneExec_ = false;
   };
   this.setNativeFunctionPrototype(this.FUNCTION, 'apply', wrapper);
+
+  this.polyfills_.push(
+// Flatten the apply args list to remove any inheritance or getter functions.
+"(function() {",
+  "var apply_ = Function.prototype.apply;",
+  "Function.prototype.apply = function apply(thisArg, args) {",
+    "var a2 = [];",
+    "for (var i = 0; i < args.length; i++) {",
+      "a2[i] = args[i];",
+    "}",
+    "return apply_(this, thisArg, a2);",  // Note: Non-standard 'this' arg.
+  "};",
+"})();");
 
   wrapper = function call(thisArg /*, var_args */) {
     var state =
@@ -2675,21 +2691,6 @@ Interpreter.prototype.pseudoToNative = function(pseudoObj, opt_cycles) {
          'configurable': true});
   }
   return nativeObj;
-};
-
-/**
- * Converts from a JS-Interpreter array to native JavaScript array.
- * Does NOT recurse into the array's contents.
- * @param {!Interpreter.Object} pseudoArray A JS-Interpreter array.
- * @returns {!Array} An equivalent native JavaScript array.
- * @private
- */
-Interpreter.prototype.arrayPseudoToNative_ = function(pseudoArray) {
-  var nativeArray = [];
-  for (var key in pseudoArray.properties) {
-    nativeArray[/** @type {?} */(key)] = pseudoArray.properties[key];
-  }
-  return nativeArray;
 };
 
 /**
