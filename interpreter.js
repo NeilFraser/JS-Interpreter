@@ -706,7 +706,7 @@ Interpreter.prototype.initFunction = function(globalObject) {
     state.arguments_ = [];
     if (args !== null && args !== undefined) {
       if (args instanceof Interpreter.Object) {
-        state.arguments_ = thisInterpreter.arrayPseudoToNative(args);
+        state.arguments_ = thisInterpreter.arrayPseudoToNative_(args);
       } else {
         thisInterpreter.throwException(thisInterpreter.TYPE_ERROR,
             'CreateListFromArrayLike called on non-object');
@@ -831,8 +831,7 @@ Interpreter.prototype.initObject = function(globalObject) {
   wrapper = function getOwnPropertyNames(obj) {
     throwIfNullUndefined(obj);
     var props = (obj instanceof Interpreter.Object) ? obj.properties : obj;
-    return thisInterpreter.arrayNativeToPseudo(
-        Object.getOwnPropertyNames(props));
+    return thisInterpreter.nativeToPseudo(Object.getOwnPropertyNames(props));
   };
   this.setProperty(this.OBJECT, 'getOwnPropertyNames',
       this.createNativeFunction(wrapper, false),
@@ -843,7 +842,7 @@ Interpreter.prototype.initObject = function(globalObject) {
     if (obj instanceof Interpreter.Object) {
       obj = obj.properties;
     }
-    return thisInterpreter.arrayNativeToPseudo(Object.keys(obj));
+    return thisInterpreter.nativeToPseudo(Object.keys(obj));
   };
   this.setProperty(this.OBJECT, 'keys',
       this.createNativeFunction(wrapper, false),
@@ -1602,7 +1601,7 @@ Interpreter.prototype.initString = function(globalObject) {
           var jsList =
               thisInterpreter.vmCall(code, sandbox, separator, callback);
           if (jsList !== Interpreter.REGEXP_TIMEOUT) {
-            callback(thisInterpreter.arrayNativeToPseudo(jsList));
+            callback(thisInterpreter.nativeToPseudo(jsList));
           }
         } else {
           // Run split in separate thread.
@@ -1611,7 +1610,7 @@ Interpreter.prototype.initString = function(globalObject) {
               callback);
           splitWorker.onmessage = function(e) {
             clearTimeout(pid);
-            callback(thisInterpreter.arrayNativeToPseudo(e.data));
+            callback(thisInterpreter.nativeToPseudo(e.data));
           };
           splitWorker.postMessage(['split', string, separator, limit]);
         }
@@ -1620,7 +1619,7 @@ Interpreter.prototype.initString = function(globalObject) {
     }
     // Run split natively.
     var jsList = string.split(separator, limit);
-    callback(thisInterpreter.arrayNativeToPseudo(jsList));
+    callback(thisInterpreter.nativeToPseudo(jsList));
   };
   this.setAsyncFunctionPrototype(this.STRING, 'split', wrapper);
 
@@ -2075,7 +2074,7 @@ Interpreter.prototype.initRegExp = function(globalObject) {
  * of matches.  This array has two extra properties, 'input' and 'index'.
  * Convert this native JavaScript data structure into an JS-Interpreter object.
  * @param {!Array} match The native JavaScript match array to be converted.
- * @returns {Interpreter.Object} The equivalent JS-Interpreter array or null.
+ * @returns {Interpreter.Value} The equivalent JS-Interpreter array or null.
  * @private
  */
 Interpreter.prototype.matchToPseudo_ = function(match) {
@@ -2094,8 +2093,7 @@ Interpreter.prototype.matchToPseudo_ = function(match) {
       }
     }
     // Convert from a native data structure to JS-Iterpreter objects.
-    var result = this.arrayNativeToPseudo(match);
-    return result;
+    return this.nativeToPseudo(match);
   }
   return null;
 };
@@ -2207,7 +2205,7 @@ Interpreter.prototype.initJSON = function(globalObject) {
       thisInterpreter.throwException(thisInterpreter.TYPE_ERROR,
           'Function replacer on JSON.stringify not supported');
     } else if (replacer && replacer.class === 'Array') {
-      replacer = thisInterpreter.arrayPseudoToNative(replacer);
+      replacer = thisInterpreter.pseudoToNative(replacer);
       replacer = replacer.filter(function(word) {
         // Spec says we should also support boxed primitives here.
         return typeof word === 'string' || typeof word === 'number';
@@ -2550,27 +2548,42 @@ Interpreter.prototype.createAsyncFunction = function(asyncFunc) {
  * Can handle JSON-style values, regular expressions, dates and functions.
  * Does NOT handle cycles.
  * @param {*} nativeObj The native JavaScript object to be converted.
+ * @param {Object=} opt_cycles Cycle detection object (used by recursive calls).
  * @returns {Interpreter.Value} The equivalent JS-Interpreter object.
  */
-Interpreter.prototype.nativeToPseudo = function(nativeObj) {
-  if (nativeObj instanceof Interpreter.Object) {
-    throw Error('Object is already pseudo');
-  }
+Interpreter.prototype.nativeToPseudo = function(nativeObj, opt_cycles) {
   if (nativeObj === null || nativeObj === undefined ||
       nativeObj === true || nativeObj === false ||
       typeof nativeObj === 'string' || typeof nativeObj === 'number') {
+    // Primitive value.
     return nativeObj;
   }
+  if (nativeObj instanceof Interpreter.Object) {
+    throw Error('Object is already pseudo');
+  }
+
+  // Look up if this object has already been converted.
+  var cycles = opt_cycles || {
+    pseudo: [],
+    native: [],
+  };
+  var index = cycles.native.indexOf(nativeObj);
+  if (index !== -1) {
+    return cycles.pseudo[index];
+  }
+  cycles.native.push(nativeObj);
 
   if (nativeObj instanceof RegExp) {
     var pseudoRegexp = this.createObjectProto(this.REGEXP_PROTO);
     this.populateRegExp(pseudoRegexp, nativeObj);
+    cycles.pseudo.push(pseudoRegexp);
     return pseudoRegexp;
   }
 
   if (nativeObj instanceof Date) {
     var pseudoDate = this.createObjectProto(this.DATE_PROTO);
     pseudoDate.data = new Date(nativeObj.valueOf());
+    cycles.pseudo.push(pseudoDate);
     return pseudoDate;
   }
 
@@ -2584,23 +2597,21 @@ Interpreter.prototype.nativeToPseudo = function(nativeObj) {
       return thisInterpreter.nativeToPseudo(value);
     };
     var prototype = Object.getOwnPropertyDescriptor(nativeObj, 'prototype');
-    return this.createNativeFunction(wrapper, !!prototype);
+    var pseudoFunction = this.createNativeFunction(wrapper, !!prototype);
+    cycles.pseudo.push(pseudoFunction);
+    return pseudoFunction;
   }
 
+  var pseudoObj;
   if (Array.isArray(nativeObj)) {  // Array.
-    var pseudoArray = this.createArray();
-    for (var i = 0; i < nativeObj.length; i++) {
-      if (i in nativeObj) {
-        this.setProperty(pseudoArray, i, this.nativeToPseudo(nativeObj[i]));
-      }
-    }
-    return pseudoArray;
+    pseudoObj = this.createArray();
+  } else {  // Object.
+    pseudoObj = this.createObjectProto(this.OBJECT_PROTO);
   }
-
-  // Object.
-  var pseudoObj = this.createObjectProto(this.OBJECT_PROTO);
+  cycles.pseudo.push(pseudoObj);
   for (var key in nativeObj) {
-    this.setProperty(pseudoObj, key, this.nativeToPseudo(nativeObj[key]));
+    this.setProperty(pseudoObj, key,
+        this.nativeToPseudo(nativeObj[key], cycles));
   }
   return pseudoObj;
 };
@@ -2615,24 +2626,17 @@ Interpreter.prototype.nativeToPseudo = function(nativeObj) {
  * @returns {*} The equivalent native JavaScript object or value.
  */
 Interpreter.prototype.pseudoToNative = function(pseudoObj, opt_cycles) {
-  if ((typeof pseudoObj !== 'object' && typeof pseudoObj !== 'function') ||
-      pseudoObj === null) {
+  if (pseudoObj === null || pseudoObj === undefined ||
+      pseudoObj === true || pseudoObj === false ||
+      typeof pseudoObj === 'string' || typeof pseudoObj === 'number') {
+    // Primitive value.
     return pseudoObj;
   }
   if (!(pseudoObj instanceof Interpreter.Object)) {
     throw Error('Object is not pseudo');
   }
 
-  if (this.isa(pseudoObj, this.REGEXP)) {  // Regular expression.
-    var nativeRegExp = new RegExp(pseudoObj.data.source, pseudoObj.data.flags);
-    nativeRegExp.lastIndex = pseudoObj.data.lastIndex;
-    return nativeRegExp;
-  }
-
-  if (this.isa(pseudoObj, this.DATE)) {  // Date.
-    return new Date(pseudoObj.data.valueOf());
-  }
-
+  // Look up if this object has already been converted.
   var cycles = opt_cycles || {
     pseudo: [],
     native: [],
@@ -2642,68 +2646,49 @@ Interpreter.prototype.pseudoToNative = function(pseudoObj, opt_cycles) {
     return cycles.native[index];
   }
   cycles.pseudo.push(pseudoObj);
-  var nativeObj;
-  if (this.isa(pseudoObj, this.ARRAY)) {  // Array.
-    nativeObj = [];
-    cycles.native.push(nativeObj);
-    var len = this.getProperty(pseudoObj, 'length');
-    for (var i = 0; i < len; i++) {
-      if (this.hasProperty(pseudoObj, i)) {
-        nativeObj[i] =
-            this.pseudoToNative(this.getProperty(pseudoObj, i), cycles);
-      }
-    }
-  } else {  // Object.
-    nativeObj = {};
-    cycles.native.push(nativeObj);
-    var val;
-    for (var key in pseudoObj.properties) {
-      val = this.pseudoToNative(pseudoObj.properties[key], cycles);
-      // Use defineProperty to avoid side effects if setting '__proto__'.
-      Object.defineProperty(nativeObj, key,
-          {'value': val, 'writable': true, 'enumerable': true,
-           'configurable': true});
-    }
+
+  if (this.isa(pseudoObj, this.REGEXP)) {  // Regular expression.
+    var nativeRegExp = new RegExp(pseudoObj.data.source, pseudoObj.data.flags);
+    nativeRegExp.lastIndex = pseudoObj.data.lastIndex;
+    cycles.native.push(nativeRegExp);
+    return nativeRegExp;
   }
-  cycles.pseudo.pop();
-  cycles.native.pop();
+
+  if (this.isa(pseudoObj, this.DATE)) {  // Date.
+    var nativeDate = new Date(pseudoObj.data.valueOf());
+    cycles.native.push(nativeDate);
+    return nativeDate;
+  }
+
+  // Functions are not supported for security reasons.  Probably not a great
+  // idea for the JS-Interpreter to be able to create native JS functions.
+  // Still, if that floats your boat, this is where you'd add it.  Good luck.
+
+  var nativeObj = this.isa(pseudoObj, this.ARRAY) ? [] : {};
+  cycles.native.push(nativeObj);
+  var val;
+  for (var key in pseudoObj.properties) {
+    val = this.pseudoToNative(pseudoObj.properties[key], cycles);
+    // Use defineProperty to avoid side effects if setting '__proto__'.
+    Object.defineProperty(nativeObj, key,
+        {'value': val, 'writable': true, 'enumerable': true,
+         'configurable': true});
+  }
   return nativeObj;
 };
 
 /**
- * Converts from a native JavaScript array to a JS-Interpreter array.
- * Does handle non-numeric property names (like str.match's `index` prop).
- * Does NOT recurse into the array's contents.
- * @param {!Array} nativeArray The JavaScript array to be converted.
- * @returns {!Interpreter.Object} The equivalent JS-Interpreter array.
- */
-Interpreter.prototype.arrayNativeToPseudo = function(nativeArray) {
-  var pseudoArray = this.createArray();
-  var props = /** @type {!Array<?>} */(Object.getOwnPropertyNames(nativeArray));
-  for (var i = 0; i < props.length; i++) {
-    this.setProperty(pseudoArray, props[i], nativeArray[props[i]]);
-  }
-  return pseudoArray;
-};
-
-/**
  * Converts from a JS-Interpreter array to native JavaScript array.
- * Does handle non-numeric property names (like str.match's `index` prop).
  * Does NOT recurse into the array's contents.
- * @param {!Interpreter.Object} pseudoArray The JS-Interpreter array,
- *     or JS-Interpreter object pretending to be an array.
- * @returns {!Array} The equivalent native JavaScript array.
+ * @param {!Interpreter.Object} pseudoArray A JS-Interpreter array.
+ * @returns {!Array} An equivalent native JavaScript array.
+ * @private
  */
-Interpreter.prototype.arrayPseudoToNative = function(pseudoArray) {
+Interpreter.prototype.arrayPseudoToNative_ = function(pseudoArray) {
   var nativeArray = [];
   for (var key in pseudoArray.properties) {
-    nativeArray[/** @type {?} */(key)] = this.getProperty(pseudoArray, key);
+    nativeArray[/** @type {?} */(key)] = pseudoArray.properties[key];
   }
-  // pseudoArray might be an object pretending to be an array.  In this case
-  // it's possible that length is non-existent, invalid, or smaller than the
-  // largest defined numeric property.  Set length explicitly here.
-  nativeArray.length = Interpreter.legalArrayLength(
-      this.getProperty(pseudoArray, 'length')) || 0;
   return nativeArray;
 };
 
