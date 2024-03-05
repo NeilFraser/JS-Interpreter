@@ -30,11 +30,15 @@
   if (typeof exports === "object" && typeof module === "object") return mod(exports); // CommonJS
   if (typeof define === "function" && define.amd) return define(["exports"], mod); // AMD
   mod(root.acorn || (root.acorn = {})); // Plain browser env
-})(this, function(exports) {
+})((typeof globalThis === 'undefined') ? this : globalThis, function(exports) {
   "use strict";
 
   exports.version = "0.5.0";
   // Plus additional edits marked with 'JS-Interpreter change' comments.
+
+  // JS-Interpreter change:
+  // For global object, use 'globalThis' if it exists, fall back to 'this'.
+  // -- Neil Fraser, March 2024.
 
   // JS-Interpreter change:
   // Added JSDoc type definitions.
