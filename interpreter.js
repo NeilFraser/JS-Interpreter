@@ -201,11 +201,12 @@ Interpreter.vm = null;
 Interpreter.currentInterpreter_ = null;
 
 /**
- * The global object (`window` in a browser, `global` in node.js) is usually
- * `globalThis`, but older systems use `this`.
+ * The global object.  Ideally use `globalThis`.  Failing that try `this` or
+ * `window`.  Other options to consider are `self` and `global`.
+ * Same logic as in Acorn.
  */
 Interpreter.nativeGlobal =
-    (typeof globalThis === 'undefined') ? this : globalThis;
+    (typeof globalThis === 'undefined') ? this || window : globalThis;
 
 /**
  * Code for executing regular expressions in a thread.
