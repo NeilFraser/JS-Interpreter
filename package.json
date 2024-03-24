@@ -10,7 +10,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/mobily-enterprises/JS-Interpreter-esm.git"
+    "url": "git+https://github.com/NeilFraser/JS-Interpreter.git"
   },
   "keywords": [
     "JS-Interpreter",
@@ -19,7 +19,7 @@
   "author": "Neil Fraser",
   "license": "Apache-2.0",
   "bugs": {
-    "url": "https://github.com/mobily-enterprises/JS-Interpreter-esm/issues"
+    "url": "https://github.com/NeilFraser/JS-Interpreter/issues"
   },
-  "homepage": "https://github.com/mobily-enterprises/JS-Interpreter-esm#readme"
+  "homepage": "https://github.com/NeilFraser/JS-Interpreter#readme"
 }
