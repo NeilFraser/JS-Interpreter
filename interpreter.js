@@ -4,6 +4,30 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+var Interpreter
+
+(function (root, factory) {
+  if (typeof exports === 'object' && typeof exports.nodeName !== 'string') {
+      // CommonJS
+      //
+      // A one-liner to test commonJS is to run node and feed this to it:
+      // int = require('./interpreter.js');i = new int.Interpreter('a = new String(); 4+4;');i.run();i.value;
+      debugger
+      var acorn  = require('./acorn.js')
+      exports.parse = acorn.parse
+      exports.acornVersion = acorn.version
+      factory(exports);
+  } else if (typeof asEsm !== 'undefined'){
+      // ESM
+      // No need to define acorn, since it will be defined in an injected line
+      factory({ parse, acornVersion: version })
+  } else {  
+      // Browser globals
+      // if (!root.acorn) throw new Error('Acorn needs to be in the `window` namespace')
+      factory(root);
+  }
+}(typeof self !== 'undefined' ? self : this, function (exports) {
+
 /**
  * @fileoverview Interpreting JavaScript in JavaScript.
  * @author fraser@google.com (Neil Fraser)
@@ -18,7 +42,7 @@
  *     global scope object.
  * @constructor
  */
-var Interpreter = function(code, opt_initFunc) {
+Interpreter = function(code, opt_initFunc) {
   if (typeof code === 'string') {
     code = this.parse_(code, 'code');
   }
@@ -200,13 +224,6 @@ Interpreter.vm = null;
  */
 Interpreter.currentInterpreter_ = null;
 
-/**
- * The global object.  Ideally use `globalThis`.  Failing that try `this` or
- * `window`.  Other options to consider are `self` and `global`.
- * Same logic as in Acorn.
- */
-Interpreter.nativeGlobal =
-    (typeof globalThis === 'undefined') ? this || window : globalThis;
 
 /**
  * Code for executing regular expressions in a thread.
@@ -364,7 +381,7 @@ Interpreter.prototype.parse_ = function(code, sourceFile) {
      options[name] = Interpreter.PARSE_OPTIONS[name];
    }
    options.sourceFile = sourceFile;
-   return Interpreter.nativeGlobal.acorn.parse(code, options);
+   return exports.parse(code, options);
 };
 
 /**
@@ -1558,7 +1575,7 @@ Interpreter.prototype.initString = function(globalObject) {
   var wrapper;
   // String constructor.
   wrapper = function String(value) {
-    value = arguments.length ? Interpreter.nativeGlobal.String(value) : '';
+    value = arguments.length ? String(value) : '';
     if (thisInterpreter.calledWithNew()) {
       // Called as `new String()`.
       this.data = value;
@@ -1804,7 +1821,7 @@ Interpreter.prototype.initBoolean = function(globalObject) {
   var wrapper;
   // Boolean constructor.
   wrapper = function Boolean(value) {
-    value = Interpreter.nativeGlobal.Boolean(value);
+    value = Boolean(value);
     if (thisInterpreter.calledWithNew()) {
       // Called as `new Boolean()`.
       this.data = value;
@@ -1828,7 +1845,7 @@ Interpreter.prototype.initNumber = function(globalObject) {
   var wrapper;
   // Number constructor.
   wrapper = function Number(value) {
-    value = arguments.length ? Interpreter.nativeGlobal.Number(value) : 0;
+    value = arguments.length ? Number(value) : 0;
     if (thisInterpreter.calledWithNew()) {
       // Called as `new Number()`.
       this.data = value;
@@ -1916,12 +1933,12 @@ Interpreter.prototype.initDate = function(globalObject) {
     if (!thisInterpreter.calledWithNew()) {
       // Called as `Date()`.
       // Calling Date() as a function returns a string, no arguments are heeded.
-      return Interpreter.nativeGlobal.Date();
+      return Date();
     }
     // Called as `new Date(...)`.
     var args = [null].concat(Array.from(arguments));
     this.data = new (Function.prototype.bind.apply(
-        Interpreter.nativeGlobal.Date, args));
+        Date, args));
     return this;
   };
   this.DATE = this.createNativeFunction(wrapper, true);
@@ -2011,7 +2028,7 @@ Interpreter.prototype.initRegExp = function(globalObject) {
           'Invalid regexp flag: ' + flags);
     }
     try {
-      var nativeRegExp = new Interpreter.nativeGlobal.RegExp(pattern, flags)
+      var nativeRegExp = new RegExp(pattern, flags)
     } catch (e) {
       // Throws if flags are repeated.
       thisInterpreter.throwException(thisInterpreter.SYNTAX_ERROR, e.message);
@@ -4803,7 +4820,7 @@ Interpreter.prototype['stepWhileStatement'] =
 
 // Preserve top-level API functions from being pruned/renamed by JS compilers.
 // Add others as needed.
-Interpreter.nativeGlobal['Interpreter'] = Interpreter;
+exports.Interpreter = Interpreter;
 Interpreter.prototype['step'] = Interpreter.prototype.step;
 Interpreter.prototype['run'] = Interpreter.prototype.run;
 Interpreter.prototype['appendCode'] = Interpreter.prototype.appendCode;
@@ -4824,3 +4841,5 @@ Interpreter.prototype['getStateStack'] = Interpreter.prototype.getStateStack;
 Interpreter.prototype['setStateStack'] = Interpreter.prototype.setStateStack;
 Interpreter['VALUE_IN_DESCRIPTOR'] = Interpreter.VALUE_IN_DESCRIPTOR;
 Interpreter['Status'] = Interpreter.Status;
+}))
+

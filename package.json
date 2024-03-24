@@ -1,0 +1,25 @@
+{
+  "name": "js-interpreter-esm",
+  "version": "1.0.0",
+  "description": "Neil Fraser's official JS-Interpreter",
+  "main": "js-interpreter.js",
+  "module": "js-interpreter-esm.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "postinstall": "node createEsmFiles.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mobily-enterprises/JS-Interpreter-esm.git"
+  },
+  "keywords": [
+    "JS-Interpreter",
+    "acorn"
+  ],
+  "author": "Neil Fraser",
+  "license": "Apache-2.0",
+  "bugs": {
+    "url": "https://github.com/mobily-enterprises/JS-Interpreter-esm/issues"
+  },
+  "homepage": "https://github.com/mobily-enterprises/JS-Interpreter-esm#readme"
+}
