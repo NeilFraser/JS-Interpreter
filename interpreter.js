@@ -12,14 +12,13 @@ var Interpreter
       //
       // A one-liner to test commonJS is to run node and feed this to it:
       // int = require('./interpreter.js');i = new int.Interpreter('a = new String(); 4+4;');i.run();i.value;
-      debugger
       var acorn  = require('./acorn.js')
       exports.parse = acorn.parse
       exports.acornVersion = acorn.version
       factory(exports);
   } else if (typeof asEsm !== 'undefined'){
       // ESM
-      // No need to define acorn, since it will be defined in an injected line
+      // No need to define `parse`, since it will be defined in an injected line
       factory({ parse, acornVersion: version })
   } else {  
       // Browser globals
