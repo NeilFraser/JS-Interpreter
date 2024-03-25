@@ -1573,8 +1573,9 @@ Interpreter.prototype.initString = function(globalObject) {
   var thisInterpreter = this;
   var wrapper;
   // String constructor.
+  var OriginalString = String
   wrapper = function String(value) {
-    value = arguments.length ? String(value) : '';
+    value = arguments.length ? OriginalString(value) : '';
     if (thisInterpreter.calledWithNew()) {
       // Called as `new String()`.
       this.data = value;
@@ -1819,8 +1820,9 @@ Interpreter.prototype.initBoolean = function(globalObject) {
   var thisInterpreter = this;
   var wrapper;
   // Boolean constructor.
+  var OriginalBoolean = Boolean
   wrapper = function Boolean(value) {
-    value = Boolean(value);
+    value = OriginalBoolean(value);
     if (thisInterpreter.calledWithNew()) {
       // Called as `new Boolean()`.
       this.data = value;
@@ -1843,8 +1845,9 @@ Interpreter.prototype.initNumber = function(globalObject) {
   var thisInterpreter = this;
   var wrapper;
   // Number constructor.
+  var OriginalNumber = Number
   wrapper = function Number(value) {
-    value = arguments.length ? Number(value) : 0;
+    value = arguments.length ? OriginalNumber(value) : 0;
     if (thisInterpreter.calledWithNew()) {
       // Called as `new Number()`.
       this.data = value;
@@ -1927,17 +1930,18 @@ Interpreter.prototype.initNumber = function(globalObject) {
 Interpreter.prototype.initDate = function(globalObject) {
   var thisInterpreter = this;
   var wrapper;
+  var OriginalDate = Date
   // Date constructor.
   wrapper = function Date(_value, var_args) {
     if (!thisInterpreter.calledWithNew()) {
       // Called as `Date()`.
       // Calling Date() as a function returns a string, no arguments are heeded.
-      return Date();
+      return OriginalDate();
     }
     // Called as `new Date(...)`.
     var args = [null].concat(Array.from(arguments));
     this.data = new (Function.prototype.bind.apply(
-        Date, args));
+        OriginalDate, args));
     return this;
   };
   this.DATE = this.createNativeFunction(wrapper, true);
@@ -2006,6 +2010,7 @@ Interpreter.prototype.initRegExp = function(globalObject) {
   var thisInterpreter = this;
   var wrapper;
   // RegExp constructor.
+  var OriginalRegExp = RegExp
   wrapper = function RegExp(pattern, flags) {
     if (thisInterpreter.calledWithNew()) {
       // Called as `new RegExp()`.
@@ -2027,7 +2032,7 @@ Interpreter.prototype.initRegExp = function(globalObject) {
           'Invalid regexp flag: ' + flags);
     }
     try {
-      var nativeRegExp = new RegExp(pattern, flags)
+      var nativeRegExp = new OriginalRegExp(pattern, flags)
     } catch (e) {
       // Throws if flags are repeated.
       thisInterpreter.throwException(thisInterpreter.SYNTAX_ERROR, e.message);
