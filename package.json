@@ -1,6 +1,6 @@
 {
   "name": "js-interpreter-esm",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "Neil Fraser's official JS-Interpreter",
   "main": "interpreter.js",
   "module": "interpreter-esm.js",
