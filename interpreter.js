@@ -35,6 +35,7 @@ var Interpreter = function(code, opt_initFunc) {
   this.ast = ast;
   /**
    * Sorted array of setTimeout/setInterval tasks waiting to execute.
+   * @type {!Array<!Interpreter.Task>}
    */
   this.tasks = [];
   this.initFunc_ = opt_initFunc;
@@ -42,6 +43,10 @@ var Interpreter = function(code, opt_initFunc) {
    * True if the interpreter is paused while waiting for an async function.
    */
   this.paused_ = false;
+  /**
+   * Lines of code to execute during startup of Interpreter.
+   * @type {!Array<string>|undefined}
+   */
   this.polyfills_ = [];
   // Unique identifier for native functions.  Used in serialization.
   this.functionCounter_ = 0;
@@ -3288,6 +3293,11 @@ Interpreter.prototype.unwind = function(type, value, label) {
         }
         break;
       case 'Program':
+        if (type === Interpreter.Completion.RETURN) {
+          // While a return outside of a function call isn't normally possible,
+          // this can happen if a setTimeout/setInterval task returns.
+          return;
+        }
         // Don't pop the stateStack.
         // Leave the root scope on the tree in case the program is appended to.
         state.done = true;
