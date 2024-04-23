@@ -105,7 +105,7 @@ function deserialize(json, interpreter) {
  * @returns {!Object} Stub of real object.
  * @private
  */
- function createObjectStub_(jsonObj, functionMap) {
+function createObjectStub_(jsonObj, functionMap) {
   switch (jsonObj['type']) {
     case 'Map':
       return Object.create(null);
@@ -245,7 +245,7 @@ function populateObject_(jsonObj, obj) {
  * @returns {*} Real value.
  * @private
  */
- function decodeValue_(value) {
+function decodeValue_(value) {
   if (value && typeof value === 'object') {
     var data;
     if ((data = value['#'])) {
@@ -462,7 +462,7 @@ function encodeLoc_(loc) {
  * @param {*} value Real value.
  * @returns {*} Serialized value.
  */
- function encodeValue_(value) {
+function encodeValue_(value) {
   if (value && (typeof value === 'object' || typeof value === 'function')) {
     var ref = objectMap ? objectMap.get(value) : objectList.indexOf(value);
     if (ref === undefined || ref === -1) {

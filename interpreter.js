@@ -3282,7 +3282,8 @@ Interpreter.prototype.unwind = function(type, value, label) {
         if (type === Interpreter.Completion.RETURN) {
           state.value = value;
           return;
-        } else if (type !== Interpreter.Completion.THROW) {
+        } else if (type === Interpreter.Completion.BREAK ||
+            type === Interpreter.Completion.CONTINUE) {
           throw Error('Unsyntactic break/continue not rejected by Acorn');
         }
         break;
