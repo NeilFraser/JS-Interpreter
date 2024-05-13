@@ -76,6 +76,7 @@ while True:
   os.remove("polyfill-raw.tmp.js")
   os.remove("polyfill-comp.tmp.js")
 
+  code = code.strip()  # Trim trailing \n.
   code = json.dumps(code)
   js = js[:m1.span()[0]] + code + js[m2.span()[1]:]
 

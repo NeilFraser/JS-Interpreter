@@ -1117,12 +1117,13 @@ Interpreter.prototype.initArray = function(globalObject) {
 /* POLYFILL START */
 "(function() {",
   "function createArrayMethod_(name, func) {",
+    "Object.defineProperty(func, 'name', {value: name});",
     "Object.defineProperty(Array.prototype, name,",
         "{configurable: true, writable: true, value: func});",
   "}",
 
   "createArrayMethod_('pop',",
-    "function pop() {",
+    "function() {",
       "if (!this) throw TypeError();",
       "var o = Object(this), len = o.length >>> 0;",
       "if (!len || len < 0) {",
@@ -1138,7 +1139,7 @@ Interpreter.prototype.initArray = function(globalObject) {
   ");",
 
   "createArrayMethod_('push',",
-    "function push(var_args) {",
+    "function(var_args) {",
       "if (!this) throw TypeError();",
       "var o = Object(this), len = o.length >>> 0;",
       "for (var i = 0; i < arguments.length; i++) {",
@@ -1151,7 +1152,7 @@ Interpreter.prototype.initArray = function(globalObject) {
   ");",
 
   "createArrayMethod_('shift',",
-    "function shift() {",
+    "function() {",
       "if (!this) throw TypeError();",
       "var o = Object(this), len = o.length >>> 0;",
       "if (!len || len < 0) {",
@@ -1173,7 +1174,7 @@ Interpreter.prototype.initArray = function(globalObject) {
   ");",
 
   "createArrayMethod_('unshift',",
-    "function unshift(var_args) {",
+    "function(var_args) {",
       "if (!this) throw TypeError();",
       "var o = Object(this), len = o.length >>> 0;",
       "if (!len || len < 0) {",
@@ -1194,7 +1195,7 @@ Interpreter.prototype.initArray = function(globalObject) {
   ");",
 
   "createArrayMethod_('reverse',",
-    "function reverse() {",
+    "function() {",
       "if (!this) throw TypeError();",
       "var o = Object(this), len = o.length >>> 0;",
       "if (!len || len < 2) {",
@@ -1219,7 +1220,7 @@ Interpreter.prototype.initArray = function(globalObject) {
   ");",
 
   "createArrayMethod_('indexOf',",
-    "function indexOf(searchElement, fromIndex) {",
+    "function(searchElement, fromIndex) {",
       "if (!this) throw TypeError();",
       "var o = Object(this), len = o.length >>> 0;",
       "var n = fromIndex | 0;",
@@ -1238,7 +1239,7 @@ Interpreter.prototype.initArray = function(globalObject) {
   ");",
 
   "createArrayMethod_('lastIndexOf',",
-    "function lastIndexOf(searchElement, fromIndex) {",
+    "function(searchElement, fromIndex) {",
       "if (!this) throw TypeError();",
       "var o = Object(this), len = o.length >>> 0;",
       "if (!len) {",
@@ -1263,7 +1264,7 @@ Interpreter.prototype.initArray = function(globalObject) {
   ");",
 
   "createArrayMethod_('slice',",
-    "function slice(start, end) {",
+    "function(start, end) {",
       "if (!this) throw TypeError();",
       "var o = Object(this), len = o.length >>> 0;",
       // Handle negative value for "start"
@@ -1294,7 +1295,7 @@ Interpreter.prototype.initArray = function(globalObject) {
   ");",
 
   "createArrayMethod_('splice',",
-    "function splice(start, deleteCount, var_args) {",
+    "function(start, deleteCount, var_args) {",
       "if (!this) throw TypeError();",
       "var o = Object(this), len = o.length >>> 0;",
       "start |= 0;",
@@ -1357,7 +1358,7 @@ Interpreter.prototype.initArray = function(globalObject) {
   ");",
 
   "createArrayMethod_('concat',",
-    "function concat(var_args) {",
+    "function(var_args) {",
       "if (!this) throw TypeError();",
       "var o = Object(this);",
       "var cloned = [];",
@@ -1380,7 +1381,7 @@ Interpreter.prototype.initArray = function(globalObject) {
   ");",
 
   "createArrayMethod_('join',",
-    "function join(opt_separator) {",
+    "function(opt_separator) {",
       "if (!this) throw TypeError();",
       "var o = Object(this), len = o.length >>> 0;",
       "var sep = typeof opt_separator === 'undefined' ?",
@@ -1397,7 +1398,7 @@ Interpreter.prototype.initArray = function(globalObject) {
   // Polyfill copied from:
   // developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Array/every
   "createArrayMethod_('every',",
-    "function every(callback, thisArg) {",
+    "function(callback, thisArg) {",
       "if (!this || typeof callback !== 'function') throw TypeError();",
       "var t, k = 0;",
       "var o = Object(this), len = o.length >>> 0;",
@@ -1413,7 +1414,7 @@ Interpreter.prototype.initArray = function(globalObject) {
   // Polyfill copied from:
   // developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Array/filter
   "createArrayMethod_('filter',",
-    "function filter(callback, var_args) {",
+    "function(callback, var_args) {",
       "if (!this || typeof callback !== 'function') throw TypeError();",
       "var o = Object(this), len = o.length >>> 0;",
       "var res = [];",
@@ -1431,7 +1432,7 @@ Interpreter.prototype.initArray = function(globalObject) {
   // Polyfill copied from:
   // developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Array/forEach
   "createArrayMethod_('forEach',",
-    "function forEach(callback, thisArg) {",
+    "function(callback, thisArg) {",
       "if (!this || typeof callback !== 'function') throw TypeError();",
       "var t, k = 0;",
       "var o = Object(this), len = o.length >>> 0;",
@@ -1446,7 +1447,7 @@ Interpreter.prototype.initArray = function(globalObject) {
   // Polyfill copied from:
   // developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Array/map
   "createArrayMethod_('map',",
-    "function map(callback, thisArg) {",
+    "function(callback, thisArg) {",
       "if (!this || typeof callback !== 'function') throw TypeError();",
       "var t, k = 0;",
       "var o = Object(this), len = o.length >>> 0;",
@@ -1463,7 +1464,7 @@ Interpreter.prototype.initArray = function(globalObject) {
   // Polyfill copied from:
   // developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Array/Reduce
   "createArrayMethod_('reduce',",
-    "function reduce(callback /*, initialValue*/) {",
+    "function(callback /*, initialValue*/) {",
       "if (!this || typeof callback !== 'function') throw TypeError();",
       "var o = Object(this), len = o.length >>> 0;",
       "var k = 0, value;",
@@ -1486,7 +1487,7 @@ Interpreter.prototype.initArray = function(globalObject) {
   // Polyfill copied from:
   // developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Array/ReduceRight
   "createArrayMethod_('reduceRight',",
-    "function reduceRight(callback /*, initialValue*/) {",
+    "function(callback /*, initialValue*/) {",
       "if (!this || typeof callback !== 'function') throw TypeError();",
       "var o = Object(this), len = o.length >>> 0;",
       "var k = len - 1, value;",
@@ -1509,7 +1510,7 @@ Interpreter.prototype.initArray = function(globalObject) {
   // Polyfill copied from:
   // developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Array/some
   "createArrayMethod_('some',",
-    "function some(callback /*, thisArg*/) {",
+    "function(callback /*, thisArg*/) {",
       "if (!this || typeof callback !== 'function') throw TypeError();",
       "var o = Object(this), len = o.length >>> 0;",
       "var thisArg = arguments.length >= 2 ? arguments[1] : void 0;",
@@ -1521,7 +1522,7 @@ Interpreter.prototype.initArray = function(globalObject) {
   ");",
 
   "createArrayMethod_('sort',",
-    "function sort(opt_comp) {",  // Bubble sort!
+    "function(opt_comp) {",  // Bubble sort!
       "if (!this) throw TypeError();",
       "if (typeof opt_comp !== 'function') {",
         "opt_comp = undefined;",
@@ -1553,7 +1554,7 @@ Interpreter.prototype.initArray = function(globalObject) {
   ");",
 
   "createArrayMethod_('toLocaleString',",
-    "function toLocaleString() {",
+    "function() {",
       "if (!this) throw TypeError();",
       "var o = Object(this), len = o.length >>> 0;",
       "var out = [];",
