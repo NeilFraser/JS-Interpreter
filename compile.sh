@@ -1,4 +1,5 @@
 # Script for generating the compiled acorn_interpreter.js file.
+# For Linux, BSD, MacOS, etc.
 
 # Download Closure Compiler if not already present.
 if test -f "compiler.jar"; then

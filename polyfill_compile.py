@@ -18,7 +18,7 @@ limitations under the License.
 """ Process interpreter.tmp.js and compile the annotated polyfills.
 """
 
-_author__ = "interpreter@neil.fraser.name (Neil Fraser)"
+__author__ = "interpreter@neil.fraser.name (Neil Fraser)"
 
 import json
 import os
