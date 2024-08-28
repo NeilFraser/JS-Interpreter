@@ -1,12 +1,12 @@
 /**
  * @license
- * Copyright 2017 Google LLC
+ * Copyright 2017 Neil Fraser
  * SPDX-License-Identifier: Apache-2.0
  */
 
 /**
  * @fileoverview Saving and restoring the state of a JS-Intepreter.
- * @author fraser@google.com (Neil Fraser)
+ * @author interpreter@neil.fraser.name (Neil Fraser)
  */
 'use strict';
 

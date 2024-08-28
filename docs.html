@@ -4,6 +4,12 @@
   <meta charset="utf-8">
   <title>JS-Interpreter Documentation</title>
   <link href="demos/style.css" rel="stylesheet" type="text/css">
+  <style>
+    h2 {
+      background-color: #f7df1e;
+      padding-left: 1ex;
+    }
+  </style>
 </head>
 <body>
   <img src="logo.png" height=200 width=200 style="float: right">
@@ -19,7 +25,7 @@
 
   <p>Get the <a href="https://github.com/NeilFraser/JS-Interpreter">source code</a>.</p>
 
-  <h2>Usage</h2>
+  <h2 id="usage">Usage</h2>
 
   <p>Start by including the two JavaScript source files:</p>
 
@@ -76,7 +82,7 @@
   <code>run</code> will return true if it is blocked and needs to be called
   again at a later time.</p>
 
-  <h2>External API</h2>
+  <h2 id="external_api">External API</h2>
 
   <p>Similar to the <code>eval</code> function, the result of the last
   statement executed is available in <code>myInterpreter.value</code>:</p>
@@ -165,7 +171,7 @@
   <p>For a working example, see the
   <a href="demos/async.html">async demo</a>.</p>
 
-  <h2>Serialization</h2>
+  <h2 id="serialization">Serialization</h2>
 
   <p>A unique feature of the JS-Interpreter is its ability to pause execution,
   serialize the current state, then resume the execution at that point at a
@@ -189,7 +195,7 @@
   <p>Another example shows how to use serialization of every step to enable
   <a href="demos/backwards.html">stepping backwards</a>.</p>
 
-  <h2>Threading</h2>
+  <h2 id="threading">Threading</h2>
 
   <p>JavaScript is single-threaded, but the JS-Interpreter allows one to run
   multiple threads at the same time.  Creating two or more completely
@@ -209,7 +215,7 @@
   <p>For a working example, see the
   <a href="demos/thread.html">thread demo</a>.</p>
 
-  <h2>Status</h2>
+  <h2 id="status">Status</h2>
 
   <p>A JS-Intepreter instance has a <code>getStatus</code> function that returns
   information about what the interpreter is doing.  The return values are one of:</p>
@@ -232,7 +238,7 @@
   <p>This status information might be used to determine whether to take another
   step immediately, or call setTimeout and step later, or stop.</p>
 
-  <h2>Security</h2>
+  <h2 id="security">Security</h2>
 
   <p>A common use-case of the JS-Interpreter is to sandbox potentially hostile
   code.  The interpreter is secure by default: it does not use blacklists to
@@ -249,7 +255,7 @@
   grows too large.  For a working example, see the
   <a href="demos/size.html">size demo</a>.</p>
 
-  <h2>Regular Expressions</h2>
+  <h2 id="regular_expressions">Regular Expressions</h2>
 
   <p>Pathological regular expressions can execute in geometric time.  For example
   <code>'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaac'.match(/^(a+)+b/)</code>
@@ -257,7 +263,7 @@
   variety of methods for <a href="demos/regexp.html">safely dealing with
   regular expressions</a> depending on the platform.</p>
 
-  <h2>Limitations</h2>
+  <h2 id="limitations">Limitations</h2>
 
   <p>The version of JavaScript implemented by the interpreter has a few
   differences from that which executes in a browser:</p>
@@ -283,12 +289,12 @@
     200 times slower than native JavaScript.</dd>
   </dl>
 
-  <h2>Node.js</h2>
+  <h2 id="node_js">Node.js</h2>
 
   <p>JS-Intepreter can be run server-side using Node.js.  For a minimal demo,
   just run: <code>node <a href="demos/node.js">demos/node.js</a></code></p>
 
-  <h2>Dependency</h2>
+  <h2 id="dependency">Dependency</h2>
 
   <p>The only dependency is <a href="https://github.com/acornjs/acorn">Acorn</a>,
   a beautifully written JavaScript parser by Marijn Haverbeke.  A minimal
@@ -299,7 +305,7 @@
   doesn't use.  There's no benefit in doing so unless your project already uses
   Acorn for something else.</p>
 
-  <h2>Compatibility</h2>
+  <h2 id="compatibility">Compatibility</h2>
 
   <p>The limiting factor for browser support is the use of
   <a href="https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object/create"><code>Object.create(null)</code></a>
@@ -321,8 +327,5 @@
   <p>Additionally, if safely executing regular expressions is required, then
   IE 11 is the minimum version of IE that supports Web Workers via Blobs.</p>
 
-  <h2>Disclaimer</h2>
-
-  <p>This project is not an official Google product.</p>
 </body>
 </html>

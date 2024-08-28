@@ -1,12 +1,12 @@
 /**
  * @license
- * Copyright 2013 Google LLC
+ * Copyright 2013 Neil Fraser
  * SPDX-License-Identifier: Apache-2.0
  */
 
 /**
  * @fileoverview Interpreting JavaScript in JavaScript.
- * @author fraser@google.com (Neil Fraser)
+ * @author interpreter@neil.fraser.name (Neil Fraser)
  */
 'use strict';
 

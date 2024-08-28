@@ -1,6 +1,6 @@
 """JS-Interpreter Polyfill Compiler
 
-Copyright 2024 Google LLC
+Copyright 2024 Neil Fraser
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -18,7 +18,7 @@ limitations under the License.
 """ Process interpreter.tmp.js and compile the annotated polyfills.
 """
 
-_author__ = "fraser@google.com (Neil Fraser)"
+_author__ = "interpreter@neil.fraser.name (Neil Fraser)"
 
 import json
 import os
