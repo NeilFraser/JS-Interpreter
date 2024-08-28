@@ -14,23 +14,29 @@
       interpreter.setProperty(globalObject, 'alert',
           interpreter.createNativeFunction(wrapper));
     }
-    // Create an interpreter whose global scope will be the cross-thread global.
-    var myInterpreter = new Interpreter('', initAlert);
+    // Create one main interpreter whose global scope will be the cross-thread global.
+    var mainInterpreter = new Interpreter('', initAlert);
+    // Create an empty array to store the thread stacks.
     var threads = [];
 
     function parseButton(n) {
       var code = document.getElementById('code' + n).value;
-      var intrp = new Interpreter('');
-      // Replace this thread's global scope with the cross-thread global.
-      intrp.getStateStack()[0].scope = myInterpreter.getGlobalScope();
-      intrp.appendCode(code);
-      threads[n] = intrp.getStateStack();
+      // Create an empty, temporary interpreter (no code, no APIs).
+      var tempInterpreter = new Interpreter('');
+      // Replace this interpreter's global scope with the cross-thread global.
+      tempInterpreter.setGlobalScope(mainInterpreter.getGlobalScope());
+      // Inject this thread's code.
+      tempInterpreter.appendCode(code);
+      // Extract this interpreter's stack and add it to the thread stack array.
+      threads[n] = tempInterpreter.getStateStack();
       disable(n, '');
     }
 
     function stepButton(n) {
+      // Assign the desired stack to the main interpreter before stepping.
       var stack = threads[n];
-      myInterpreter.setStateStack(stack);
+      mainInterpreter.setStateStack(stack);
+      // Highlight the current step.
       if (stack.length) {
         var node = stack[stack.length - 1].node;
         var start = node.start;
@@ -41,7 +47,7 @@
       }
       createSelection(n, start, end);
       try {
-        var ok = myInterpreter.step();
+        var ok = mainInterpreter.step();
       } finally {
         if (!ok) {
           disable(n, 'disabled');

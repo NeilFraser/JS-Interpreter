@@ -205,12 +205,26 @@
   communicate indirectly with each other through any external APIs that are
   provided.</p>
 
-  <p>A slightly more complex case is where two or more threads should share the
-  same global scope.  To implement this, 1) create one JS-Interpreter, 2) create
-  a separate list for stacks, 3) assign the <code>.scope</code> property of the
-  root node of each stack to the interpreter's <code>.globalScope</code>
-  property, 4) then assign the desired stack to the interpreter's
-  <code>.stateStack</code> property before calling <code>step</code>.</p>
+  <p>A more complex case is where two or more threads should share the same
+  global scope.  To implement this,</p>
+  <ol>
+    <li>create one main JS-Interpreter with no code but with any needed API
+      definitions,</li>
+    <li>create an empty array to store the thread stacks,</li>
+    <li>for each thread:
+      <ol type="a">
+        <li>create a empty, temporary JS-Interpreter (no code, no APIs).</li>
+        <li>replace this interpreter's global scope with the main interpreter's global
+          (using <code>getGlobalScope</code> and <code>setGlobalScope</code>),
+        <li>inject the thread's code into this interpreter
+          (using <code>appendCode</code>),</li>
+        <li>extract the stack from this interpreter (using <code>getStateStack</code>)
+          and add the stack to the array of thread stacks,</li>
+      </ol>
+    </li>
+    <li>then assign the desired stack to the main interpreter (using
+      <code>setStateStack</code>) before calling <code>step</code>.</li>
+  </ol>
 
   <p>For a working example, see the
   <a href="demos/thread.html">thread demo</a>.</p>

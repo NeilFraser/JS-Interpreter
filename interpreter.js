@@ -3599,6 +3599,15 @@ Interpreter.prototype.getGlobalScope = function() {
 };
 
 /**
+ * Sets the global scope object.
+ * @param {!Interpreter.Scope} newScope Scope object.
+ */
+Interpreter.prototype.setGlobalScope = function(newScope) {
+  this.globalScope = newScope;
+  this.stateStack[0].scope = newScope;
+};
+
+/**
  * Return the state stack.
  * @returns {!Array<!Interpreter.State>} State stack.
  */
@@ -4855,6 +4864,7 @@ Interpreter.prototype['getStatus'] = Interpreter.prototype.getStatus;
 Interpreter.prototype['nativeToPseudo'] = Interpreter.prototype.nativeToPseudo;
 Interpreter.prototype['pseudoToNative'] = Interpreter.prototype.pseudoToNative;
 Interpreter.prototype['getGlobalScope'] = Interpreter.prototype.getGlobalScope;
+Interpreter.prototype['setGlobalScope'] = Interpreter.prototype.setGlobalScope;
 Interpreter.prototype['getStateStack'] = Interpreter.prototype.getStateStack;
 Interpreter.prototype['setStateStack'] = Interpreter.prototype.setStateStack;
 Interpreter['VALUE_IN_DESCRIPTOR'] = Interpreter.VALUE_IN_DESCRIPTOR;
