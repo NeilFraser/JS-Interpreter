@@ -26,14 +26,25 @@
 // [dammit]: acorn_loose.js
 // [walk]: util/walk.js
 
-(function(root, mod) {
-  if (typeof exports === "object" && typeof module === "object") return mod(exports); // CommonJS
-  if (typeof define === "function" && define.amd) return define(["exports"], mod); // AMD
-  mod(root.acorn || (root.acorn = {})); // Plain browser env
-})((typeof globalThis === 'undefined') ? this || window : globalThis, function(exports) {
+var parse
+var version
+
+(function (root, factory) {
+   if (typeof exports === 'object' && typeof exports.nodeName !== 'string') {
+      // CommonJS. The commonJS module will export 'parse' and 'version'
+      factory(exports);
+    } else if (typeof asEsm !== 'undefined'){
+      // ESM
+      factory({})
+  } else {
+      // Browser globals. In this case, only window.acorn will be set,
+      // which will contain 'parse' and 'version'
+      factory(root.acorn || (root.acorn = {}));
+  }
+}(typeof self !== 'undefined' ? self : this, function (exports) {
   "use strict";
 
-  exports.version = "0.5.0";
+  exports.version = version = "0.5.0";
   // Plus additional edits marked with 'JS-Interpreter change' comments.
 
   // JS-Interpreter change:
@@ -73,7 +84,7 @@
    * @param {Object=} opts
    * @returns
    */
-  exports.parse = function(inpt, opts) {
+  exports.parse = parse = function(inpt, opts) {
     input = String(inpt);
     inputLen = input.length;
     setOptions(opts);
@@ -2280,4 +2291,4 @@
     return finishNode(node, "Identifier");
   }
 
-});
+}))

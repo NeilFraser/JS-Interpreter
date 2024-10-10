@@ -1,0 +1,25 @@
+{
+  "name": "js-interpreter-esm",
+  "version": "1.0.3",
+  "description": "Neil Fraser's official JS-Interpreter",
+  "main": "interpreter.js",
+  "module": "interpreter-esm.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "postinstall": "node createEsmFiles.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/NeilFraser/JS-Interpreter.git"
+  },
+  "keywords": [
+    "JS-Interpreter",
+    "acorn"
+  ],
+  "author": "Neil Fraser",
+  "license": "Apache-2.0",
+  "bugs": {
+    "url": "https://github.com/NeilFraser/JS-Interpreter/issues"
+  },
+  "homepage": "https://github.com/NeilFraser/JS-Interpreter#readme"
+}
