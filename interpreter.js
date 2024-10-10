@@ -2594,7 +2594,7 @@ Interpreter.prototype.createAsyncFunction = function(asyncFunc) {
 /**
  * Converts from a native JavaScript object or value to a JS-Interpreter object.
  * Can handle JSON-style values, regular expressions, dates and functions.
- * Does NOT handle cycles.
+ * Does handle cycles.
  * @param {*} nativeObj The native JavaScript object to be converted.
  * @param {Object=} opt_cycles Cycle detection object (used by recursive calls).
  * @returns {Interpreter.Value} The equivalent JS-Interpreter object.
@@ -2667,6 +2667,7 @@ Interpreter.prototype.nativeToPseudo = function(nativeObj, opt_cycles) {
 /**
  * Converts from a JS-Interpreter object to native JavaScript object.
  * Can handle JSON-style values, regular expressions, and dates.
+ * Does not handle functions (for security reasons).
  * Does handle cycles.
  * @param {Interpreter.Value} pseudoObj The JS-Interpreter object to be
  * converted.
