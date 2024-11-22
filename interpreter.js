@@ -2635,6 +2635,21 @@ Interpreter.prototype.nativeToPseudo = function(nativeObj, opt_cycles) {
     return pseudoDate;
   }
 
+  // Boxed primitives.
+  var pseudoBox;
+  if (nativeObj instanceof Number) {
+    pseudoBox = this.createObject(this.NUMBER);
+  } else if (nativeObj instanceof String) {
+    pseudoBox = this.createObject(this.STRING);
+  } else if (nativeObj instanceof Boolean) {
+    pseudoBox = this.createObject(this.BOOLEAN);
+  }
+  if (pseudoBox) {
+    pseudoBox.data = nativeObj.valueOf();
+    cycles.pseudo.push(pseudoBox);
+    return pseudoBox;
+  }
+
   if (typeof nativeObj === 'function') {
     var thisInterpreter = this;
     var wrapper = function() {
@@ -2707,6 +2722,15 @@ Interpreter.prototype.pseudoToNative = function(pseudoObj, opt_cycles) {
     var nativeDate = new Date(pseudoObj.data.valueOf());
     cycles.native.push(nativeDate);
     return nativeDate;
+  }
+
+  // Boxed primitives.
+  if (this.isa(pseudoObj, this.NUMBER) ||
+      this.isa(pseudoObj, this.STRING) ||
+      this.isa(pseudoObj, this.BOOLEAN)) {
+    var nativeBox = Object(pseudoObj.data);
+    cycles.native.push(nativeBox);
+    return nativeBox;
   }
 
   // Functions are not supported for security reasons.  Probably not a great
