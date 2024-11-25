@@ -280,8 +280,8 @@ Interpreter.legalArrayIndex = function(x) {
  * constant value.  Used to remove highlighting from polyfills and to set
  * highlighting in an eval to cover the entire eval expression.
  * @param {!Object} node AST node.
- * @param {number=} start Starting character of all nodes, or undefined.
- * @param {number=} end Ending character of all nodes, or undefined.
+ * @param {number|undefined} start Starting character of all nodes, or undefined.
+ * @param {number|undefined} end Ending character of all nodes, or undefined.
  * @private
  */
 Interpreter.stripLocations_ = function(node, start, end) {
@@ -296,7 +296,7 @@ Interpreter.stripLocations_ = function(node, start, end) {
     delete node.end;
   }
   for (var name in node) {
-    if (name !== 'loc' && node.hasOwnProperty(name)) {
+    if (node[name] !== node.loc && node.hasOwnProperty(name)) {
       var prop = node[name];
       if (prop && typeof prop === 'object') {
         Interpreter.stripLocations_(/** @type {!Object} */(prop), start, end);
@@ -3203,7 +3203,7 @@ Interpreter.prototype.populateScope_ = function(node, scope) {
         // All the structures within which a variable or function could hide.
         var nodeClass = node.constructor;
         for (var name in node) {
-          if (name === 'loc') continue;
+          if (node[name] === node.loc) continue;
           var prop = node[name];
           if (prop && typeof prop === 'object') {
             var childCache;
@@ -3467,7 +3467,7 @@ Interpreter.prototype.createTask_ = function(isInterval, args) {
     }
     node.type = 'EvalProgram_';
     node.body = ast.body;
-    // Change highlighting to encompas the string.
+    // Change highlighting to encompass the string.
     var execNode = parentState.node.arguments[0];
     var execStart = execNode ? execNode.start : undefined;
     var execEnd = execNode ? execNode.end : undefined;
@@ -4875,22 +4875,22 @@ Interpreter.prototype['stepWhileStatement'] =
 Interpreter.nativeGlobal['Interpreter'] = Interpreter;
 Interpreter.prototype['step'] = Interpreter.prototype.step;
 Interpreter.prototype['run'] = Interpreter.prototype.run;
+Interpreter.prototype['getStatus'] = Interpreter.prototype.getStatus;
 Interpreter.prototype['appendCode'] = Interpreter.prototype.appendCode;
 Interpreter.prototype['createObject'] = Interpreter.prototype.createObject;
 Interpreter.prototype['createObjectProto'] =
     Interpreter.prototype.createObjectProto;
-Interpreter.prototype['createAsyncFunction'] =
-    Interpreter.prototype.createAsyncFunction;
 Interpreter.prototype['createNativeFunction'] =
     Interpreter.prototype.createNativeFunction;
+Interpreter.prototype['createAsyncFunction'] =
+    Interpreter.prototype.createAsyncFunction;
 Interpreter.prototype['getProperty'] = Interpreter.prototype.getProperty;
 Interpreter.prototype['setProperty'] = Interpreter.prototype.setProperty;
-Interpreter.prototype['getStatus'] = Interpreter.prototype.getStatus;
 Interpreter.prototype['nativeToPseudo'] = Interpreter.prototype.nativeToPseudo;
 Interpreter.prototype['pseudoToNative'] = Interpreter.prototype.pseudoToNative;
 Interpreter.prototype['getGlobalScope'] = Interpreter.prototype.getGlobalScope;
 Interpreter.prototype['setGlobalScope'] = Interpreter.prototype.setGlobalScope;
 Interpreter.prototype['getStateStack'] = Interpreter.prototype.getStateStack;
 Interpreter.prototype['setStateStack'] = Interpreter.prototype.setStateStack;
-Interpreter['VALUE_IN_DESCRIPTOR'] = Interpreter.VALUE_IN_DESCRIPTOR;
 Interpreter['Status'] = Interpreter.Status;
+Interpreter['VALUE_IN_DESCRIPTOR'] = Interpreter.VALUE_IN_DESCRIPTOR;
