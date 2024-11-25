@@ -33,17 +33,16 @@
     }
 
     function stepButton(n) {
+      var start = 0;
+      var end = 0;
       // Assign the desired stack to the main interpreter before stepping.
       var stack = threads[n];
       mainInterpreter.setStateStack(stack);
       // Highlight the current step.
       if (stack.length) {
         var node = stack[stack.length - 1].node;
-        var start = node.start;
-        var end = node.end;
-      } else {
-        var start = 0;
-        var end = 0;
+        start = node.start;
+        end = node.end;
       }
       createSelection(n, start, end);
       try {

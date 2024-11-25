@@ -24,14 +24,13 @@
     }
 
     function stepButton(n) {
+      var start = 0;
+      var end = 0;
       var stack = myInterpreter[n].getStateStack();
       if (stack.length) {
         var node = stack[stack.length - 1].node;
-        var start = node.start;
-        var end = node.end;
-      } else {
-        var start = 0;
-        var end = 0;
+        start = node.start;
+        end = node.end;
       }
       createSelection(n, start, end);
       try {
@@ -79,11 +78,11 @@
   <h1>JS-Interpreter RegExp Demo</h1>
 
   <p>Pathological regular expressions can execute in geometric time.
-  For example <code>'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaac'.match(/^(a+)+b/)</code>
-  will effectively crash any JavaScript runtime.  JS-Interpreter has three modes
-  for handling regular expressions.</p>
+  For example <code>'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaac'.match(/^(a+)+b/)</code>
+  will effectively crash many JavaScript runtimes.  JS-Interpreter instances
+  have three modes for handling regular expressions.</p>
 
-  <h2>REGEXP_MODE = 0</h2>
+  <h2>myInterpreter.REGEXP_MODE = 0</h2>
 
   <p>In mode 0, all regular expressions are disabled and throw an error.  This
   is safe and works in every environment.</p>
@@ -101,10 +100,13 @@ try {
   <button onclick="runButton(0)" id="runButton0" disabled="disabled">Run</button>
   </p>
 
-  <h2>REGEXP_MODE = 1</h2>
+  <h2>myInterpreter.REGEXP_MODE = 1</h2>
 
   <p>In mode 1, all regular expressions are executed natively.  This
-  is potentially <i>unsafe</i> and works in every environment.</p>
+  is potentially <i>unsafe</i> and works in every environment.  Note that to
+  exploit this vulnerability the malicious user generally needs to have access
+  to setting both the regular expression and the matching string.  And the worst
+  case result is just a crash, not an escape from the sandbox.</p>
 
   <p><textarea id="code1" spellcheck="false">
 // This regular expression is fine and returns 'll'.
@@ -115,22 +117,25 @@ alert('hello'.match(/(.)\1+/)[0]);
   <button onclick="runButton(1)" id="runButton1" disabled="disabled">Run</button>
   </p>
 
-  <h2>REGEXP_MODE = 2 (default mode)</h2>
+  <h2>myInterpreter.REGEXP_MODE = 2 (default mode)</h2>
 
   <p>In mode 2, all regular expressions are executed in a separate environment.
-  In web browsers this means asynchronously in a Web Worker thread, in Node.js
+  In web browsers this means asynchronously in a Web Worker thread.  In Node.js
   this means synchronously in a VM.  If a regular expression takes more than
-  REGEXP_THREAD_TIMEOUT (default 1000 ms) then it is terminated and an error
-  thrown.  This is safe and works in most environments.  If Web Workers or VM
-  is not supported (meaning IE 9 or IE 10), then all regular expressions throw
-  an error.</p>
+  myInterpreter.REGEXP_THREAD_TIMEOUT (default 1000 ms) then it is terminated
+  and an error thrown.  This is safe and works in most environments.</p>
+
+  <p>If neither Web Workers nor VMs are supported (such as Internet Explorer 9
+  or 10, or the JS-Intepreter interpreting itself, or some special enviornments
+  such as browser extensions), then all regular expressions will throw an error
+  (same as REGEXP_MODE 0).</p>
 
   <p><textarea id="code2" spellcheck="false">
 // This regular expression is fine and returns 'aaac'.
 alert('aaac'.split(/^(a+)+b/));
 try {
   // This regular expression is pathological and hits the timeout.
-  alert('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaac'.split(/^(a+)+b/));
+  alert('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaac'.split(/^(a+)+b/));
 } catch (e) {
   alert(e);
 }

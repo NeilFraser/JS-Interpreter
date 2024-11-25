@@ -23,14 +23,13 @@
     }
 
     function stepButton() {
+      var start = 0;
+      var end = 0;
       if (myInterpreter.stateStack.length) {
         var node =
             myInterpreter.stateStack[myInterpreter.stateStack.length - 1].node;
-        var start = node.start;
-        var end = node.end;
-      } else {
-        var start = 0;
-        var end = 0;
+        start = node.start;
+        end = node.end;
       }
       createSelection(start, end);
       try {

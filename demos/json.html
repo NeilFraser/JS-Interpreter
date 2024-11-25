@@ -35,14 +35,13 @@
     }
 
     function stepButton() {
+      var start = 0;
+      var end = 0;
       var stack = myInterpreter.getStateStack();
       if (stack.length) {
         var node = stack[stack.length - 1].node;
-        var start = node.start;
-        var end = node.end;
-      } else {
-        var start = 0;
-        var end = 0;
+        start = node.start;
+        end = node.end;
       }
       createSelection(start, end);
       try {
