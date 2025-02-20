@@ -104,7 +104,7 @@ try {
 
   <p>In mode 1, all regular expressions are executed natively.  This
   is potentially <i>unsafe</i> and works in every environment.  Note that to
-  exploit this vulnerability the malicious user generally needs to have access
+  exploit this vulnerability, the malicious user generally needs to have access
   to setting both the regular expression and the matching string.  And the worst
   case result is just a crash, not an escape from the sandbox.</p>
 
@@ -126,7 +126,7 @@ alert('hello'.match(/(.)\1+/)[0]);
   and an error thrown.  This is safe and works in most environments.</p>
 
   <p>If neither Web Workers nor VMs are supported (such as Internet Explorer 9
-  or 10, or the JS-Intepreter interpreting itself, or some special enviornments
+  or 10, or the JS-Intepreter interpreting itself, or some special environments
   such as browser extensions), then all regular expressions will throw an error
   (same as REGEXP_MODE 0).</p>
 
