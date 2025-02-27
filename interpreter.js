@@ -732,7 +732,7 @@ Interpreter.prototype.initFunction = function(globalObject) {
   "var apply_ = Function.prototype.apply;",
   "Function.prototype.apply = function apply(thisArg, args) {",
     "var a2 = [];",
-    "for (var i = 0; i < args.length; i++) {",
+    "for (var i = 0; args && i < args.length; i++) {",
       "a2[i] = args[i];",
     "}",
     "return apply_(this, thisArg, a2);",  // Note: Non-standard 'this' arg.
