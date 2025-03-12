@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>JS-Interpreter Reference Manual</title>
+  <link href="demos/style.css" rel="stylesheet" type="text/css">
+  <style>
+    h2 {
+      background-color: #f7df1e;
+      padding-left: 1ex;
+    }
+  </style>
+</head>
+<body>
+  <img src="logo.png" height=200 width=200 style="float: right">
+  <h1>JS-Interpreter Reference Manual</h1>
+
+  <p>JS-Interpreter can be used with as little as the constructor, the
+  <code>run</code> function, and the <code>value</code> property:</p>
+
+  <pre>var myInterpreter = new Interpreter('6 * 7');
+myInterpreter.run();
+alert(myInterpreter.value);</pre>
+
+  <p>However, if one wants to create APIs for the interpreted code to call,
+    tighter control of how execution runs, or multi-threading, then the
+    reference material below will be needed.</p>
+
+  <p></p>
+    
+  <p>Read the <a href="docs.html">JS-Interpreter documentation</a>.</p>
+
+  <p>Play with the <a href="index.html">JS-Interpreter demo</a>.</p>
+
+  <p>Get the <a href="https://github.com/NeilFraser/JS-Interpreter">source code</a>.</p>
+
+  <h2 id="constructor">Constructor</h2>
+  <dl>
+    <dt><code>Interpreter(code, opt_initFunc)</code></dt>
+    <dd>
+      Creates a new JS-Intepreter instance, ready to execute the provided code.
+      <ul>
+        <li><code>code</code> -- The JavaScript code to execute.  Either a
+        string of code, or (unusually) a pre-parsed AST object.</li>
+        <li><code>opt_initFunc</code> -- A function which (if present) is
+        called to allow API methods to be added to the new interpreter.
+        This function is called with two arguments, the interpreter instance,
+        and its global object.</li>
+      </ul>
+    </dd>
+    <dd>Example:
+      <pre>var initFunc = function(interpreter, globalObject) {
+  var wrapper = function alert(text) {
+    return window.alert(text);
+  };
+  interpreter.setProperty(globalObject, 'alert',
+      interpreter.createNativeFunction(wrapper));
+};
+myInterpreter = new Interpreter('alert(6 * 7)', initFunc);</pre>
+    </dd>
+  </dl>
+
+  <h2 id="instance_properties">Instance properties</h2>
+
+  <dl>
+    <dt><code>value</code></dt>
+    <dd>
+      Stores the final computed value, similar to the <code>eval</code> function.
+    </dd>
+    <dd>Example:
+      <pre>var myInterpreter = new Interpreter('6 * 7');
+myInterpreter.run();
+alert(myInterpreter.value);</pre>
+    </dd>
+  </dl>
+
+  <h2 id="instance_methods">Instance methods</h2>
+
+  <dl>
+    <dt><code>step()</code></dt>
+    <dd>
+      Executes the interpreter by a single step.  Returns <code>true</code>
+      if there are additional steps to execute, <code>false</code> if execution
+      is complete and no tasks are pending.
+    </dd>
+    <dd>Example:
+      <pre>function nextStep() {
+  if (myInterpreter.step()) {
+    window.setTimeout(nextStep, 0);
+  }
+}
+nextStep();</pre>
+    </dd>
+
+    <dt><code>run()</code></dt>
+    <dd>
+      Executes the interpreter until it runs out of code (as indicated by a
+      return value of <code>false</code>), or until an asynchonous function
+      pauses execution (as indicated by a return value of <code>true</code>).
+      This function is not recommended if infinite loops are possible, or
+      <code>setTimeout/setInterval</code> are present.
+    </dd>
+    <dd>Example:
+      <pre>myInterpreter.run();</pre>
+    </dd>
+
+    <dt><code>getStatus()</code></dt>
+    <dd>Returns the current status of the interpreter.
+    See the <a href="#status">Status</a> section for details.</ul>
+    Usage:
+      <pre>if (myInterpreter.getStatus() === Interpreter.Status.DONE) {...}</pre>
+    </dd>
+
+    <dt><code>appendCode()</code></dt>
+    <dd>
+      Add more code to the interpreter.  This code is appended to the code
+      provided in the constructor, or appended to the code provided by previous
+      calls to <code>appendCode</code>.  Code may be added at any time, even
+      after the status reports "DONE".
+      <ul>
+        <li><code>code</code> -- The JavaScript code to execute.  Either a
+        string of code, or (unusually) a pre-parsed AST object.</li>
+      </ul>
+    </dd>
+    <dd>Example:
+      <pre>myInterpreter.appendCode('foo();');</pre>
+    </dd>
+
+    <dt><code>createObject(constructor)</code></dt>
+    <dd>
+      Create a new data object based on a constructor's prototype.
+    </dd>
+    <dd>Example:
+      <pre>
+</pre></dd>
+
+    <dt><code>createObjectProto(proto)</code></dt>
+    <dd>
+      Create a new data object based on a prototype.
+    </dd>
+    <dd>Example:
+      <pre>
+</pre></dd>
+
+    <dt><code>createNativeFunction(nativeFunc, isConstructor)</code></dt>
+    <dd>
+      Create a new native function.
+    </dd>
+    <dd>Example:
+      <pre>
+</pre></dd>
+
+<dt><code>createAsyncFunction(asyncFunc)</code></dt>
+    <dd>
+      Create a new native asynchronous function.
+    </dd>
+    <dd>Example:
+      <pre>
+</pre></dd>
+
+    <dt><code>getProperty(obj, name)</code></dt>
+    <dd>
+      Fetch a property value from a data object.
+    </dd>
+    <dd>Example:
+      <pre>
+</pre></dd>
+
+    <dt><code>setProperty(obj, name, value, opt_descriptor)</code></dt>
+    <dd>
+      Set a property value on a data object.
+    </dd>
+    <dd>Example:
+      <pre>
+</pre></dd>
+
+    <dt><code>nativeToPseudo(nativeObj, opt_cycles)</code></dt>
+    <dd>
+      Converts from a native JavaScript object or value to a JS-Interpreter object.
+      Can handle JSON-style values, regular expressions, dates and functions.
+    </dd>
+    <dd>Example:
+      <pre>
+</pre></dd>
+
+    <dt><code>pseudoToNative(pseudoObj, opt_cycles)</code></dt>
+    <dd>
+      Converts from a JS-Interpreter object to native JavaScript object.
+      Can handle JSON-style values, regular expressions, and dates.
+    </dd>
+    <dd>Example:
+      <pre>
+</pre></dd>
+
+    <dt><code>getGlobalScope()</code></dt>
+    <dd>
+      Return the global scope object.
+    </dd>
+    <dd>Example:
+      <pre>
+</pre></dd>
+
+    <dt><code>setGlobalScope()</code></dt>
+    <dd>
+      Sets the global scope object.
+    </dd>
+    <dd>Example:
+      <pre>
+</pre></dd>
+
+<dt><code>getStateStack()</code></dt>
+    <dd>
+      Return the state stack.
+    </dd>
+    <dd>Example:
+      <pre>
+</pre></dd>
+
+    <dt><code>setStateStack(newStack)</code></dt>
+    <dd>
+      Replace the state stack with a new one.
+    </dd>
+    <dd>Example:
+      <pre>
+</pre></dd>
+  </dl>
+
+  <h2 id="static_properties">Static properties</h2>
+
+  <dl>
+    <dt><code>Status</code></dt>
+    <dd>A map of possible output values for the <code>getStatus</code> function.
+    Possible values are <code>DONE</code>, <code>STEP</code>, <code>TASK</code>,
+    or <code>ASYNC</code>.</dd>
+
+    <dt><code>VALUE_IN_DESCRIPTOR</code></dt>
+    <dd> Unique symbol for indicating, when used as the value of the 'value'
+    parameter in calls to <code>setProperty</code>, that the value should be
+    taken from the property descriptor instead.</dd>
+  </dl>
+
+</body>
+</html>
