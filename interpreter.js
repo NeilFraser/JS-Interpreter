@@ -780,6 +780,8 @@ Interpreter.prototype.initFunction = function(globalObject) {
       "fNOP.prototype = this.prototype;",
     "}",
     "fBound.prototype = new fNOP();",
+    "Object.defineProperty(fBound, 'name', {value: 'bound ' + (this.name || 'anonymous')});",
+    "Object.defineProperty(fBound, 'length', {value: Math.max(0, this.length - aArgs.length)});",
     "return fBound;",
   "}",
 "});",
