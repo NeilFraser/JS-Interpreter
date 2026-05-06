@@ -1623,7 +1623,9 @@ Interpreter.prototype.initString = function(globalObject) {
 
   wrapper = function split(separator, limit, callback) {
     var string = String(this);
-    limit = limit ? Number(limit) : undefined;
+    if (limit !== undefined) {
+      limit = Number(limit);
+    }
     // Example of catastrophic split RegExp:
     // 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaac'.split(/^(a+)+b/)
     if (thisInterpreter.isa(separator, thisInterpreter.REGEXP)) {
