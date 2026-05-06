@@ -1102,7 +1102,7 @@ Interpreter.prototype.initArray = function(globalObject) {
 
   // Static methods on Array.
   wrapper = function isArray(obj) {
-    return obj && obj.class === 'Array';
+    return obj ? obj.class === 'Array' : false;
   };
   this.setProperty(this.ARRAY, 'isArray',
                    this.createNativeFunction(wrapper, false),
