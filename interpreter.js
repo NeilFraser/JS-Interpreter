@@ -1525,7 +1525,7 @@ Interpreter.prototype.initArray = function(globalObject) {
     "function(opt_comp) {",  // Bubble sort!
       "if (!this) throw TypeError();",
       "if (typeof opt_comp !== 'function') {",
-        "opt_comp = undefined;",
+        "throw TypeError('invalid Array.prototype.sort argument');",
       "}",
       "for (var i = 0; i < this.length; i++) {",
         "var changes = 0;",
