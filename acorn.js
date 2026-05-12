@@ -172,12 +172,11 @@
     for (var line = 1, cur = 0;;) {
       lineBreak.lastIndex = cur;
       var match = lineBreak.exec(input);
-      if (match && match.index < offset) {
-        ++line;
-        cur = match.index + match[0].length;
-      } else {
+      if (!match || match.index >= offset) {
         break;
       }
+      ++line;
+      cur = match.index + match[0].length;
     }
     return {line: line, column: offset - cur};
   };
