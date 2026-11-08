@@ -4823,7 +4823,7 @@ Interpreter.prototype['stepTryStatement'] = function(stack, state, node) {
   if (state.cv && state.cv.type === Interpreter.Completion.THROW &&
       !state.doneHandler_ && node.handler) {
     state.doneHandler_ = true;
-    // Create an new scope and add the error variable.
+    // Create a new scope and add the error variable.
     var scope = this.createSpecialScope(state.scope);
     this.setProperty(scope.object, node.handler.param.name, state.cv.value);
     state.cv = undefined;  // This error has been handled, don't rethrow.
